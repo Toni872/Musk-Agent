@@ -1,0 +1,18 @@
+{
+  "name": "musk-simulation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone simulation harness for the MUSK MVP conversational agent (no real channel, no real leads, no CRM).",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "sim": "tsx src/simulator.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}
