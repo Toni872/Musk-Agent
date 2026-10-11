@@ -8,8 +8,9 @@ import { describe, expect, it } from 'vitest';
 
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
+import { DEMO_CONTENT } from '../src/content.demo';
 import { MockProvider } from '../src/llm';
-import { RULES } from '../src/rules';
+import { guardReply, RULES } from '../src/rules';
 
 const lead: LeadContact = {
   id: 'lead-test-001',
@@ -141,5 +142,18 @@ describe('structural guards', () => {
     expect(source).toMatch(/formación elegida/);
     expect(source).toMatch(/mensaje inicial/);
     expect(source).toMatch(/cualificación/);
+  });
+
+  // The DEMO sample profile (src/content.demo.ts) must never carry money text
+  // and every FAQ answer must pass the output guard, so the sample can be shown
+  // without leaking forbidden content.
+  it('DEMO_CONTENT: sin importes y respuestas FAQ válidas para el guard', () => {
+    const json = JSON.stringify(DEMO_CONTENT);
+    expect(json).not.toMatch(/€/);
+    expect(json).not.toMatch(/\beuros?\b/i);
+    for (const entry of DEMO_CONTENT.faq) {
+      const result = guardReply(entry.answer);
+      expect(result.ok, `FAQ "${entry.id}" no debe violar el guard: ${JSON.stringify(result.violations)}`).toBe(true);
+    }
   });
 });

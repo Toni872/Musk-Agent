@@ -11,6 +11,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 3. `npm test` → 6 tests obligatorios + tests estructurales, sin red ni API key.
 4. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 5. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
+6. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
 
 ## Qué hace y qué no hace
 
@@ -21,7 +22,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
 | LLM | Opcional; solo para respuestas generales con FAQ aprobada |
 | Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
-| Contenido de la formación | Stub con marcadores `TODO(decisión)` |
+| Contenido de la formación | Stub con `TODO(decisión)`; perfil de muestra DEMO para demostración (`--demo`) |
 
 ## Estructura
 
@@ -29,6 +30,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 |---|---|
 | `src/rules.ts` | Las 11 reglas duras como datos, disparadores de parada y derivación, plantillas de respuesta aprobada y guard de salida (`guardReply`) |
 | `src/content.ts` | Modelo de contenido aprobado para UNA formación; valores stub con `TODO(decisión)`; sin campos de precio ni de temario |
+| `src/content.demo.ts` | Perfil de contenido DEMO de muestra (no aprobado por MUSK), cargado solo con `--demo`; sin importes y con respuestas FAQ validadas por el guard |
 | `src/intent.ts` | Clasificador determinista en español (price, temario, financiacion, unknown, human, stop, general) con normalización es-ES |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
 | `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`) |
@@ -69,6 +71,10 @@ Todos los marcadores visibles están en `src/content.ts`:
 - Respuestas FAQ pendientes de validación por Nicolas.
 
 Decisiones que este arnés deja configurables fuera del contenido: receptor de los avisos y cobertura, mecanismo de llamada (solicitar contacto vs acordar momento), cadencia de seguimiento y reglas de parada, etiquetas conversacionales definitivas, configuración del canal y base legal. No se presentan como acordadas.
+
+## Contenido DEMO (muestra, no aprobado)
+
+`src/content.demo.ts` es un perfil de **muestra** que existe solo para que la demo funcione de punta a punta sin los `TODO(decisión)`. Se carga únicamente con `--demo` (`npm run sim:demo` o `npm run sim -- --demo`) y el simulador avisa en pantalla `Content: DEMO SAMPLE (not approved by MUSK)`. **No es una decisión tomada con Nicolas**: todos sus valores son propuestas y se reemplazan una vez MUSK decida la formación, las FAQ, el mensaje inicial y las preguntas de cualificación. Para pasar a contenido real basta con completar `APPROVED_CONTENT` en `src/content.ts` y correr sin `--demo`.
 
 ## Contexto histórico (no son objetivos ni parámetros)
 

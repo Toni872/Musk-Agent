@@ -1,7 +1,13 @@
 // CLI entry point for the MUSK simulation harness.
 //
-//   npm run sim              -> interactive REPL (lead writes, agent replies)
-//   npm run sim -- --smoke   -> ONE scripted turn, exits 0 without stdin
+//   npm run sim                    -> interactive REPL (lead writes, agent replies)
+//   npm run sim -- --smoke         -> ONE scripted turn, exits 0 without stdin
+//   npm run sim -- --demo          -> interactive REPL with the DEMO sample content
+//   npm run sim -- --demo --smoke  -> one scripted turn with the DEMO sample content
+//
+// --demo loads src/content.demo.ts (clearly-labelled SAMPLE, not approved by
+// MUSK) so a full conversation runs without the TODO(decisión) stubs. Without
+// --demo the real approved-content stubs are used.
 //
 // Standalone by design: no WhatsApp, no real leads, no CRM. The only optional
 // network dependency is the LLM provider used for 'general' FAQ replies; the
@@ -10,8 +16,24 @@
 import { createInterface } from 'node:readline/promises';
 
 import { MuskAgent, type LeadContact, type TurnResult } from './agent';
-import { APPROVED_CONTENT } from './content';
+import { APPROVED_CONTENT, type ApprovedContent } from './content';
+import { DEMO_CONTENT } from './content.demo';
 import { loadLLMConfigFromEnv, OpenAICompatibleLLM, type LLMProvider } from './llm';
+
+const args = process.argv.slice(2);
+const useDemoContent = args.includes('--demo');
+
+// Content profile: the real (stub, TODO(decisión)) approved content by default,
+// or the clearly-labelled DEMO sample when --demo is passed.
+const CONTENT: ApprovedContent = useDemoContent ? DEMO_CONTENT : APPROVED_CONTENT;
+
+function printContentBanner(): void {
+  console.log(
+    useDemoContent
+      ? 'Content: DEMO SAMPLE (not approved by MUSK) — for flow demonstration only.'
+      : 'Content: approved-content stubs with TODO(decisión) markers (pending decisions with MUSK).',
+  );
+}
 
 const SMOKE_LEAD: LeadContact = {
   id: 'smoke-lead',
@@ -43,7 +65,8 @@ function printTurn(result: TurnResult): void {
 
 async function runSmoke(): Promise<void> {
   console.log('MUSK smoke run (scripted, non-interactive)');
-  const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: buildProvider(), lead: SMOKE_LEAD });
+  printContentBanner();
+  const agent = new MuskAgent({ content: CONTENT, provider: buildProvider(), lead: SMOKE_LEAD });
   const result = await agent.runTurn(SMOKE_QUESTION);
   console.log(`lead    > ${SMOKE_QUESTION}`);
   printTurn(result);
@@ -52,6 +75,7 @@ async function runSmoke(): Promise<void> {
 
 async function runRepl(): Promise<void> {
   console.log('MUSK simulation harness — standalone: no real channel, no real leads, no CRM.');
+  printContentBanner();
   const provider = buildProvider();
   console.log(
     provider
@@ -62,7 +86,7 @@ async function runRepl(): Promise<void> {
   console.log('Write a message as the lead to start.');
 
   const lead: LeadContact = { id: 'sim-lead', contact: '+3460000000', bucket: 'ilocalizable' };
-  let agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead });
+  let agent = new MuskAgent({ content: CONTENT, provider, lead });
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   try {
@@ -71,7 +95,7 @@ async function runRepl(): Promise<void> {
       if (!line) continue;
       if (line === '/exit' || line === '/salir') break;
       if (line === '/reset') {
-        agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead });
+        agent = new MuskAgent({ content: CONTENT, provider, lead });
         console.log('conversation reset');
         continue;
       }
@@ -90,7 +114,6 @@ async function runRepl(): Promise<void> {
   }
 }
 
-const args = process.argv.slice(2);
 if (args.includes('--smoke')) {
   await runSmoke();
 } else {
