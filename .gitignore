@@ -1,0 +1,17 @@
+# Dependencies (never ship or commit)
+node_modules/
+
+# Local environment / secrets
+.env
+.env.local
+*.env.local
+
+# Build artifacts / deliverables
+*.zip
+musk-*.exe
+
+# Scratch drivers used for non-interactive smoke runs
+tmp-*.mts
+
+# Test coverage
+coverage/

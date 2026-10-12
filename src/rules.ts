@@ -40,8 +40,20 @@ export const FORBIDDEN_TOPICS = [
 // ---------------------------------------------------------------------------
 
 // Rule 7: lead asks to stop -> stop follow-up and register "no continuar".
+// Precision notes:
+//  - Covers both tuteo and vosotros imperative forms ("no me escribas" /
+//    "no me escribáis"), and verbs that accept a trailing pronoun
+//    ("escribir" -> "escribirme/te/le/nos"); a bare hard word boundary would
+//    otherwise let "deja de escribirme" slip past stop detection.
+//  - "no me (mandes|mandáis|envíes|enviéis)" requires a following "más":
+//    "no me mandes el temario" is a syllabus request, not a stop.
+//  - Deliberately NOT treated as stop: a bare "no me interesa" or a time
+//    objection ("no tengo tiempo") can be an objection rather than a request to
+//    stop. Decision (2026-10-12): a plain "no me interesa" stays in the rule 5
+//    doubt family as the dedicated 'decline' intent (copy in
+//    REPLY_TEMPLATES.decline), never a stop.
 export const STOP_TRIGGER =
-  /\b(no me escribas mas|no me vuelvas a escribir|no vuelvas a escribir|deja de escribir|para de escribir|deja de contactarme|no me contactes mas|no quiero seguir|no deseo seguir|no quiero mas mensajes|no me interesa seguir|no continuar|baja de la lista|para el seguimiento)\b/;
+  /\b(?:no me escrib(?:as|ais|is)(?: mas)?|no me (?:mand(?:es|ais|eis)|envi(?:es|eis|ais)) mas|no me llam(?:es|eis|ais)(?: mas)?|no me volv(?:as|ais|is) a (?:escribir|contactar|molestar)|no vuelvas a (?:escribir|contactar)me|(?:deja|para) de escribir(?:me|te|le|nos)?|deja de contactarme|no me contact(?:es|eis|ais)(?: mas)?|no quiero seguir|no deseo seguir|no quiero que me (?:escrib(?:as|ais|is)|contact(?:es|eis|ais)|llam(?:es|eis|ais|en)|molest(?:es|eis|ais))|no quiero(?: recibir)? mas mensajes|no me interesa seguir|no continuar|baja de la lista|para el seguimiento|(?:quita|borra|elimina)me de (?:la|tu) lista|(?:quiero )?darme de baja|date de baja|no me molest(?:es|eis|ais) mas|dejame en paz)\b/;
 
 export const HANDOFF_TRIGGERS = {
   // Rule 9 (confirmed): the lead explicitly asks to talk to a person.
@@ -115,6 +127,11 @@ export const REPLY_TEMPLATES = {
   // Rule 5: register the doubt and propose human contact. Never invents an answer.
   doubt:
     'Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo?',
+  // Rule 5 (soft decline): a bare "no me interesa" is neither a stop (rule 7)
+  // nor a confirmed handoff (rule 9). Acknowledge without pressure (rule 8),
+  // register the signal, and leave the door open to a human — never push a call.
+  decline:
+    'Entendido, lo respeto. Si en algún momento quieres retomarlo, tienes una duda o prefieres hablar con una persona del equipo, aquí estoy.',
   // Rule 9 (confirmed trigger: lead asks for a person).
   humanRequest:
     'Claro, prefieres hablar con una persona. Dejo anotado y te pongo con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?',

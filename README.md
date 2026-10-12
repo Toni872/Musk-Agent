@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `cd musk` y `npm install`.
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 6 tests obligatorios + tests estructurales, sin red ni API key.
+3. `npm test` → 18 tests (obligatorios, estructurales y regresiones de disparadores), sin red ni API key.
 4. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 5. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
 6. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
@@ -22,20 +22,20 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
 | LLM | Opcional; solo para respuestas generales con FAQ aprobada |
 | Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
-| Contenido de la formación | Stub con `TODO(decisión)`; perfil de muestra DEMO para demostración (`--demo`) |
+| Contenido de la formación | Curado del dossier MUSK (piloto FullStack) con FAQ aprobadas; quedan `TODO(decisión)` (duración, mensaje inicial, cualificación); perfil DEMO adicional con `--demo` |
 
 ## Estructura
 
 | Archivo | Responsabilidad |
 |---|---|
 | `src/rules.ts` | Las 11 reglas duras como datos, disparadores de parada y derivación, plantillas de respuesta aprobada y guard de salida (`guardReply`) |
-| `src/content.ts` | Modelo de contenido aprobado para UNA formación; valores stub con `TODO(decisión)`; sin campos de precio ni de temario |
+| `src/content.ts` | Contenido aprobado del piloto (FullStack) curado desde el dossier; sin campos de precio ni de temario; marcas `TODO(decisión)` solo en lo no cerrado |
 | `src/content.demo.ts` | Perfil de contenido DEMO de muestra (no aprobado por MUSK), cargado solo con `--demo`; sin importes y con respuestas FAQ validadas por el guard |
 | `src/intent.ts` | Clasificador determinista en español (price, temario, financiacion, unknown, human, stop, general) con normalización es-ES |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
 | `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`) |
 | `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo |
-| `tests/rules.test.ts` | 6 tests obligatorios + tests estructurales |
+| `tests/rules.test.ts` | 18 tests: obligatorios + estructurales + regresiones de disparadores |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -63,18 +63,19 @@ Sin estas variables, el agente funciona igual en modo determinista con las respu
 
 ## TODO(decisión) pendientes
 
-Todos los marcadores visibles están en `src/content.ts`:
+El piloto (FullStack) ya está curado en `src/content.ts` con las FAQ aprobadas trabajadas del dossier; quedan a la espera de validación de Nicolas:
 
-- Formación elegida (`formationName`, descripción, habilidades, salidas, metodología).
+- Duración del curso: "¿cuánto dura?" responde por regla 5 (registrar duda y proponer humano) hasta tener respuesta aprobada.
 - Texto del mensaje inicial (`initialMessage`).
-- Lista final de preguntas de cualificación (las propuestas en el stub no están cerradas).
-- Respuestas FAQ pendientes de validación por Nicolas.
+- Lista final de preguntas de cualificación (las propuestas no están cerradas).
+- Redacción final de "prácticas garantizadas" si se confirma como mensaje público.
+- Plantilla de rechazo amable: implementada (12-10): un "no me interesa" seco → intent `decline`, copy dedicado, registra duda, NO es parada.
 
 Decisiones que este arnés deja configurables fuera del contenido: receptor de los avisos y cobertura, mecanismo de llamada (solicitar contacto vs acordar momento), cadencia de seguimiento y reglas de parada, etiquetas conversacionales definitivas, configuración del canal y base legal. No se presentan como acordadas.
 
 ## Contenido DEMO (muestra, no aprobado)
 
-`src/content.demo.ts` es un perfil de **muestra** que existe solo para que la demo funcione de punta a punta sin los `TODO(decisión)`. Se carga únicamente con `--demo` (`npm run sim:demo` o `npm run sim -- --demo`) y el simulador avisa en pantalla `Content: DEMO SAMPLE (not approved by MUSK)`. **No es una decisión tomada con Nicolas**: todos sus valores son propuestas y se reemplazan una vez MUSK decida la formación, las FAQ, el mensaje inicial y las preguntas de cualificación. Para pasar a contenido real basta con completar `APPROVED_CONTENT` en `src/content.ts` y correr sin `--demo`.
+`src/content.demo.ts` es un perfil de **muestra** adicional (no aprobado por MUSK). Ya no es necesario para la demo: `src/content.ts` trae el contenido curado del piloto FullStack y `npm run sim` lo usa por defecto. `--demo` queda disponible como muestra alternativa.
 
 ## Contexto histórico (no son objetivos ni parámetros)
 
@@ -84,10 +85,10 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 6 tests obligatorios + 2 tests estructurales, cero fallos, sin red.
+- [ ] `npm test` pasa: 18 tests, cero fallos, sin red.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Siguiente paso
 
-Validar con Nicolas las respuestas aprobadas (`TODO(decisión)` de `src/content.ts`) y los disparadores de derivación mediante el REPL, antes de pensar en canal real o muestra con leads reales.
+Cerrar con Nicolas las decisiones de contenido pendientes (duración, mensaje inicial, cualificación) y las de operación mediante la demo en el REPL, antes de pensar en canal real o muestra con leads reales.

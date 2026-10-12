@@ -154,6 +154,15 @@ export class MuskAgent {
         this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
         break;
       }
+      case 'decline': {
+        // Rule 5 (soft decline): not a stop (rule 7), not a confirmed trigger
+        // (rule 9). Acknowledge without pressure, register the signal, and
+        // keep the conversation alive with a human option.
+        registeredDoubts.push(message);
+        reply = buildReply('decline');
+        this.push({ kind: 'doubt', intent, detail: `decline registered: "${message}"` });
+        break;
+      }
       case 'general': {
         if (HANDOFF_TRIGGERS.callAccepted.test(normalizeEs(message))) {
           // Rule 9 (confirmed trigger): lead accepts/agrees to a call.

@@ -6,8 +6,8 @@
 //   npm run sim -- --demo --smoke  -> one scripted turn with the DEMO sample content
 //
 // --demo loads src/content.demo.ts (clearly-labelled SAMPLE, not approved by
-// MUSK) so a full conversation runs without the TODO(decisión) stubs. Without
-// --demo the real approved-content stubs are used.
+// MUSK). Without --demo the real approved content for the pilot formation is
+// used (Curso de Desarrollo Full Stack, curated from MUSK's dossier).
 //
 // Standalone by design: no WhatsApp, no real leads, no CRM. The only optional
 // network dependency is the LLM provider used for 'general' FAQ replies; the
@@ -23,7 +23,7 @@ import { loadLLMConfigFromEnv, OpenAICompatibleLLM, type LLMProvider } from './l
 const args = process.argv.slice(2);
 const useDemoContent = args.includes('--demo');
 
-// Content profile: the real (stub, TODO(decisión)) approved content by default,
+// Content profile: the real approved content for the pilot formation by default,
 // or the clearly-labelled DEMO sample when --demo is passed.
 const CONTENT: ApprovedContent = useDemoContent ? DEMO_CONTENT : APPROVED_CONTENT;
 
@@ -31,7 +31,7 @@ function printContentBanner(): void {
   console.log(
     useDemoContent
       ? 'Content: DEMO SAMPLE (not approved by MUSK) — for flow demonstration only.'
-      : 'Content: approved-content stubs with TODO(decisión) markers (pending decisions with MUSK).',
+      : 'Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).',
   );
 }
 
