@@ -113,6 +113,12 @@ export class MuskAgent {
   get pendingDecisions(): string[] {
     const pending: string[] = [];
     if (this.opening() === null) pending.push('initialMessage');
+    // The presentation of MUSK (company) is a minimum content item (spec §3.6)
+    // that MUSK has not provided yet (§8.1). While it is a TODO(decisión) it is
+    // reported here — never invented and never sent to the lead (rule 4).
+    if (isPendingDecision(this.content.companyPresentation) || !this.content.companyPresentation.trim()) {
+      pending.push('companyPresentation');
+    }
     for (const question of this.content.qualificationQuestions) {
       if (!this.isAskable(question)) pending.push(`qualificationQuestions/${question.id}`);
     }

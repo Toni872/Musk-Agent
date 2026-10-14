@@ -360,6 +360,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     expect(agent.nextQualificationQuestion()).toBeNull();
     expect(agent.pendingDecisions).toEqual([
       'initialMessage',
+      'companyPresentation',
       'qualificationQuestions/starting-experience',
       'qualificationQuestions/time-interest',
     ]);
@@ -419,5 +420,101 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     const approved = new MuskAgent({ content: APPROVED_CONTENT, lead });
     expect(approved.opening()).toBeNull();
     expect(approved.nextQualificationQuestion()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cobertura de información aprobada (sin inventar): las preguntas más
+// frecuentes de un lead reactivado deben alcanzar contenido YA aprobado en vez
+// de caer en la regla 5, y nunca deben poder sacar precio, temario ni promesas.
+// ---------------------------------------------------------------------------
+
+describe('cobertura de información (routing a contenido aprobado)', () => {
+  // No provider: the raw approved FAQ answer is what the lead receives on the
+  // deterministic path (the simulator without MUSK_LLM_* configured).
+  function makePlainAgent() {
+    return new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+  }
+
+  it('"dame información sobre Musk" responde en vez de caer en la regla 5', async () => {
+    const agent = makePlainAgent();
+    const result = await agent.runTurn('hola, dame información sobre Musk');
+
+    expect(result.intent).toBe('general');
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(result.reply).toMatch(/MUSK/i);
+    expect(result.reply).toMatch(/formación|Full Stack/i);
+    expect(result.reply).not.toMatch(/no tengo una respuesta aprobada/i);
+    expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  const routed: Array<{ message: string; expected: RegExp }> = [
+    { message: '¿de qué va el curso?', expected: /front end|back end|aplicaciones web/i },
+    { message: 'quiero más información', expected: /Full Stack|front end|back end/i },
+    { message: '¿qué voy a aprender?', expected: /desarrollo web|bases de datos|interfaces/i },
+    { message: '¿qué salidas tiene?', expected: /Full Stack Developer|salidas|Frontend/i },
+    { message: '¿cómo son las clases?', expected: /reto|tutoría|directo|acompañamiento/i },
+    { message: '¿cómo funciona la metodología?', expected: /reto|gamificado|tutoría|directo/i },
+    { message: '¿me contáis los requisitos?', expected: /conocimientos previos|desde la base/i },
+    { message: '¿cuánto dura el curso?', expected: /llamada/i },
+  ];
+
+  for (const { message, expected } of routed) {
+    it(`routing: "${message}" usa contenido aprobado`, async () => {
+      const agent = makePlainAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent).toBe('general');
+      expect(result.reply).toMatch(expected);
+      expect(result.registeredDoubts).toHaveLength(0);
+      expect(result.ruleViolations).toHaveLength(0);
+      // No amount, percentage or digit of any kind can slip through.
+      expect(result.reply).not.toMatch(/€|\beuros?\b|\d/i);
+    });
+  }
+
+  // Precision: the broad 'informacion' entry must never steal a forbidden topic —
+  // forbidden topics are classified BEFORE the FAQ is consulted, so asking about
+  // prices *with* the word "información" is still a price question.
+  it('precisión: "información sobre los precios" sigue siendo precio', async () => {
+    const agent = makePlainAgent();
+    const result = await agent.runTurn('quiero información sobre los precios');
+
+    expect(result.intent).toBe('price');
+    expect(result.reply).not.toMatch(/€|\beuros?\b|\d/i);
+  });
+
+  // Regression: the positive keywords added for routing must not capture the
+  // soft decline (rule 5 family), which is classified after the FAQ.
+  it('precisión: "no me interesa" sigue siendo decline', async () => {
+    const agent = makePlainAgent();
+    const result = await agent.runTurn('no me interesa');
+
+    expect(result.intent).toBe('decline');
+    expect(result.registeredNoContinuar).toBe(false);
+  });
+
+  // Rule 4: MUSK's own company presentation is a minimum content item (spec
+  // §3.6) that MUSK has not provided yet (§8.1). It stays a visible pending
+  // decision and is never sent to the lead.
+  it('la presentación de MUSK queda pendiente y nunca se envía', async () => {
+    const agent = makePlainAgent();
+
+    expect(agent.pendingDecisions).toContain('companyPresentation');
+    const result = await agent.runTurn('¿qué es MUSK?');
+    // The placeholder marker ("TODO(decisión)…") is never sent: the lead gets the
+    // safe identity+formation answer instead. (Matched precisely, so the ordinary
+    // Spanish word "todo" cannot produce a false positive.)
+    expect(result.reply).not.toMatch(/TODO\(decisi/i);
+  });
+
+  // Structural: every FAQ answer is guard-clean and carries no amounts/digits,
+  // so the routing above can never leak a forbidden response.
+  it('todas las respuestas FAQ pasan el guard y no llevan importes', () => {
+    for (const entry of APPROVED_CONTENT.faq) {
+      expect(guardReply(entry.answer).ok, `FAQ ${entry.id} debe pasar el guard`).toBe(true);
+      expect(entry.answer, `FAQ ${entry.id} sin importes ni cifras`).not.toMatch(/€|\beuros?\b|\d/i);
+      expect(entry.keywords.length, `FAQ ${entry.id} necesita keywords`).toBeGreaterThan(0);
+    }
   });
 });

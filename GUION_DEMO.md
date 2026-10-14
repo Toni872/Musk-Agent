@@ -1,8 +1,8 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-14, 24/24 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-14, 37/37 tests.
 
-> **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
+> **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
 ## Preparación (una vez)
 
@@ -35,12 +35,27 @@ Al arrancar muestra: `Content: Curso de Desarrollo Full Stack (curated from MUSK
 | 3 | `¿cuánto cuesta?` | No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo... | Regla 1 (precio) |
 | 4 | `¿hay financiación?` | Sí, existen opciones de financiación. No puedo darte condiciones ni importes por aquí... | Regla 3 (financiación) |
 | 5 | `¿me pasáis el temario?` | No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general... | Regla 2 (temario) |
-| 6 | `¿cuánto dura el curso?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda... ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda) — PIVOTE** |
+| 6 | `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda... ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda) — PIVOTE** |
 | 7 | `¿necesito experiencia previa?` | No necesitas conocimientos previos: la metodología es progresiva y práctica, pensada para empezar desde la base. | FAQ requisitos |
 | 8 | `me parece muy caro` | No puedo compartir el precio ni los importes por aquí... | Objeción de dinero (sin la palabra "precio") |
 | 9 | `bueno, me va bien una llamada` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | **Handoff `call_accepted` — objetivo** |
 
 Estado final observado de la conversación 1: `stopped=false records=11`.
+
+## Conversación 1b — cobertura de información (14-10)
+
+Cada frase de abajo se comprobó contra el agente real (`provider=null`). Todas alcanzan **contenido ya aprobado** del dossier: no se inventa nada. Enrutado por palabras clave, de lo específico a lo general:
+
+| Escribe el lead | El agente responde (observado) | Ruta |
+|---|---|---|
+| `hola, dame información sobre Musk` | Te escribimos desde MUSK Technologies. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras. | FAQ `sobre-musk` (identidad + formación + humano; la presentación de MUSK sigue pendiente) |
+| `¿de qué va el curso?` | Claro. El Curso de Desarrollo Full Stack te forma para crear aplicaciones web completas, desde la parte visual (front end) hasta la lógica del servidor (back end)... | FAQ `informacion` (genérica, la última) |
+| `¿qué voy a aprender?` | Trabajas desarrollo web (front end y back end), diseño de interfaces (UI/UX), integración de APIs, gestión de bases de datos... | FAQ `contenido` (regla 2: habilidades sí) |
+| `¿qué salidas tiene?` | La formación apunta a perfiles como Full Stack Developer, Frontend Developer, Backend Developer... | FAQ `salidas` (sin promesa de empleo) |
+| `¿cómo son las clases?` | Se aprende haciendo: retos, quizzes y puzzles de lógica en un método práctico y gamificado... | FAQ `metodologia` |
+| `¿cuánto dura el curso?` | La duración, el calendario y las fechas de inicio los concretamos contigo en una llamada, para ajustarlo a tu punto de partida. Por aquí no puedo darte cifras. | FAQ `duracion` (sin dato aprobado: no inventa) |
+| `quiero información sobre los precios` | No puedo compartir el precio ni los importes por aquí... | Precisión: sigue siendo **regla 1** (precio) |
+| `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso... | **Regla 5 (duda)** — lo que no está aprobado sigue derivando |
 
 ## Conversación 2 — el lead pide parar (regla 7)
 
@@ -57,19 +72,21 @@ Estado final observado de la conversación 2: `stopped=true records=2`.
 
 ## Puntos a destacar en sesión
 
-1. **Pivote natural (turno 6):** la pregunta de duración dispara la regla 5 y abre la lista de decisiones de contenido.
+1. **Pivote natural (turno 6):** una pregunta sin respuesta aprobada (p. ej. el título oficial) dispara la regla 5 y abre la lista de decisiones de contenido. La duración ya no cae en la regla 5: se responde sin cifras y se deriva a la llamada (ver conversación 1b).
 2. **Sin importes en ningún momento:** precio, financiación y objeción responden sin cifras; todo reconduce a la llamada.
 3. **Objetivo cerrado:** el flujo acaba en handoff (`call_accepted`), nunca en venta por WhatsApp.
 4. **Parada respetada:** regla 7, incluido el vosotros ("no me escribáis").
+5. **Cobertura ampliada (14-10):** "dame información", "de qué va", "qué aprendo", "qué salidas" y "cómo son las clases" se responden con contenido **ya aprobado** del dossier (conversación 1b); solo lo que no está aprobado cae en la regla 5. Ninguna respuesta nueva inventa condiciones, promociones ni promesas.
 
 ## Decisiones a cerrar con Nicolás
 
 (A) **Contenido** (piloto FullStack ya curado; solo quedan):
- 1. Duración del curso (hoy por regla 5: duda).
+ 1. **Presentación de MUSK** (`companyPresentation`): la spec §3.6 la exige como contenido mínimo y §8.1 la deja como información a aportar por Nicolás. Hoy "sobre MUSK" responde con identidad + formación + humano, y el ítem queda visible como pendiente.
  2. Texto del mensaje inicial (`initialMessage`).
  3. Preguntas de cualificación finales (propuestas: experiencia de partida, tiempo de interés).
- 4. Redacción final de "prácticas garantizadas" si se confirma.
- 5. Plantilla de rechazo amable (IMPLEMENTADA el 12-10): un "no me interesa" seco → `decline` con copy dedicado ("Entendido, lo respeto…"), registra duda y NO para la conversación. Revisar wording con Nicolás.
+ 4. Duración del curso: no hay respuesta aprobada con datos; hoy se responde sin cifras y se deriva a la llamada.
+ 5. Redacción final de "prácticas garantizadas" si se confirma.
+ 6. Plantilla de rechazo amable (IMPLEMENTADA el 12-10): un "no me interesa" seco → `decline` con copy dedicado ("Entendido, lo respeto…"), registra duda y NO para la conversación. Revisar wording con Nicolás.
 
 (B) **Operación/producto** (no bloquean la demo):
  1. Receptor de los avisos (handoff) y su cobertura.
@@ -86,7 +103,7 @@ Estado final observado de la conversación 2: `stopped=true records=2`.
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 24 tests, sin red
+npm test            # 37 tests, sin red
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```
 

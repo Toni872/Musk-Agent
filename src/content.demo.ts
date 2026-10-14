@@ -30,7 +30,43 @@ export const DEMO_CONTENT: ApprovedContent = {
   ],
   methodology:
     'Clases en directo, tutorías y proyectos guiados, con acompañamiento durante todo el programa.',
+  // Sample value only: in APPROVED_CONTENT this is still a TODO(decisión)
+  // because MUSK has not provided its own company presentation yet.
+  companyPresentation:
+    'MUSK Technologies es la escuela de formación tecnológica que imparte esta formación (muestra de demo, pendiente de aprobación de MUSK).',
+  // Same specific-to-general order as APPROVED_CONTENT: findApprovedAnswer()
+  // returns the FIRST keyword match, so the broad 'informacion' entry is last.
   faq: [
+    {
+      id: 'sobre-musk',
+      keywords: ['sobre musk', 'que es musk', 'quienes sois', 'vuestra empresa', 'sois musk'],
+      answer:
+        'Te escribimos desde MUSK Technologies. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras.',
+    },
+    {
+      id: 'metodologia',
+      keywords: ['metodologia', 'como se aprende', 'como son las clases', 'como funciona', 'como es el curso'],
+      answer:
+        'Se aprende con proyectos guiados y clases en directo, con acompañamiento y tutorías durante todo el programa.',
+    },
+    {
+      id: 'acompanamiento',
+      keywords: ['tutorias', 'acompanamiento', 'profesor', 'docente', 'apoyo'],
+      answer:
+        'Tienes tutorías personalizadas y acompañamiento continuo: siempre hay alguien del equipo para resolver tus dudas.',
+    },
+    {
+      id: 'contenido',
+      keywords: ['que aprendo', 'que voy a aprender', 'habilidades', 'contenidos', 'que enseña'],
+      answer:
+        'Trabajas fundamentos sólidos de programación, proyectos con metodologías ágiles y resolución de problemas reales en equipo.',
+    },
+    {
+      id: 'salidas',
+      keywords: ['salidas', 'que salidas', 'de que puedo trabajar', 'empleabilidad'],
+      answer:
+        'La formación prepara perfiles junior para incorporarse a un equipo real, construir su propio portafolio y especializarse en el área que elijan. El encaje concreto lo ves con el equipo.',
+    },
     {
       id: 'modalidad',
       keywords: ['horario', 'clases', 'modalidad', 'online', 'presencial', 'sede'],
@@ -39,15 +75,15 @@ export const DEMO_CONTENT: ApprovedContent = {
     },
     {
       id: 'duracion',
-      keywords: ['dura', 'duracion', 'cuanto dura', 'semanas', 'meses'],
+      keywords: ['cuanto dura', 'duracion', 'cuanto tiempo', 'cuantos meses', 'cuantas semanas'],
       answer:
         'Es un programa pensado para compaginarlo con tu día a día: clases en directo y trabajo por proyectos a tu ritmo entre sesiones.',
     },
     {
-      id: 'acompanamiento',
-      keywords: ['tutorias', 'acompanamiento', 'profesor', 'apoyo'],
+      id: 'informacion',
+      keywords: ['informacion', 'mas informacion', 'dame informacion', 'de que va', 'en que consiste'],
       answer:
-        'Tienes tutorías personalizadas y acompañamiento continuo: siempre hay alguien del equipo para resolver tus dudas.',
+        'Claro. Es una formación práctica y acompañada para dar el salto profesional en el sector tecnológico, trabajando por proyectos reales desde el primer día. Si quieres, te cuento más o lo vemos con detalle con el equipo.',
     },
   ],
   qualificationQuestions: [
