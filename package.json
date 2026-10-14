@@ -1,6 +1,6 @@
 {
   "name": "musk-simulation",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Standalone simulation harness for the MUSK MVP conversational agent (no real channel, no real leads, no CRM).",
