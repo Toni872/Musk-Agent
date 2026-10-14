@@ -7,8 +7,8 @@
 // 'general' turns that match an approved FAQ entry, and its output is always
 // validated by guardReply (fallback: approved text, then registered doubt).
 
-import type { ApprovedContent, FaqEntry } from './content';
-import { APPROVED_CONTENT } from './content';
+import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
+import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMProvider } from './llm';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
 import { buildReply, guardReply, HANDOFF_TRIGGERS, RULES } from './rules';
@@ -46,11 +46,13 @@ export interface TurnResult {
   handoff?: HandoffContext;
 }
 
-export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop';
+export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question';
 
 export interface ConversationRecord {
   kind: RecordKind;
-  intent: Intent;
+  // Optional: a record that did not come from a lead turn (e.g. a qualification
+  // question) has no classified intent, and is left empty instead of faked.
+  intent?: Intent;
   detail: string;
 }
 
@@ -66,6 +68,8 @@ export class MuskAgent {
   private readonly lead: LeadContact;
   private readonly systemPrompt: string;
   private stopped = false;
+  private handoffFired = false;
+  private readonly askedQuestions = new Set<string>();
   private readonly conversationRecords: ConversationRecord[] = [];
 
   constructor(options: MuskAgentOptions = {}) {
@@ -89,7 +93,62 @@ export class MuskAgent {
 
   reset(): void {
     this.stopped = false;
+    this.handoffFired = false;
+    this.askedQuestions.clear();
     this.conversationRecords.length = 0;
+  }
+
+  // Opening message of the conversation: the first outbound touch of the flow
+  // (MVP spec §3.2/§3.6). Returns null while MUSK's decision is still open,
+  // because a pending decision is not lead-facing content (rule 4).
+  opening(): string | null {
+    const message = this.content.initialMessage;
+    if (isPendingDecision(message) || !message.trim()) return null;
+    return message;
+  }
+
+  // Items of the content profile that are still waiting for a MUSK decision
+  // (AGENTS.md "Decisiones abiertas"). They are REPORTED, never invented and
+  // never sent: a contract surface for the simulation.
+  get pendingDecisions(): string[] {
+    const pending: string[] = [];
+    if (this.opening() === null) pending.push('initialMessage');
+    for (const question of this.content.qualificationQuestions) {
+      if (!this.isAskable(question)) pending.push(`qualificationQuestions/${question.id}`);
+    }
+    return pending;
+  }
+
+  // Brief qualification, one question at a time (MVP spec §4 / AGENTS.md):
+  // no exam, no scoring, no automatic exclusion — the answer is never
+  // evaluated here. Returns null when the profile has no approved question,
+  // when they have all been asked, or after the conversation stopped or
+  // handoff fired (that is how the human takes over).
+  nextQualificationQuestion(): QualificationQuestion | null {
+    if (this.stopped || this.handoffFired) return null;
+    for (const question of this.content.qualificationQuestions) {
+      if (this.askedQuestions.has(question.id) || !this.isAskable(question)) continue;
+      this.askedQuestions.add(question.id);
+      const guard = guardReply(question.text);
+      if (!guard.ok) {
+        // Defense in depth: a lead-facing string that violates the guard is
+        // never asked, and the skip is left visible in the records.
+        this.push({
+          kind: 'question',
+          detail: `skipped (guard): ${question.id} [${guard.violations.map((violation) => violation.id).join(', ')}]`,
+        });
+        continue;
+      }
+      this.push({ kind: 'question', detail: `asked ${question.id}: ${question.text}` });
+      return question;
+    }
+    return null;
+  }
+
+  // Askable = real approved text. A TODO(decisión) placeholder is a decision
+  // still open with MUSK, so it is never asked as if it were agreed.
+  private isAskable(question: QualificationQuestion): boolean {
+    return !isPendingDecision(question.text) && question.text.trim().length > 0;
   }
 
   async runTurn(message: string): Promise<TurnResult> {
@@ -184,6 +243,9 @@ export class MuskAgent {
         break;
       }
     }
+
+    // Rule 9: once the lead is with a person, the agent stops qualifying.
+    if (action === 'handoff') this.handoffFired = true;
 
     // Rules guard: final validation of every reply (defense in depth).
     const guard = guardReply(reply);

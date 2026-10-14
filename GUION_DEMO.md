@@ -1,6 +1,8 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent.runTurn`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-12, 18/18 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-14, 24/24 tests.
+
+> **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
 ## Preparación (una vez)
 
@@ -20,7 +22,7 @@ cd musk
 npm run sim
 ```
 
-Al arrancar muestra: `Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).`
+Al arrancar muestra: `Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).` y, debajo, el bloque `--- opening ---` con la apertura (o el aviso de que el mensaje inicial sigue pendiente con MUSK) y la lista `pending` de `TODO(decisión)`.
 
 > **Gotcha conocido**: el REPL no consume stdin pipeado en modo no-TTY (readline/promises lee solo la primera línea y el proceso muere con `unsettled top-level await`). Si la automatización rompe, no es el agente: es la limitación del REPL interactivo. Para validación no interactiva, ver "Verificación automatizada" abajo.
 
@@ -84,7 +86,7 @@ Estado final observado de la conversación 2: `stopped=true records=2`.
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 18 tests, sin red
+npm test            # 24 tests, sin red
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```
 

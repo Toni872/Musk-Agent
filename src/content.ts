@@ -35,6 +35,17 @@ export interface ApprovedContent {
   initialMessage: string;
 }
 
+// A decision that is still open with MUSK is stored as a "TODO(decisión)"
+// placeholder (see the header comment and AGENTS.md "Decisiones abiertas").
+// A placeholder is NOT lead-facing content (rule 4): the agent must never send
+// it to the lead, nor quote it. Use isPendingDecision() to tell a real value
+// apart from a placeholder before showing one.
+export const PENDING_DECISION_PATTERN = /^\s*TODO\s*\(\s*decisi[oó]n\s*\)/i;
+
+export function isPendingDecision(value: string): boolean {
+  return PENDING_DECISION_PATTERN.test(value);
+}
+
 export const APPROVED_CONTENT: ApprovedContent = {
   formationName: 'Curso de Desarrollo Full Stack',
   generalDescription:

@@ -33,7 +33,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
 npm run sim
 ```
 
-Verás el saludo del asistente y `you (lead) >`. Desde ahí, escribes lo que diría un alumno.
+Al arrancar verás primero una nota técnica: el bloque `--- opening ---` con el mensaje de apertura (o el aviso de que ese texto sigue pendiente de que lo cerréis con nosotros) y la lista `pending` de lo que todavía falta por aprobar. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
 
 ## 4. Prueba estas frases, en este orden
 

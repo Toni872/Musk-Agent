@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `cd musk` y `npm install`.
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 18 tests (obligatorios, estructurales y regresiones de disparadores), sin red ni API key.
+3. `npm test` → 24 tests (obligatorios, estructurales, apertura/cualificación y regresiones de disparadores), sin red ni API key.
 4. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 5. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
 6. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
@@ -23,6 +23,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | LLM | Opcional; solo para respuestas generales con FAQ aprobada |
 | Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
 | Contenido de la formación | Curado del dossier MUSK (piloto FullStack) con FAQ aprobadas; quedan `TODO(decisión)` (duración, mensaje inicial, cualificación); perfil DEMO adicional con `--demo` |
+| Apertura y cualificación | El agente abre con el mensaje inicial (§3.2) y hace las preguntas de cualificación de una en una, sin examen ni puntuación (§4). Si el texto es un `TODO(decisión)`, no se envía ni se pregunta: se informa como decisión abierta de MUSK. Flujo completo en el perfil DEMO (`npm run sim:demo`) |
 
 ## Estructura
 
@@ -33,9 +34,9 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `src/content.demo.ts` | Perfil de contenido DEMO de muestra (no aprobado por MUSK), cargado solo con `--demo`; sin importes y con respuestas FAQ validadas por el guard |
 | `src/intent.ts` | Clasificador determinista en español (price, temario, financiacion, unknown, human, stop, general) con normalización es-ES |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
-| `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`) |
-| `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo |
-| `tests/rules.test.ts` | 18 tests: obligatorios + estructurales + regresiones de disparadores |
+| `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`), apertura (`opening`) y cualificación (`nextQualificationQuestion`) |
+| `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo; imprime apertura y decisiones abiertas |
+| `tests/rules.test.ts` | 24 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -85,7 +86,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 18 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 24 tests, cero fallos, sin red.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 

@@ -63,10 +63,28 @@ function printTurn(result: TurnResult): void {
   }
 }
 
+// Opening message of the conversation (MVP spec §3.2) plus the items of the
+// content profile that are still open with MUSK. A TODO(decisión) placeholder
+// is never sent (rule 4); it is reported so the operator sees what is pending.
+function printOpening(agent: MuskAgent): void {
+  const opening = agent.opening();
+  console.log('--- opening ---');
+  console.log(
+    opening
+      ? `agent   > ${opening}`
+      : 'agent   > (none: decision still open with MUSK — a TODO placeholder is never sent)',
+  );
+  const pending = agent.pendingDecisions;
+  if (pending.length > 0) {
+    console.log(`pending : ${pending.join(', ')}`);
+  }
+}
+
 async function runSmoke(): Promise<void> {
   console.log('MUSK smoke run (scripted, non-interactive)');
   printContentBanner();
   const agent = new MuskAgent({ content: CONTENT, provider: buildProvider(), lead: SMOKE_LEAD });
+  printOpening(agent);
   const result = await agent.runTurn(SMOKE_QUESTION);
   console.log(`lead    > ${SMOKE_QUESTION}`);
   printTurn(result);
@@ -87,6 +105,7 @@ async function runRepl(): Promise<void> {
 
   const lead: LeadContact = { id: 'sim-lead', contact: '+3460000000', bucket: 'ilocalizable' };
   let agent = new MuskAgent({ content: CONTENT, provider, lead });
+  printOpening(agent);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   try {
@@ -97,17 +116,22 @@ async function runRepl(): Promise<void> {
       if (line === '/reset') {
         agent = new MuskAgent({ content: CONTENT, provider, lead });
         console.log('conversation reset');
+        printOpening(agent);
         continue;
       }
       if (line === '/state') {
         console.log(`stopped=${agent.isStopped} records=${agent.records.length}`);
         for (const record of agent.records) {
-          console.log(`  [${record.kind}] (${record.intent}) ${record.detail}`);
+          console.log(`  [${record.kind}] (${record.intent ?? '-'}) ${record.detail}`);
         }
         continue;
       }
       const result = await agent.runTurn(line);
       printTurn(result);
+      // Brief qualification (MVP spec §4): one approved question per turn,
+      // never an exam. Nothing is asked once the lead stops or hands off.
+      const ask = agent.nextQualificationQuestion();
+      if (ask) console.log(`agent   > ${ask.text}`);
     }
   } finally {
     rl.close();

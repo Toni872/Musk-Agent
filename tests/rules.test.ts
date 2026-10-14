@@ -324,3 +324,100 @@ describe('structural guards', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Apertura y cualificación del flujo mínimo (spec §3.2 y §4)
+// ---------------------------------------------------------------------------
+
+describe('apertura y cualificación (MVP spec §4)', () => {
+  // §3.2: the conversation is opened by the initial message ("contacto WhatsApp
+  // sobre la formación de interés"). The DEMO sample carries a real one, so
+  // there the flow is complete end to end.
+  it('apertura: con contenido real (DEMO) se envía el mensaje inicial', () => {
+    const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const opening = agent.opening();
+
+    expect(opening).toBe(DEMO_CONTENT.initialMessage);
+    expect(guardReply(opening as string).ok).toBe(true);
+    expect(agent.pendingDecisions).toHaveLength(0);
+  });
+
+  // Rule 4: a TODO(decisión) placeholder is not lead-facing content. While the
+  // initial message is still open with MUSK, nothing is sent and the item stays
+  // visible as a pending decision instead of being invented.
+  it('apertura: un TODO(decisión) no se envía y queda como decisión abierta', () => {
+    const { agent } = makeAgent();
+
+    expect(agent.opening()).toBeNull();
+    expect(agent.pendingDecisions).toContain('initialMessage');
+  });
+
+  // Same rule for qualification: never asked while the text is a placeholder,
+  // and never replaced by a made-up question.
+  it('cualificación: un texto TODO(decisión) no se pregunta', () => {
+    const { agent } = makeAgent();
+
+    expect(agent.nextQualificationQuestion()).toBeNull();
+    expect(agent.pendingDecisions).toEqual([
+      'initialMessage',
+      'qualificationQuestions/starting-experience',
+      'qualificationQuestions/time-interest',
+    ]);
+  });
+
+  // §4: pocas preguntas, una cada vez, sin examen, sin puntuación y sin
+  // exclusión automática — el arnés no descarta a nadie.
+  it('cualificación (DEMO): una pregunta cada vez, en orden y sin excluir', () => {
+    const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
+
+    expect(agent.nextQualificationQuestion()?.id).toBe('starting-experience');
+    expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
+    expect(agent.nextQualificationQuestion()).toBeNull();
+
+    expect(agent.records.filter((record) => record.kind === 'question')).toHaveLength(2);
+    expect(agent.isStopped).toBe(false);
+  });
+
+  // Rules 7 and 9: once the lead stops, or is handed to a person, the agent
+  // asks nothing else.
+  it('cualificación: no pregunta tras una parada ni tras un handoff', async () => {
+    const stopped = new MuskAgent({ content: DEMO_CONTENT, lead });
+    await stopped.runTurn('no me escribas más');
+    expect(stopped.isStopped).toBe(true);
+    expect(stopped.nextQualificationQuestion()).toBeNull();
+
+    const handedOff = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const result = await handedOff.runTurn('bueno, me va bien una llamada');
+    expect(result.action).toBe('handoff');
+    expect(handedOff.nextQualificationQuestion()).toBeNull();
+  });
+
+  // Structural: everything the agent can open with or ask is lead-facing, so it
+  // must pass the output guard — and no path may ever return a raw TODO stub.
+  it('estructural: apertura y preguntas pasan el guard y nunca devuelven un TODO', () => {
+    const demo = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const opening = demo.opening();
+
+    expect(opening).toBe(DEMO_CONTENT.initialMessage);
+    expect(guardReply(opening as string).ok).toBe(true);
+
+    let question = demo.nextQualificationQuestion();
+    let asked = 0;
+    while (question) {
+      expect(question.text).not.toMatch(/TODO/);
+      const result = guardReply(question.text);
+      expect(
+        result.ok,
+        `pregunta "${question.id}" no debe violar el guard: ${JSON.stringify(result.violations)}`,
+      ).toBe(true);
+      asked += 1;
+      question = demo.nextQualificationQuestion();
+    }
+    expect(asked).toBe(2);
+
+    // The approved profile keeps both items open: nothing is invented.
+    const approved = new MuskAgent({ content: APPROVED_CONTENT, lead });
+    expect(approved.opening()).toBeNull();
+    expect(approved.nextQualificationQuestion()).toBeNull();
+  });
+});
