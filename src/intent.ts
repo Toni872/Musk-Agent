@@ -26,11 +26,16 @@ export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown'>, RegE
   stop: STOP_TRIGGER,
   human: HANDOFF_TRIGGERS.humanRequested,
   price:
-    /cuanto (cuesta|vale|es|esta|son)|\b(precios?|coste|costo|importes?|tarifas?|euros?)\b|€|\bcar[oa]s?\b|\bcarisim\w*|\bcostos\w*|no me lo puedo permitir|fuera de (mi )?presupuesto|no (?:me )?(?:lo )?puedo pagar|no tengo (?:dinero|presupuesto)/,
+    /cuanto (cuesta|vale|es|esta|son)|\b(precios?|coste|costo|importes?|tarifas?|euros?)\b|€|\bcar[oa]s?\b|\bcarisim\w*|\bcostos\w*|\bdescuentos?\b|\bpromocion\w*|no me lo puedo permitir|fuera de (mi )?presupuesto|no (?:me )?(?:lo )?puedo pagar|no tengo (?:dinero|presupuesto)/,
   temario:
     /\btemario\b|\b(programa|plan) de estudios\b|\bprograma (detallado|completo)\b|\bcontenido (detallado|completo)\b|\bmodulos\b|\bsyllabus\b|\bque se (da|estudia|imparte)\b/,
+  // Financing phrasings a real lead uses without ever saying "financiación":
+  // "pagarlo poco a poco", "en cuotas", "mensualidades". Rule 3: we only ever
+  // say options exist and refer to the call, so a wider net here is SAFER, not
+  // riskier. Note `price` is still evaluated first (see classify), so a mixed
+  // message ("cuánto cuesta y se puede financiar") keeps resolving to `price`.
   financiacion:
-    /\bfinanciacion\b|\bfinanciar\b|\bfinanciamiento\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
+    /\bfinanciacion\b|\bfinanciar\b|\bfinanciamiento\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bpagar\w* poco a poco\b|\bcuotas?\b|\bmensualidades?\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
   // Soft decline (rule 5 family): a bare "no me interesa" / "no estoy
   // interesado" is NOT a stop (rule 7) and NOT a confirmed handoff trigger
   // (rule 9). Only the bare/near-bare form is caught, so topic-specific

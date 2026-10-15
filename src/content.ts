@@ -121,6 +121,7 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'como es el curso',
         'como se estudia',
         'practicas',
+        'practico',
         'gamificado',
         'aprender haciendo',
       ],
@@ -142,6 +143,8 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'principiante',
         'sin experiencia',
         'necesito saber',
+        'saber programar',
+        'ni idea de programar',
         'requisitos',
       ],
       answer:
@@ -165,7 +168,7 @@ export const APPROVED_CONTENT: ApprovedContent = {
       // Outcomes are approved content (rule 2), but employment is never promised
       // (rule 4): the answer states professional paths, not a guaranteed job.
       id: 'salidas',
-      keywords: ['salidas', 'que salidas', 'salidas profesionales', 'de que puedo trabajar', 'empleabilidad'],
+      keywords: ['salidas', 'que salidas', 'salidas profesionales', 'de que puedo trabajar', 'que puedo trabajar', 'empleabilidad'],
       answer:
         'La formación apunta a perfiles como Full Stack Developer, Frontend Developer, Backend Developer, UX/UI Designer, API Developer, QA Engineer o Cloud Support Engineer. Son salidas que se trabajan durante el curso; el encaje concreto lo ves con el equipo en una llamada.',
     },

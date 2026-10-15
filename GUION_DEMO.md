@@ -108,6 +108,6 @@ npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de rec
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```
 
-El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 40 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 0.82 y precisión 1.00; los casos que fallan (parafraseas sin palabra clave, C19-C22, C34-C35) quedan listados para llevarlos a una lista de bugs.
+El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 40 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard: las paráfrasis sin palabra clave que fallaban (C19-C22, C34-C35) se cerraron ampliando el ruteo, sin tocar ningún texto de cara al lead.
 
 Para reproducir el guion completo de forma no interactiva se usa un driver temporal `.mts` que importa `MuskAgent` (mismo código del agente, sin la limitación del REPL).

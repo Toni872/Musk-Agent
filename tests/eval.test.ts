@@ -59,14 +59,16 @@ describe('bucle de evaluación: retrieval gate', () => {
     expect(accuracy, `intents incorrectos en temas prohibidos: ${intentFailures()}`).toBe(1);
   });
 
-  // 4. El recall no regresa: suelo = baseline medido el 2026-10-15
-  //    (18/22 = 0.8181...); subirlo según mejore el enrutado, nunca bajarlo.
+  // 4. El recall no regresa: suelo = último valor medido. Baseline 2026-10-15 =
+  //    18/22 (0.8181...); tras cerrar las paráfrasis sin palabra clave (C19-C22,
+  //    C34-C35) el enrutado da 22/22, así que el suelo sube a 1.00. Subirlo según
+  //    mejore el enrutado, nunca bajarlo.
   it('el recall no regresa por debajo del suelo medido', () => {
-    // floor = measured baseline on 2026-10-15; raise as the routing improves
+    // floor = last measured value (0.81 baseline 2026-10-15 -> 1.00 after the fix)
     expect(
       report.metrics.recall,
       `recall ${report.metrics.recall.toFixed(4)}; casos fallidos: ${failingIds()}`,
-    ).toBeGreaterThanOrEqual(0.81);
+    ).toBeGreaterThanOrEqual(1.0);
   });
 
   // 5. La precisión no regresa: suelo = baseline medido el 2026-10-15 (1.00).
