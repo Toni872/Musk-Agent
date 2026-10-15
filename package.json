@@ -8,7 +8,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/simulator.ts",
-    "sim:demo": "tsx src/simulator.ts --demo"
+    "sim:demo": "tsx src/simulator.ts --demo",
+    "eval": "tsx src/eval.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

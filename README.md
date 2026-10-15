@@ -8,10 +8,11 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `cd musk` y `npm install`.
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 37 tests (obligatorios, estructurales, apertura/cualificación, regresiones de disparadores y cobertura de información), sin red ni API key.
-4. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
-5. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
-6. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
+3. `npm test` → 43 tests (obligatorios, estructurales, apertura/cualificación, regresiones de disparadores, cobertura de información y bucle de evaluación de retrieval), sin red ni API key.
+4. `npm run eval` → informe del **bucle de evaluación**: 40 casos etiquetados con recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real.
+5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
+6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
+7. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
 
 ## Qué hace y qué no hace
 
@@ -37,7 +38,10 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
 | `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`), apertura (`opening`) y cualificación (`nextQualificationQuestion`) |
 | `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo; imprime apertura y decisiones abiertas |
+| `src/eval.dataset.ts` | Dataset etiquetado del bucle de evaluación: 40 casos (pregunta del lead → respuesta aprobada esperada + intent esperado), con la expectativa derivada de las reglas duras, no del comportamiento actual |
+| `src/eval.ts` | Bucle de evaluación de retrieval: scoring puro (hit / miss / wrong-answer / false-positive / correct-null, recall, precisión, intent y guard) + CLI `npm run eval` (`--verbose`, `--json`). Cero efectos al importarlo |
 | `tests/rules.test.ts` | 37 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores + cobertura de información (routing a contenido aprobado) |
+| `tests/eval.test.ts` | 6 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión (43 tests en total) |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -49,6 +53,16 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Respuesta desconocida | Registra la duda y propone contacto humano; no inventa respuesta | `intent.unknown` → `registeredDoubts` → plantilla `doubt` |
 | Petición humano | `action=handoff` con contacto, bucket, mensaje y resumen para el comercial | `HANDOFF_TRIGGERS.humanRequested` → `HandoffContext` |
 | Petición parada | `action=stop`, registro "no continuar"; turnos posteriores no generan seguimiento | `STOP_TRIGGER` → estado `stopped` → respuesta suprimida |
+
+## Bucle de evaluación (medición, no más lógica)
+
+El enrutado de respuestas aprobadas (`classify` → `findApprovedAnswer`) se mide con un **bucle de evaluación**: un dataset etiquetado de 40 casos en `src/eval.dataset.ts` (pregunta del lead → respuesta aprobada esperada + intent esperado) que se ejecuta contra el código real y se puntúa.
+
+- **Qué mide**: aciertos (hit), respuestas equivocadas (wrong-answer), fallos (miss), falsos positivos (un tema prohibido que alcanza una FAQ) y correct-null, con recall, precisión, aciertos de intent y violaciones del guard de salida.
+- **Qué NO es**: no añade embeddings, ni base de datos vectorial, ni ninguna llamada al LLM. Es un instrumento de medición, no un recuperador: no cambia el comportamiento en tiempo de ejecución.
+- **Etiquetas de oro**: derivadas de las reglas duras de `AGENTS.md`, no de lo que el código hace hoy. Cuando una etiqueta y el comportamiento actual no coinciden, la diferencia **es la medición** (los fallos se listan para llevarlos a una lista de bugs).
+- **Cómo se usa**: `npm run eval` imprime el resumen y solo los casos que fallan; `npm run eval -- --verbose` imprime todos los casos; `npm run eval -- --json` vuelca el informe completo en JSON.
+- **Puerta, no solo informe**: los tests de `tests/eval.test.ts` fijan los invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de los temas prohibidos C23-C31, cobertura de las 9 FAQ) y suelos medidos de recall y precisión. El punto de partida documentado es recall 0.82 / precisión 1.00 (baseline 2026-10-15); los suelos solo suben, nunca bajan.
 
 ## Configuración del LLM (opcional)
 
@@ -88,7 +102,8 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 37 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 43 tests, cero fallos, sin red.
+- [ ] `npm run eval` imprime el informe del bucle de evaluación (40 casos) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 
