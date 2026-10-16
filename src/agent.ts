@@ -11,7 +11,7 @@ import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMProvider } from './llm';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
-import { buildReply, guardReply, HANDOFF_TRIGGERS, RULES } from './rules';
+import { ANSWER_TRIGGERS, buildReply, guardReply, HANDOFF_TRIGGERS, RULES } from './rules';
 
 export type LeadBucket = 'ilocalizable' | 'no_comprador';
 
@@ -82,8 +82,21 @@ export class MuskAgent {
   // answering the question they had just been asked got the rule 5 "no approved
   // answer" reply — rule 5 applied to the WRONG KIND of message (an answer, not
   // a question).
-  private pendingAsk: { kind: 'opening' } | { kind: 'qualification'; id: string } | null = null;
+  //
+  // The call proposal is one of these asks: it is a yes/no question, so the
+  // message that follows it is its ANSWER. While it was not tracked, a bare
+  // "sI" read as a fresh greeting and the agent answered the lead with the
+  // social line twice in a row.
+  private pendingAsk:
+    | { kind: 'opening' }
+    | { kind: 'qualification'; id: string }
+    | { kind: 'callProposal' }
+    | null = null;
   private readonly qualificationAnswersById = new Map<string, string>();
+  // Last lead-facing string handed out (a question or a reply). The engine never
+  // sends the same message twice in a row: for the lead it is the clearest bot
+  // tell, and for us it hides a turn that moved nothing.
+  private lastOutbound = '';
 
   constructor(options: MuskAgentOptions = {}) {
     this.content = options.content ?? APPROVED_CONTENT;
@@ -117,6 +130,7 @@ export class MuskAgent {
     this.askedQuestions.clear();
     this.conversationRecords.length = 0;
     this.pendingAsk = null;
+    this.lastOutbound = '';
     this.qualificationAnswersById.clear();
     if (this.opening() !== null) this.pendingAsk = { kind: 'opening' };
   }
@@ -170,6 +184,7 @@ export class MuskAgent {
       }
       this.push({ kind: 'question', detail: `asked ${question.id}: ${question.text}` });
       this.pendingAsk = { kind: 'qualification', id: question.id };
+      this.lastOutbound = question.text;
       return question;
     }
     return null;
@@ -298,6 +313,10 @@ export class MuskAgent {
       }
     }
 
+    // A reply identical to the previous message is replaced by the approved
+    // call sentence (or withheld): see neverRepeat().
+    reply = this.neverRepeat(reply);
+
     this.push({ kind: 'reply', intent, detail: reply });
 
     const result: TurnResult = {
@@ -392,6 +411,11 @@ export class MuskAgent {
     if (ask && ask.kind === 'qualification') {
       this.qualificationAnswersById.set(ask.id, message);
       this.push({ kind: 'answer', intent, detail: `answer to ${ask.id}: "${message}"` });
+    } else if (ask && ask.kind === 'callProposal') {
+      // The ask was the call proposal (a yes/no question): its answer decides
+      // whether rule 9 fires, so it never goes through the generic path.
+      this.push({ kind: 'answer', intent, detail: `answer to the call: "${message}"` });
+      return this.receiveCallAnswer(message, intent);
     } else {
       this.push({ kind: 'answer', intent, detail: `answer to opening: "${message}"` });
     }
@@ -403,6 +427,12 @@ export class MuskAgent {
       const guard = guardReply(closing);
       if (guard.ok) {
         reply = closing;
+        // The closing asks for the call, so it leaves the ask armed: the lead's
+        // next message is RECEIVED as its answer instead of being classified as
+        // a brand-new message (which is what produced "¡Hola! Soy el asistente"
+        // twice in a row).
+        this.pendingAsk = { kind: 'callProposal' };
+        this.lastOutbound = reply;
         this.push({ kind: 'reply', intent, detail: reply });
       } else {
         // Defense in depth: a lead-facing string that violates the guard is
@@ -421,6 +451,89 @@ export class MuskAgent {
       ruleViolations,
       capturedAnswer: { questionId: ask && ask.kind === 'qualification' ? ask.id : null, text: message },
     };
+  }
+
+  // The lead's answer to the call question. A confirmed handoff (rule 9) needs
+  // the lead to have ACCEPTED the call, and to a yes/no question a plain "si" is
+  // exactly that: the answer the agent asked for. The trigger built for a fresh
+  // message ("me va bien", "cuando querais") never matches it, so the acceptance
+  // is decided here, from the ask the agent itself made.
+  private receiveCallAnswer(message: string, intent: Intent): TurnResult {
+    const folded = normalizeEs(message);
+    const capturedAnswer = { questionId: 'call-proposal', text: message };
+
+    if (ANSWER_TRIGGERS.affirmative.test(folded)) {
+      const accepted = buildReply('callAccepted');
+      const guard = guardReply(accepted);
+      this.handoffFired = true;
+      this.push({ kind: 'handoff', intent, detail: 'reason=call_accepted (answer to the call)' });
+      this.lastOutbound = accepted;
+      this.push({ kind: 'reply', intent, detail: accepted });
+      return {
+        intent,
+        action: 'handoff',
+        reply: accepted,
+        suppressed: false,
+        registeredDoubts: [],
+        registeredNoContinuar: false,
+        ruleViolations: guard.ok
+          ? []
+          : guard.violations.map((violation) => `${violation.id}(rule ${violation.rule})`),
+        handoff: this.buildHandoff('call_accepted', message),
+        capturedAnswer,
+      };
+    }
+
+    if (ANSWER_TRIGGERS.negative.test(folded)) {
+      // A no to the call is not a stop (rule 7) and gets no pressure (rule 8).
+      const no = buildReply('decline');
+      this.lastOutbound = no;
+      this.push({ kind: 'reply', intent, detail: no });
+      return {
+        intent,
+        action: 'none',
+        reply: no,
+        suppressed: false,
+        registeredDoubts: [],
+        registeredNoContinuar: false,
+        ruleViolations: [],
+        capturedAnswer,
+      };
+    }
+
+    // Neither a yes nor a no: the same rule 5 handling as any other message the
+    // agent has no approved answer for.
+    const doubt = buildReply('doubt');
+    this.push({ kind: 'doubt', intent, detail: `registered (no yes/no in the answer): "${message}"` });
+    this.lastOutbound = doubt;
+    this.push({ kind: 'reply', intent, detail: doubt });
+    return {
+      intent,
+      action: 'none',
+      reply: doubt,
+      suppressed: false,
+      registeredDoubts: [message],
+      registeredNoContinuar: false,
+      ruleViolations: [],
+      capturedAnswer,
+    };
+  }
+
+  // The engine never sends the SAME message twice in a row: for the lead it is
+  // the clearest bot tell ("¡Hola! Soy el asistente de MUSK." twice), and for us
+  // it hides a turn that moved nothing. The replacement is the call sentence,
+  // already approved, reused verbatim (rule 11); if even that would repeat, the
+  // turn sends nothing and the conversation is left to the operator.
+  private neverRepeat(reply: string): string {
+    if (reply === '') return '';
+    if (reply !== this.lastOutbound) {
+      this.lastOutbound = reply;
+      return reply;
+    }
+    const invitation = buildReply('callProposal');
+    if (invitation === this.lastOutbound) return '';
+    this.lastOutbound = invitation;
+    return invitation;
   }
 
   private buildHandoff(reason: HandoffReason, lastMessage: string): HandoffContext {
@@ -456,7 +569,7 @@ export class MuskAgent {
       '11. No aprendas políticas comerciales nuevas: las respuestas nuevas se revisan antes de usarlas.',
     ].join('\n');
     return [
-      'Eres el asistente de WhatsApp de MUSK Technologies. Hablas en español de España, con tú, cercano y profesional.',
+      'Eres el asistente de WhatsApp de Escuela Musk. Hablas en español de España, con tú, cercano y profesional.',
       'Tu único objetivo es resolver dudas con información aprobada y conducir la conversación hacia una llamada con el equipo comercial. Nunca cierras una venta por WhatsApp.',
       `Formación: ${this.content.formationName}`,
       `Descripción general: ${this.content.generalDescription}`,

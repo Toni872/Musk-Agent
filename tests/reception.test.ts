@@ -224,4 +224,65 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(replies[0].detail).toBe(buildReply('callProposal'));
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
+
+  // 12. The closing is a QUESTION of its own (rule 9 counts a confirmed
+  //     acceptance as a handoff): the message that follows it is its answer, and
+  //     a plain "sI" to a yes/no question is that confirmation. Before this, the
+  //     ask was lost and the lead was re-greeted with a message the agent had
+  //     already sent.
+  it('tras proponer la llamada, un "sI" se recibe como acuerdo y deriva (regla 9)', async () => {
+    const agent = makeDemoAgent();
+    expect(armQualification(agent)).toBe('starting-experience');
+    await agent.runTurn('parto de cero');
+    expect(armQualification(agent)).toBe('time-interest');
+    const proposal = await agent.runTurn('lo antes posible');
+    expect(proposal.reply).toBe(buildReply('callProposal'));
+
+    const answer = await agent.runTurn('sI');
+
+    expect(answer.capturedAnswer).toEqual({ questionId: 'call-proposal', text: 'sI' });
+    expect(answer.action).toBe('handoff');
+    expect(answer.handoff?.reason).toBe('call_accepted');
+    expect(answer.reply).toBe(buildReply('callAccepted'));
+    // The lead is never sent the same line twice in a row.
+    expect(answer.reply).not.toBe(proposal.reply);
+  });
+
+  // 13. A "no" to the call is a no to the CALL: no handoff, no pressure
+  //     (rule 8) and never a rule 7 stop acknowledgement.
+  it('un "no" a la propuesta de llamada no deriva y no presiona', async () => {
+    const agent = makeDemoAgent();
+    expect(armQualification(agent)).toBe('starting-experience');
+    await agent.runTurn('parto de cero');
+    expect(armQualification(agent)).toBe('time-interest');
+    const closing = await agent.runTurn('lo antes posible');
+    expect(closing.reply).toBe(buildReply('callProposal'));
+
+    const refusal = await agent.runTurn('no gracias');
+
+    expect(refusal.capturedAnswer).toEqual({ questionId: 'call-proposal', text: 'no gracias' });
+    expect(refusal.action).toBe('none');
+    expect(refusal.reply).toBe(buildReply('decline'));
+    expect(agent.isStopped).toBe(false);
+  });
+
+  // 14. No lead-facing message twice in a row: when the reply the engine would
+  //     send is the one it just sent, the approved call sentence goes out
+  //     instead. Repetition is the tell the client saw.
+  it('no envía dos veces seguidas el mismo mensaje', async () => {
+    const agent = makeDemoAgent();
+
+    // The first message is received as the answer to the opening ask and the
+    // turn sends nothing of its own.
+    const opening = await agent.runTurn('xyz');
+    expect(opening.reply).toBe('');
+
+    const first = await agent.runTurn('xyz');
+    expect(first.intent).toBe('unknown');
+    expect(first.reply).toBe(buildReply('doubt'));
+
+    const second = await agent.runTurn('xyz');
+    expect(second.reply).toBe(buildReply('callProposal'));
+    expect(second.reply).not.toBe(first.reply);
+  });
 });

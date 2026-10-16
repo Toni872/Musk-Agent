@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 65/65 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 68/68 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
@@ -48,7 +48,7 @@ Cada frase de abajo se comprobó contra el agente real (`provider=null`). Todas 
 
 | Escribe el lead | El agente responde (observado) | Ruta |
 |---|---|---|
-| `hola, dame información sobre Musk` | Te escribimos desde MUSK Technologies. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras. | FAQ `sobre-musk` (identidad + formación + humano; la presentación de MUSK sigue pendiente) |
+| `hola, dame información sobre Musk` | Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras. | FAQ `sobre-musk` (identidad + formación + humano; la presentación de MUSK sigue pendiente) |
 | `¿de qué va el curso?` | Claro. El Curso de Desarrollo Full Stack te forma para crear aplicaciones web completas, desde la parte visual (front end) hasta la lógica del servidor (back end)... | FAQ `informacion` (genérica, la última) |
 | `¿qué voy a aprender?` | Trabajas desarrollo web (front end y back end), diseño de interfaces (UI/UX), integración de APIs, gestión de bases de datos... | FAQ `contenido` (regla 2: habilidades sí) |
 | `¿qué salidas tiene?` | La formación apunta a perfiles como Full Stack Developer, Frontend Developer, Backend Developer... | FAQ `salidas` (sin promesa de empleo) |
@@ -135,7 +135,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 65 tests, sin red
+npm test            # 68 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```

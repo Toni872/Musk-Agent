@@ -107,7 +107,7 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'quien esta detras',
       ],
       answer:
-        'Te escribimos desde MUSK Technologies. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras.',
+        'Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras.',
     },
     {
       // Methodology BEFORE 'modalidad': both mention classes, so "cómo son las

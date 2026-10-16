@@ -33,7 +33,7 @@ export const DEMO_CONTENT: ApprovedContent = {
   // Sample value only: in APPROVED_CONTENT this is still a TODO(decisión)
   // because MUSK has not provided its own company presentation yet.
   companyPresentation:
-    'MUSK Technologies es la escuela de formación tecnológica que imparte esta formación (muestra de demo, pendiente de aprobación de MUSK).',
+    'MUSK es la escuela de formación tecnológica que imparte esta formación (muestra de demo, pendiente de aprobación de MUSK).',
   // Same specific-to-general order as APPROVED_CONTENT: findApprovedAnswer()
   // returns the FIRST keyword match, so the broad 'informacion' entry is last.
   faq: [
@@ -41,7 +41,7 @@ export const DEMO_CONTENT: ApprovedContent = {
       id: 'sobre-musk',
       keywords: ['sobre musk', 'que es musk', 'quienes sois', 'vuestra empresa', 'sois musk'],
       answer:
-        'Te escribimos desde MUSK Technologies. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras.',
+        'Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras.',
     },
     {
       id: 'metodologia',
@@ -99,5 +99,5 @@ export const DEMO_CONTENT: ApprovedContent = {
     },
   ],
   initialMessage:
-    'Hola, te escribimos desde MUSK Technologies. ¿Te sigue interesando la formación de especialización tecnológica? Podemos resolver tus dudas por aquí y, si te encaja, te llamamos sin compromiso.',
+    'Hola, te escribimos desde Escuela Musk. ¿Te sigue interesando la formación de especialización tecnológica? Podemos resolver tus dudas por aquí y, si te encaja, te llamamos sin compromiso.',
 };

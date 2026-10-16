@@ -65,6 +65,25 @@ export const HANDOFF_TRIGGERS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Answer triggers (a reply to the agent's own ask, as opposed to a new message)
+// ---------------------------------------------------------------------------
+
+// The ask these belong to is the call proposal, a yes/no question of the flow.
+// Asked as it was, "si" answers THE QUESTION — it is not a fresh greeting, and
+// rule 9 counts it as the lead confirming the call: the handoff trigger was
+// built for a lead stating acceptance unprompted ("me va bien", "cuando
+// querais" ...), which a one-word "si" never matches.
+export const ANSWER_TRIGGERS = {
+  affirmative:
+    /\b(?:si|sip|claro|vale|ok|okey|perfecto|genial|de acuerdo|por supuesto|desde luego|afirmativo|cuenta con ello)\b$/,
+  // A "no" to the call is a rejection of the CALL, not a request to stop
+  // (rule 7): the copy stays in the rule 5 family and applies no pressure
+  // (rule 8). Whole-message match on purpose: "no entiendo" is not a refusal.
+  negative:
+    /\b(?:no|nop|paso|nada|mejor no|ahora no|prefiero que no|prefiero no|de momento no|por ahora no|no gracias)\b$/,
+} as const;
+
+// ---------------------------------------------------------------------------
 // Output guard (rules 1-4, 6): validates any reply before it reaches the lead
 // ---------------------------------------------------------------------------
 
