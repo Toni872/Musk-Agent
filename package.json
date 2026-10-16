@@ -9,10 +9,13 @@
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/simulator.ts",
     "sim:demo": "tsx src/simulator.ts --demo",
-    "eval": "tsx src/eval.ts"
+    "eval": "tsx src/eval.ts",
+    "build:ui": "node ui/build.mjs",
+    "ui": "node ui/build.mjs && node ui/server.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"

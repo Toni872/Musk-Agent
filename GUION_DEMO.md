@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-15, 43/43 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 62/62 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
@@ -66,6 +66,34 @@ Cada frase de abajo se comprobó contra el agente real (`provider=null`). Todas 
 
 Estado final observado de la conversación 2: `stopped=true records=2`.
 
+## Conversación 3 — perfil DEMO: recepción de respuestas (16-10)
+
+La incoherencia que apareció al probar en el navegador estaba en el **motor**, no en la interfaz: el agente preguntaba y después trataba la respuesta del lead como una consulta sin respuesta aprobada («Buena pregunta…»), porque no recordaba qué había preguntado. Corregido y **verificado en crudo** contra `MuskAgent` con `DEMO_CONTENT`: **cero dudas**.
+
+Con el perfil DEMO (apertura + dos preguntas), los tres primeros mensajes del lead:
+
+| # | Escribe el lead | El agente responde (observado) | Mecanismo |
+|---|---|---|---|
+| 1 | `Si` | Gracias, lo apunto. | Respuesta a la **apertura** (ya no re-saluda) |
+| 2 | `parto de 0` | Gracias, lo apunto. | Respuesta a `starting-experience` (no es duda) |
+| 3 | `lo antes posible` | Gracias, lo apunto. | Respuesta a `time-interest` (no duda) |
+
+Línea de operador observada: `intent=general/unknown action=none suppressed=false doubts=0` más `received = answer to <id> (no doubt registered)`. Total de dudas del flujo: **0**.
+
+> **Wording pendiente**: «Gracias, lo apunto.» es texto de cara al lead **nuevo**, pendiente de aprobación de Nicolás (regla 11). Está aislado en `REPLY_TEMPLATES.answerAck` (`src/rules.ts`) para cambiarlo en un solo sitio.
+
+Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/reception.test.ts`:
+
+| Escribe el lead | Qué sigue haciendo |
+|---|---|
+| `¿cuánto cuesta?` | Regla 1: plantilla de precio, sin importes |
+| `¿me pasáis el temario?` | Regla 2: contenido general, sin temario detallado |
+| `me va bien una llamada` | Regla 9: dispara el handoff al comercial |
+| `no me escribáis más` | Regla 7: detiene la conversación |
+| `¿tenéis campus en Valencia?` | Regla 5: registra la duda y propone contacto humano (una pregunta real no se traga como respuesta) |
+
+Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(decisión)`, así que no se envían y el mecanismo no altera nada del guion de la conversación 1.
+
 ## Frase de apertura recomendada
 
 > "No te traigo un bot terminado — te traigo el motor y las reglas funcionando, para que las validemos juntas antes de conectar nada real."
@@ -103,7 +131,7 @@ Estado final observado de la conversación 2: `stopped=true records=2`.
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 43 tests, sin red
+npm test            # 62 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```

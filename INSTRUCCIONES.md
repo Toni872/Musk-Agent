@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **43 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **62 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -37,6 +37,8 @@ npm run sim
 Al arrancar verás primero una nota técnica: el bloque `--- opening ---` con el mensaje de apertura (o el aviso de que ese texto sigue pendiente de que lo cerréis con nosotros) y la lista `pending` de lo que todavía falta por aprobar. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
 
 Si además quieres ver el flujo **completo** (mensaje de apertura + las dos preguntas de cualificación), ejecuta `npm run sim:demo`. Ese modo usa un contenido de **ejemplo que no está aprobado por MUSK**: sirve solo para ver la forma del flujo hasta que cerréis esos textos con nosotros.
+
+Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor con una interfaz de chat (y un desplegable para alternar entre el contenido real y el de ejemplo). Para cerrarlo, pulsa `Ctrl+C` en la terminal.
 
 ## 4. Prueba estas frases, en este orden
 
