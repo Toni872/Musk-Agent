@@ -38,6 +38,9 @@ export interface HandoffContext {
 export interface TurnResult {
   intent: Intent;
   action: AgentAction;
+  // Lead-facing message for this turn. EMPTY when the turn deliberately sends
+  // nothing: a received answer has no message of its own (the conversation
+  // continues with the next question) and a turn after a stop is suppressed.
   reply: string;
   suppressed: boolean;
   registeredDoubts: string[];
@@ -360,7 +363,17 @@ export class MuskAgent {
   }
 
   // Receives the lead's answer: registers it (never as a doubt), clears the
-  // pending ask and acknowledges with approved courtesy copy only.
+  // pending ask, and sends NOTHING of its own. The conversation continues with
+  // whatever comes next (the next qualification question, asked by the caller).
+  //
+  // Why no acknowledgement: a courtesy line here would be one fixed string, sent
+  // as its own message, on every single answer — the same "Gracias, lo apunto."
+  // three times in a row. That repetition is what makes it read as a bot, and
+  // "lo apunto" is operator-speak about our own bookkeeping, not something the
+  // lead cares about. The questions already open naturally ("Para orientarte
+  // mejor, ¿...?"), so silence is better than filler. Any acknowledgement worth
+  // sending is MUSK copy and needs its sign-off (rule 11) — it is a decision,
+  // not a default.
   private receiveAnswer(message: string, intent: Intent): TurnResult {
     const ask = this.pendingAsk;
     this.pendingAsk = null;
@@ -370,18 +383,14 @@ export class MuskAgent {
     } else {
       this.push({ kind: 'answer', intent, detail: `answer to opening: "${message}"` });
     }
-    let reply = buildReply('answerAck');
-    const guard = guardReply(reply);
-    const ruleViolations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
-    if (!guard.ok) reply = buildReply('doubt');
     return {
       intent,
       action: 'none',
-      reply,
+      reply: '',
       suppressed: false,
       registeredDoubts: [],
       registeredNoContinuar: false,
-      ruleViolations,
+      ruleViolations: [],
       capturedAnswer: { questionId: ask && ask.kind === 'qualification' ? ask.id : null, text: message },
     };
   }

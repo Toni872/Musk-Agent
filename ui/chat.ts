@@ -177,7 +177,14 @@ export class Chat {
   }
 
   private pushTurn(result: TurnResult): void {
-    this.messages.push({ role: 'agent', text: result.reply || STOPPED_REPLY_PLACEHOLDER });
+    // A received answer sends no message of its own: for that turn the agent's
+    // message is the NEXT qualification question (pushed by send() right after).
+    // Only a suppressed turn keeps a visible placeholder in its place.
+    if (result.reply) {
+      this.messages.push({ role: 'agent', text: result.reply });
+    } else if (result.suppressed) {
+      this.messages.push({ role: 'agent', text: STOPPED_REPLY_PLACEHOLDER });
+    }
     this.messages.push({
       role: 'diagnostic',
       text: formatDiagnostic({

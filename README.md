@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `cd musk` y `npm install`.
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 62 tests (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, UI y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 64 tests (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, UI y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 40 casos etiquetados con recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real.
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
@@ -49,7 +49,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `tests/rules.test.ts` | 37 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores + cobertura de información (routing a contenido aprobado) |
 | `tests/reception.test.ts` | 9 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; flujo demo completo sin dudas y `reset` |
 | `tests/ui-chat.test.ts` | 10 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil y reinicio |
-| `tests/eval.test.ts` | 6 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión (62 tests en total) |
+| `tests/eval.test.ts` | 6 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión (64 tests en total) |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -110,7 +110,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 62 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 64 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe del bucle de evaluación (40 casos) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.

@@ -33,21 +33,21 @@ function armQualification(agent: MuskAgent): string {
 
 describe('recepción de respuestas (answer reception)', () => {
   // 1. Opening armed: a bare affirmative first message is received as the
-  //    answer to the opening, acknowledged with courtesy copy — NOT the social
-  //    greeting — and questionId is null for the opening.
+  //    answer to the opening (not as a fresh query) and questionId is null for
+  //    the opening. The turn sends no message of its own.
   it('la apertura queda armada: "Si" se recibe como respuesta, no como saludo', async () => {
     const agent = makeDemoAgent();
     const result = await agent.runTurn('Si');
 
     expect(result.capturedAnswer).toEqual({ questionId: null, text: 'Si' });
-    expect(result.reply).toBe(buildReply('answerAck'));
-    expect(result.reply).not.toBe(buildReply('social'));
+    expect(result.reply).toBe('');
     expect(result.registeredDoubts).toHaveLength(0);
     expect(agent.records.some((record) => record.kind === 'answer')).toBe(true);
   });
 
   // 2. A qualification ask arms the reception: the next non-query message is
-  //    captured as its answer (registered, never as a doubt).
+  //    captured as its answer (registered, never as a doubt) and the turn sends
+  //    nothing — the next qualification question is the agent's message.
   it('tras una pregunta de cualificación, la respuesta se captura y no es duda', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
@@ -55,7 +55,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const result = await agent.runTurn('parto de cero');
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
-    expect(result.reply).toBe(buildReply('answerAck'));
+    expect(result.reply).toBe('');
     expect(result.registeredDoubts).toHaveLength(0);
     expect(agent.qualificationAnswers).toEqual([{ id, text: 'parto de cero' }]);
     expect(agent.records.some((record) => record.kind === 'answer')).toBe(true);
@@ -180,5 +180,23 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(agent.qualificationAnswers).toHaveLength(0);
     const result = await agent.runTurn('Si');
     expect(result.capturedAnswer).toEqual({ questionId: null, text: 'Si' });
+  });
+
+  // 10. The reception turn sends no message of its own: the answer is recorded
+  //     and the conversation continues with the next qualification question.
+  //     This locks out the robot tell — one canned acknowledgement ("Gracias,
+  //     lo apunto.") repeated identically as its own message on every answer.
+  it('el turno de recepción no envía mensaje propio: sigue la siguiente pregunta', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    const result = await agent.runTurn('parto de cero');
+
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
+    expect(result.reply).toBe('');
+    // Nothing was sent, so no outbound message is recorded: only the answer.
+    expect(agent.records.map((record) => record.kind)).not.toContain('reply');
+    // The ask is cleared, so the next question can be asked.
+    expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
   });
 });

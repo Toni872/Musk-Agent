@@ -115,10 +115,6 @@ export function guardReply(reply: string): GuardResult {
 // ---------------------------------------------------------------------------
 
 export const REPLY_TEMPLATES = {
-  // Reception of a lead's answer to a question the agent asked. Pure courtesy
-  // glue: it asserts no business fact (rule 4) and applies no pressure (rule 8).
-  // NEW lead-facing copy — wording pending Nicolás's sign-off (rule 11).
-  answerAck: 'Gracias, lo apunto.',
   // Rule 1: approved response + invitation to the call. No amounts, no digits.
   price:
     'No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?',

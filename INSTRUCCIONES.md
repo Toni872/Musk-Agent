@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **62 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **64 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -64,7 +64,7 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 5. "no me interesa" → trato amable y sin presión; no se confunde con una parada.
 6. "no me escribáis más" → respeta el rechazo y detiene el seguimiento.
 7. El flujo completo termina en una llamada humana (nunca vende por WhatsApp).
-8. Cuando respondéis a una de sus preguntas de cualificación (por ejemplo `parto de cero`), el asistente acusa recibo con *«Gracias, lo apunto.»* y sigue la conversación. Ese texto es **nuevo** y **necesita vuestra aprobación**: decidnos si os encaja o preferís otra redacción.
+8. Cuando respondéis a una de sus preguntas de cualificación (por ejemplo `parto de cero`), el asistente **anota la respuesta y sigue con la pregunta siguiente**, sin mandaros un mensaje de acuse aparte. Queda una decisión de redacción con vosotros: **qué os dice al terminar las preguntas** para proponeros la llamada (hoy, si no la pedís vosotros, el asistente se queda callado).
 
 Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumno real); todas deben caer en alguno de los comportamientos anteriores.
 

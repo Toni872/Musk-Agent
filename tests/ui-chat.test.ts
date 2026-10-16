@@ -69,6 +69,19 @@ describe('ui/chat view-model', () => {
     expect(state.records.map((record) => record.kind)).toContain('reply');
   });
 
+  // The visible half of the reception fix: answering a question sends no message
+  // of its own, so no empty bubble is rendered next to the next question.
+  it('adds no empty agent bubble when the lead answers a question', async () => {
+    const chat = createChat({ profile: 'demo' });
+    const state = await chat.send('Si');
+
+    // Opening + the next qualification question, nothing in between.
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(agentMessages).toHaveLength(2);
+    expect(agentMessages[1].text).toBe(DEMO_CONTENT.qualificationQuestions[0].text);
+    expect(state.messages.every((message) => message.text.trim().length > 0)).toBe(true);
+  });
+
   it('renders the handoff line after the lead accepts a call', async () => {
     const chat = createChat({ profile: 'demo' });
     const state = await chat.send('Sí, llámame cuando queráis');

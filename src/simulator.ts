@@ -48,8 +48,17 @@ function buildProvider(): LLMProvider | null {
   return config ? new OpenAICompatibleLLM(config) : null;
 }
 
+// A turn can legitimately send nothing: a received answer has no message of its
+// own (the conversation continues with the next question) and a turn after a
+// stop is suppressed. Never print an empty line.
+function noMessageNote(result: TurnResult): string {
+  return result.capturedAnswer
+    ? '(no message: answer registered, the conversation continues with the next question)'
+    : '(no message sent: conversation stopped)';
+}
+
 function printTurn(result: TurnResult): void {
-  console.log(`agent   > ${result.reply || '(no message sent: conversation stopped)'}`);
+  console.log(`agent   > ${result.reply || noMessageNote(result)}`);
   console.log(
     `intent  = ${result.intent} | action = ${result.action} | suppressed = ${result.suppressed} | registered doubts = ${result.registeredDoubts.length}`,
   );
