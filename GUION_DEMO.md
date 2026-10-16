@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 64/64 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 65/65 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
@@ -76,12 +76,14 @@ Con el perfil DEMO (apertura + dos preguntas), los tres primeros mensajes del le
 |---|---|---|---|
 | 1 | `Si` | *(sin mensaje propio: sigue la 1ª pregunta)* | Respuesta a la **apertura** (ya no re-saluda) |
 | 2 | `parto de 0` | *(sin mensaje propio: sigue la 2ª pregunta)* | Respuesta a `starting-experience` (no es duda) |
-| 3 | `lo antes posible` | *(sin mensaje propio: ya no queda pregunta por hacer)* | Respuesta a `time-interest` (no duda) |
+| 3 | `lo antes posible` | ¿Me dejas tu contacto o un momento en el que te venga bien que te llamen? | Respuesta a `time-interest` + **propuesta de llamada** (no es texto nuevo: es la misma frase que ya cierra la respuesta de precio) |
 | 4 | `bueno, me va bien una llamada` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | Regla 9: handoff `call_accepted` — **el objetivo del flujo** |
 
-Línea de operador observada: `intent=general/unknown action=none suppressed=false doubts=0` más `received = answer to <id> (no doubt registered)`. Total de dudas del flujo: **0**. Registro final observado: `stopped=false records=7`.
+Línea de operador observada: `intent=general/unknown action=none suppressed=false doubts=0` más `received = answer to <id> (no doubt registered)`. Total de dudas del flujo: **0**. Registro final observado: `stopped=false records=8`.
 
-> **Cambiado el 16-10 (al probarlo en el navegador):** el agente acusaba recibo de cada respuesta con la misma línea —«Gracias, lo apunto.»— enviada como mensaje aparte. Repetida tres veces seguidas, y hablando de nuestro propio registro, delataba al bot. **Ese mensaje ya no existe**: la respuesta se anota y la conversación sigue con la pregunta siguiente (no es texto que haya que aprobar: es una resta). Lo que **sí** queda abierto es qué dice el asistente al agotar las preguntas para proponer la llamada — decisión (A)7.
+> **Cambiado el 16-10 (al probarlo en el navegador):** el agente acusaba recibo de cada respuesta con la misma línea —«Gracias, lo apunto.»— enviada como mensaje aparte. Repetida tres veces seguidas, y hablando de nuestro propio registro, delataba al bot. **Ese mensaje ya no existe**: la respuesta se anota y la conversación sigue con la pregunta siguiente.
+>
+> Y al agotar las preguntas el agente **sí** cierra proponiendo la llamada, que era el único paso del flujo sin mensaje. Lo hace con una frase **ya aprobada**: la misma invitación con la que termina la respuesta de precio. `REPLY_TEMPLATES.callProposal` la reutiliza desde una única constante (`CALL_INVITATION`), así que las dos copias no pueden desviarse. **No hay texto nuevo que firmar** (regla 11); aun así, que Nicolás vea dónde aparece.
 
 Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/reception.test.ts`:
 
@@ -116,7 +118,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
  4. Duración del curso: no hay respuesta aprobada con datos; hoy se responde sin cifras y se deriva a la llamada.
  5. Redacción final de "prácticas garantizadas" si se confirma.
   6. Plantilla de rechazo amable (IMPLEMENTADA el 12-10): un "no me interesa" seco → `decline` con copy dedicado ("Entendido, lo respeto…"), registra duda y NO para la conversación. Revisar wording con Nicolás.
-  7. **Frase de cierre de la cualificación** (16-10): el agente anota las respuestas y ya no manda acuse, pero al agotar las preguntas **no propone nada**: la llamada hay que pedirla. La propuesta de llamada es un paso del flujo acordado (AGENTS.md, "propuesta de llamada") y su texto es copy nueva de cara al lead → **necesita redacción de Nicolás** (regla 11). No se improvisa: hoy el perfil DEMO termina ahí.
+  7. **Frase de cierre de la cualificación** (16-10, IMPLEMENTADO): al agotar las preguntas el agente **sí** cierra — propone la llamada, que era el único paso del flujo sin mensaje. **No hay copy nueva**: reutiliza palabra por palabra la invitación ya aprobada con la que termina la respuesta de precio (`REPLY_TEMPLATES.callProposal`, que comparte la constante `CALL_INVITATION`), así que la regla 11 no introduce texto por aprobar. Mostrarle a Nicolás **dónde** aparece (hoy solo se ve con el perfil DEMO: el real espera `initialMessage`).
 
 (B) **Operación/producto** (no bloquean la demo):
  1. Receptor de los avisos (handoff) y su cobertura.
@@ -133,7 +135,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 64 tests, sin red
+npm test            # 65 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```

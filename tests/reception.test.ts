@@ -199,4 +199,29 @@ describe('recepción de respuestas (answer reception)', () => {
     // The ask is cleared, so the next question can be asked.
     expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
   });
+
+  // 11. When the answered question was the LAST one, there is nothing left to
+  //     ask and the agent proposes the call — the objective of the flow. The
+  //     closing reuses the wording already approved (the same sentence the price
+  //     answer closes with), so no new lead-facing copy is introduced (rule 11).
+  it('al agotar las preguntas propone la llamada con la frase ya aprobada', async () => {
+    const agent = makeDemoAgent();
+    expect(armQualification(agent)).toBe('starting-experience');
+    await agent.runTurn('parto de cero');
+    expect(armQualification(agent)).toBe('time-interest');
+
+    const result = await agent.runTurn('lo antes posible');
+
+    expect(result.capturedAnswer).toEqual({
+      questionId: 'time-interest',
+      text: 'lo antes posible',
+    });
+    expect(result.reply).toBe(buildReply('callProposal'));
+    // Not new copy: it is the tail the price answer already ships.
+    expect(buildReply('price').endsWith(buildReply('callProposal'))).toBe(true);
+    const replies = agent.records.filter((record) => record.kind === 'reply');
+    expect(replies).toHaveLength(1);
+    expect(replies[0].detail).toBe(buildReply('callProposal'));
+    expect(agent.nextQualificationQuestion()).toBeNull();
+  });
 });

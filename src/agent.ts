@@ -39,8 +39,8 @@ export interface TurnResult {
   intent: Intent;
   action: AgentAction;
   // Lead-facing message for this turn. EMPTY when the turn deliberately sends
-  // nothing: a received answer has no message of its own (the conversation
-  // continues with the next question) and a turn after a stop is suppressed.
+  // nothing: an answer to a question has no message of its own (the next
+  // qualification question follows it) and a turn after a stop is suppressed.
   reply: string;
   suppressed: boolean;
   registeredDoubts: string[];
@@ -362,18 +362,30 @@ export class MuskAgent {
     return true;
   }
 
+  // True while the profile still has a question to ask: approved text, not asked
+  // yet, and nobody else has taken over. Read-only — unlike
+  // nextQualificationQuestion() it does not consume a question.
+  private hasQualificationLeft(): boolean {
+    if (this.stopped || this.handoffFired) return false;
+    return this.content.qualificationQuestions.some(
+      (question) => !this.askedQuestions.has(question.id) && this.isAskable(question),
+    );
+  }
+
   // Receives the lead's answer: registers it (never as a doubt), clears the
-  // pending ask, and sends NOTHING of its own. The conversation continues with
-  // whatever comes next (the next qualification question, asked by the caller).
+  // pending ask, and sends nothing of its own — the next qualification question
+  // (asked by the caller) is the agent's message for that turn.
   //
   // Why no acknowledgement: a courtesy line here would be one fixed string, sent
-  // as its own message, on every single answer — the same "Gracias, lo apunto."
-  // three times in a row. That repetition is what makes it read as a bot, and
-  // "lo apunto" is operator-speak about our own bookkeeping, not something the
-  // lead cares about. The questions already open naturally ("Para orientarte
-  // mejor, ¿...?"), so silence is better than filler. Any acknowledgement worth
-  // sending is MUSK copy and needs its sign-off (rule 11) — it is a decision,
-  // not a default.
+  // as its own message, on EVERY answer — the same "Gracias, lo apunto." three
+  // times in a row. That repetition is what reads as a bot, and "lo apunto" is
+  // operator-speak about our own bookkeeping. The questions already open
+  // naturally ("Para orientarte mejor, ¿...?"), so silence beats filler; any
+  // acknowledgement worth sending is MUSK copy and needs its sign-off (rule 11).
+  //
+  // The exception is the LAST answer: with no question left, the agent proposes
+  // the call, which is the flow's objective (AGENTS.md). That closing reuses the
+  // wording already approved for the price answer instead of phrasing a new one.
   private receiveAnswer(message: string, intent: Intent): TurnResult {
     const ask = this.pendingAsk;
     this.pendingAsk = null;
@@ -383,14 +395,30 @@ export class MuskAgent {
     } else {
       this.push({ kind: 'answer', intent, detail: `answer to opening: "${message}"` });
     }
+
+    let reply = '';
+    let ruleViolations: string[] = [];
+    if (!this.hasQualificationLeft()) {
+      const closing = buildReply('callProposal');
+      const guard = guardReply(closing);
+      if (guard.ok) {
+        reply = closing;
+        this.push({ kind: 'reply', intent, detail: reply });
+      } else {
+        // Defense in depth: a lead-facing string that violates the guard is
+        // never sent. The skip stays visible in the records.
+        ruleViolations = guard.violations.map((violation) => `${violation.id}(rule ${violation.rule})`);
+      }
+    }
+
     return {
       intent,
       action: 'none',
-      reply: '',
+      reply,
       suppressed: false,
       registeredDoubts: [],
       registeredNoContinuar: false,
-      ruleViolations: [],
+      ruleViolations,
       capturedAnswer: { questionId: ask && ask.kind === 'qualification' ? ask.id : null, text: message },
     };
   }

@@ -114,10 +114,15 @@ export function guardReply(reply: string): GuardResult {
 // Approved reply templates (lead-facing, Spanish es-ES, tuteo)
 // ---------------------------------------------------------------------------
 
+// Already-approved invitation to the call, reused VERBATIM in two places: the
+// tail of the price answer and the closing of the qualification. One constant,
+// so the approved sentence cannot drift between the two.
+const CALL_INVITATION =
+  '¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?';
+
 export const REPLY_TEMPLATES = {
   // Rule 1: approved response + invitation to the call. No amounts, no digits.
-  price:
-    'No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?',
+  price: `No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}`,
   // Rule 2: no detailed syllabus; general content and call redirect only.
   syllabus:
     'No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general: las habilidades que trabajas, lo que aprendes y las salidas profesionales. Si te encaja, lo vemos con más detalle en una llamada.',
@@ -138,6 +143,11 @@ export const REPLY_TEMPLATES = {
   // Rule 9 (confirmed trigger: lead accepts/agrees to a call).
   callAccepted:
     'Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle.',
+  // Closing of the brief qualification: with no question left, the agent is the
+  // one who proposes the call (AGENTS.md flow). It reuses the wording already
+  // approved for the price answer, so no NEW lead-facing copy is phrased here
+  // (rule 11) — it is the very sentence the lead can already receive.
+  callProposal: CALL_INVITATION,
   // Rule 7: stop acknowledgement, registered as "no continuar".
   stop:
     'Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar".',
