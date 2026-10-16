@@ -64,6 +64,7 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 5. "no me interesa" → trato amable y sin presión; no se confunde con una parada.
 6. "no me escribáis más" → respeta el rechazo y detiene el seguimiento.
 7. El flujo completo termina en una llamada humana (nunca vende por WhatsApp).
+8. Cuando respondéis a una de sus preguntas de cualificación (por ejemplo `parto de cero`), el asistente acusa recibo con *«Gracias, lo apunto.»* y sigue la conversación. Ese texto es **nuevo** y **necesita vuestra aprobación**: decidnos si os encaja o preferís otra redacción.
 
 Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumno real); todas deben caer en alguno de los comportamientos anteriores.
 
