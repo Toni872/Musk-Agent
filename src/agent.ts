@@ -44,9 +44,12 @@ export interface TurnResult {
   registeredNoContinuar: boolean;
   ruleViolations: string[];
   handoff?: HandoffContext;
+  // Present when this turn was RECEIVED as the answer to the ask the agent had
+  // just made. questionId is null for the opening message.
+  capturedAnswer?: { questionId: string | null; text: string };
 }
 
-export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question';
+export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question' | 'answer';
 
 export interface ConversationRecord {
   kind: RecordKind;
@@ -71,6 +74,13 @@ export class MuskAgent {
   private handoffFired = false;
   private readonly askedQuestions = new Set<string>();
   private readonly conversationRecords: ConversationRecord[] = [];
+  // The ask the agent is still waiting to receive an answer for. Before this
+  // existed, every incoming message was classified as a fresh query, so a lead
+  // answering the question they had just been asked got the rule 5 "no approved
+  // answer" reply — rule 5 applied to the WRONG KIND of message (an answer, not
+  // a question).
+  private pendingAsk: { kind: 'opening' } | { kind: 'qualification'; id: string } | null = null;
+  private readonly qualificationAnswersById = new Map<string, string>();
 
   constructor(options: MuskAgentOptions = {}) {
     this.content = options.content ?? APPROVED_CONTENT;
@@ -81,10 +91,17 @@ export class MuskAgent {
       bucket: 'ilocalizable',
     };
     this.systemPrompt = this.buildSystemPrompt();
+    if (this.opening() !== null) this.pendingAsk = { kind: 'opening' };
   }
 
   get records(): ConversationRecord[] {
     return [...this.conversationRecords];
+  }
+
+  // Answers received to asked qualification questions, in arrival order.
+  // Supervision surface only: nothing here is scored or used to exclude a lead.
+  get qualificationAnswers(): { id: string; text: string }[] {
+    return [...this.qualificationAnswersById.entries()].map(([id, text]) => ({ id, text }));
   }
 
   get isStopped(): boolean {
@@ -96,6 +113,9 @@ export class MuskAgent {
     this.handoffFired = false;
     this.askedQuestions.clear();
     this.conversationRecords.length = 0;
+    this.pendingAsk = null;
+    this.qualificationAnswersById.clear();
+    if (this.opening() !== null) this.pendingAsk = { kind: 'opening' };
   }
 
   // Opening message of the conversation: the first outbound touch of the flow
@@ -146,6 +166,7 @@ export class MuskAgent {
         continue;
       }
       this.push({ kind: 'question', detail: `asked ${question.id}: ${question.text}` });
+      this.pendingAsk = { kind: 'qualification', id: question.id };
       return question;
     }
     return null;
@@ -172,6 +193,15 @@ export class MuskAgent {
     }
 
     const intent = classify(message, this.content);
+
+    // Reception: if the agent asked something and this message is not a query we
+    // must answer, it is the ANSWER to that ask. A real question is never
+    // swallowed — guarded intents (rules 1, 2, 3, 7, 9 and the soft decline) and
+    // any approved-FAQ question take precedence and keep the ask pending.
+    if (this.pendingAsk !== null && this.isReceivableAnswer(message, intent)) {
+      return this.receiveAnswer(message, intent);
+    }
+
     let reply: string;
     let action: AgentAction = 'none';
     let handoff: HandoffContext | undefined;
@@ -308,6 +338,52 @@ export class MuskAgent {
     } catch {
       return { reply: entry.answer, violations: [] };
     }
+  }
+
+  // A message is receivable as the pending answer unless it is something the
+  // agent must ANSWER instead: a guarded intent, an explicit question, a
+  // call-acceptance handoff, or a question that matches approved FAQ content.
+  // Those keep the ask pending.
+  private isReceivableAnswer(message: string, intent: Intent): boolean {
+    if (intent !== 'unknown' && intent !== 'general') return false;
+    // Rule 5 first: an explicit question mark means the lead is ASKING, not
+    // answering. Capturing it would swallow the doubt (no "no approved answer"
+    // reply, no human-contact proposal) and acknowledge a question with
+    // courtesy copy. High precision by design: only '?' triggers it, so a free
+    // answer that merely reads as 'unknown' is still received.
+    if (message.includes('?')) return false;
+    if (intent === 'general') {
+      if (HANDOFF_TRIGGERS.callAccepted.test(normalizeEs(message))) return false;
+      if (findApprovedAnswer(this.content, message) !== null) return false;
+    }
+    return true;
+  }
+
+  // Receives the lead's answer: registers it (never as a doubt), clears the
+  // pending ask and acknowledges with approved courtesy copy only.
+  private receiveAnswer(message: string, intent: Intent): TurnResult {
+    const ask = this.pendingAsk;
+    this.pendingAsk = null;
+    if (ask && ask.kind === 'qualification') {
+      this.qualificationAnswersById.set(ask.id, message);
+      this.push({ kind: 'answer', intent, detail: `answer to ${ask.id}: "${message}"` });
+    } else {
+      this.push({ kind: 'answer', intent, detail: `answer to opening: "${message}"` });
+    }
+    let reply = buildReply('answerAck');
+    const guard = guardReply(reply);
+    const ruleViolations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
+    if (!guard.ok) reply = buildReply('doubt');
+    return {
+      intent,
+      action: 'none',
+      reply,
+      suppressed: false,
+      registeredDoubts: [],
+      registeredNoContinuar: false,
+      ruleViolations,
+      capturedAnswer: { questionId: ask && ask.kind === 'qualification' ? ask.id : null, text: message },
+    };
   }
 
   private buildHandoff(reason: HandoffReason, lastMessage: string): HandoffContext {

@@ -53,6 +53,11 @@ function printTurn(result: TurnResult): void {
   console.log(
     `intent  = ${result.intent} | action = ${result.action} | suppressed = ${result.suppressed} | registered doubts = ${result.registeredDoubts.length}`,
   );
+  if (result.capturedAnswer) {
+    console.log(
+      `received = answer to ${result.capturedAnswer.questionId ?? 'opening message'} (no doubt registered)`,
+    );
+  }
   if (result.handoff) {
     console.log(
       `handoff = reason=${result.handoff.reason} lead=${result.handoff.leadId} contact=${result.handoff.contact} bucket=${result.handoff.bucket}`,
