@@ -212,6 +212,22 @@ export class MuskAgent {
 
     const intent = classify(message, this.content);
 
+    // Rule 9: after the handoff the lead is with a person, so the agent stops
+    // writing. One person talking is the point of the handoff; a second voice
+    // here (a greeting, a doubt acknowledgement) is exactly what reads as a bot.
+    // Nothing is registered either: the turn belongs to the commercial now.
+    if (this.handoffFired) {
+      return {
+        intent,
+        action: 'none',
+        reply: '',
+        suppressed: true,
+        registeredDoubts: [],
+        registeredNoContinuar: false,
+        ruleViolations: [],
+      };
+    }
+
     // Reception: if the agent asked something and this message is not a query we
     // must answer, it is the ANSWER to that ask. A real question is never
     // swallowed — guarded intents (rules 1, 2, 3, 7, 9 and the soft decline) and

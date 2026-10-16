@@ -68,6 +68,10 @@ export const OPENING_PLACEHOLDER =
 // Mirrors src/simulator.ts printTurn() when the conversation is stopped.
 export const STOPPED_REPLY_PLACEHOLDER = '(no message sent: conversation stopped)';
 
+// Same, once the handoff fired: the agent deliberately goes silent because the
+// conversation is in a person's hands now.
+export const HANDOFF_REPLY_PLACEHOLDER = '(no message sent: the conversation is with a person)';
+
 export const DEFAULT_LEAD: LeadContact = {
   id: 'ui-lead',
   contact: '+3460000000',
@@ -183,7 +187,10 @@ export class Chat {
     if (result.reply) {
       this.messages.push({ role: 'agent', text: result.reply });
     } else if (result.suppressed) {
-      this.messages.push({ role: 'agent', text: STOPPED_REPLY_PLACEHOLDER });
+      this.messages.push({
+        role: 'agent',
+        text: result.action === 'stop' ? STOPPED_REPLY_PLACEHOLDER : HANDOFF_REPLY_PLACEHOLDER,
+      });
     }
     this.messages.push({
       role: 'diagnostic',

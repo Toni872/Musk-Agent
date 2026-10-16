@@ -285,4 +285,25 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(second.reply).toBe(buildReply('callProposal'));
     expect(second.reply).not.toBe(first.reply);
   });
+
+  // 15. After the handoff the agent stops writing: the lead is with a person, and
+  //     a second voice (the social greeting, an acknowledgement) is what reads as
+  //     a bot. The silence is deliberately marked (suppressed), never a lost turn.
+  it('tras la derivación el agente deja de escribir', async () => {
+    const agent = makeDemoAgent();
+    expect(armQualification(agent)).toBe('starting-experience');
+    await agent.runTurn('parto de cero');
+    expect(armQualification(agent)).toBe('time-interest');
+    await agent.runTurn('lo antes posible');
+    const accepted = await agent.runTurn('sI');
+    expect(accepted.action).toBe('handoff');
+    const recordsAfterHandoff = agent.records.length;
+
+    const lead = await agent.runTurn('sI');
+
+    expect(lead.reply).toBe('');
+    expect(lead.suppressed).toBe(true);
+    expect(agent.records).toHaveLength(recordsAfterHandoff);
+    expect(agent.nextQualificationQuestion()).toBeNull();
+  });
 });

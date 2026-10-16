@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 68/68 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 69/69 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
@@ -135,7 +135,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 68 tests, sin red
+npm test            # 69 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```
