@@ -369,11 +369,20 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
   // §4: pocas preguntas, una cada vez, sin examen, sin puntuación y sin
   // exclusión automática — el arnés no descarta a nadie.
-  it('cualificación (DEMO): una pregunta cada vez, en orden y sin excluir', () => {
+  it('cualificación (DEMO): una pregunta cada vez, en orden y sin excluir', async () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
 
     expect(agent.nextQualificationQuestion()?.id).toBe('starting-experience');
+    // Una cada vez: con un ask armado no se pregunta otra cosa, porque la
+    // respuesta del lead acabaría archivada contra la pregunta equivocada.
+    expect(agent.nextQualificationQuestion()).toBeNull();
+
+    await agent.runTurn('parto de cero');
     expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
+    expect(agent.nextQualificationQuestion()).toBeNull();
+
+    await agent.runTurn('lo antes posible');
+    // Sin preguntas aprobadas pendientes: el flujo pasa a la llamada.
     expect(agent.nextQualificationQuestion()).toBeNull();
 
     expect(agent.records.filter((record) => record.kind === 'question')).toHaveLength(2);
@@ -396,7 +405,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
   // Structural: everything the agent can open with or ask is lead-facing, so it
   // must pass the output guard — and no path may ever return a raw TODO stub.
-  it('estructural: apertura y preguntas pasan el guard y nunca devuelven un TODO', () => {
+  it('estructural: apertura y preguntas pasan el guard y nunca devuelven un TODO', async () => {
     const demo = new MuskAgent({ content: DEMO_CONTENT, lead });
     const opening = demo.opening();
 
@@ -413,6 +422,8 @@ describe('apertura y cualificación (MVP spec §4)', () => {
         `pregunta "${question.id}" no debe violar el guard: ${JSON.stringify(result.violations)}`,
       ).toBe(true);
       asked += 1;
+      // Se responde para poder armar la siguiente: un ask armado no se roba.
+      await demo.runTurn('sí');
       question = demo.nextQualificationQuestion();
     }
     expect(asked).toBe(2);

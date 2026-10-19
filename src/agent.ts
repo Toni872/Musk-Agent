@@ -10,7 +10,7 @@
 import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMProvider } from './llm';
-import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
+import { bareAcknowledgement, classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
 import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, extractSpanishPhone, guardReply, momentConfirmed, RULES } from './rules';
 
 export type LeadBucket = 'ilocalizable' | 'no_comprador';
@@ -19,13 +19,18 @@ export interface LeadContact {
   id: string;
   contact: string;
   bucket: LeadBucket;
+  // Why this lead was lost in the original campaign, as recorded in the lot
+  // (spec §2.5/§8.2: ghosting, unreachable, price, enrolled elsewhere...).
+  lossReason?: string;
 }
 
 export type AgentAction = 'none' | 'handoff' | 'stop';
 export type HandoffReason = 'human_requested' | 'call_accepted';
 
 // Context handed to the commercial: enough to locate the contact in the CRM
-// and understand why the handoff fired.
+// and understand why the handoff fired, plus the lead's own qualification
+// answers and registered doubts so the commercial does not arrive cold
+// (spec §3.3: summary of the conversation for the commercial team).
 export interface HandoffContext {
   reason: HandoffReason;
   leadId: string;
@@ -33,6 +38,16 @@ export interface HandoffContext {
   bucket: LeadBucket;
   lastMessage: string;
   summary: string;
+  // Approved formation name of the conversation (content.formationName).
+  formation: string;
+  // Copied from the lead when the pilot lot recorded a reason (spec §8.2).
+  lossReason?: string;
+  // Every received qualification answer, in arrival order. question is the
+  // wording the lead actually saw, or the id when that wording is still a
+  // TODO(decisión) placeholder.
+  qualification: { question: string; answer: string }[];
+  // The lead's messages registered as doubts, in arrival order, deduplicated.
+  doubts: string[];
 }
 
 export interface TurnResult {
@@ -93,6 +108,10 @@ export class MuskAgent {
     | { kind: 'callProposal' }
     | null = null;
   private readonly qualificationAnswersById = new Map<string, string>();
+  // The lead's own words for every registered doubt, in arrival order and
+  // deduplicated. buildHandoff() reads this array instead of parsing the
+  // record details: details are operator-facing text, this is data.
+  private readonly doubtMessages: string[] = [];
   // Last lead-facing string handed out (a question or a reply). The engine never
   // sends the same message twice in a row: for the lead it is the clearest bot
   // tell, and for us it hides a turn that moved nothing.
@@ -132,6 +151,7 @@ export class MuskAgent {
     this.pendingAsk = null;
     this.lastOutbound = '';
     this.qualificationAnswersById.clear();
+    this.doubtMessages.length = 0;
     if (this.opening() !== null) this.pendingAsk = { kind: 'opening' };
   }
 
@@ -167,8 +187,23 @@ export class MuskAgent {
   // evaluated here. Returns null when the profile has no approved question,
   // when they have all been asked, or after the conversation stopped or
   // handoff fired (that is how the human takes over).
+  //
+  // It also returns null while a qualification ask or the call proposal is
+  // pending: asking here would overwrite it, and the pending question would be
+  // lost. That is what happened when the lead asked for the price mid-
+  // qualification (the price answer keeps the ask armed on purpose, rule 1): the
+  // next question went out on top of the unanswered one, the lead's reply was
+  // filed against the WRONG question and the flow closed with the rule 5 doubt.
+  // Same invariant as keepListeningForCall: an armed ask is never stolen.
+  //
+  // The opening is the exception: it is armed by construction (and by reset) as
+  // the very first touch, and it is consumed by the lead's first message. Every
+  // production caller asks for the next question AFTER a turn, so it is never
+  // stolen in practice; keeping it out of the guard is what lets a caller sit
+  // at the qualification stage without replaying the opening first.
   nextQualificationQuestion(): QualificationQuestion | null {
     if (this.stopped || this.handoffFired) return null;
+    if (this.pendingAsk !== null && this.pendingAsk.kind !== 'opening') return null;
     for (const question of this.content.qualificationQuestions) {
       if (this.askedQuestions.has(question.id) || !this.isAskable(question)) continue;
       this.askedQuestions.add(question.id);
@@ -321,6 +356,7 @@ export class MuskAgent {
         // Rule 5: register the doubt, propose human contact, invent nothing.
         registeredDoubts.push(message);
         reply = buildReply('doubt');
+        this.recordDoubtMessage(message);
         this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
         break;
       }
@@ -330,6 +366,7 @@ export class MuskAgent {
         // keep the conversation alive with a human option.
         registeredDoubts.push(message);
         reply = buildReply('decline');
+        this.recordDoubtMessage(message);
         this.push({ kind: 'doubt', intent, detail: `decline registered: "${message}"` });
         break;
       }
@@ -354,8 +391,27 @@ export class MuskAgent {
           localViolations = fromFaq.violations;
           answersLead = true;
         } else {
-          // Social/small talk (classified as 'general').
-          reply = buildReply('social');
+          // A bare acknowledgement answers what the agent just offered. The
+          // approved FAQ answer ends offering the call ("Si quieres, te lo
+          // vemos con detalle en una llamada"), so a "si" right after it means
+          // interest, not a fresh hello: greeting back ignored the lead and
+          // reset the conversation to "Hola, soy el asistente de MUSK".
+          // "si" advances to the call proposal (approved copy; the tail arms
+          // the ask, so the next message is received as its answer), while a
+          // bare "no" is a soft decline (rule 5): acknowledged without
+          // pressure and registered, never answered with a greeting.
+          const ack = bareAcknowledgement(message);
+          if (ack === 'yes') {
+            reply = buildReply('callProposal');
+          } else if (ack === 'no') {
+            registeredDoubts.push(message);
+            this.recordDoubtMessage(message);
+            reply = buildReply('decline');
+            this.push({ kind: 'doubt', intent, detail: `bare decline registered: "${message}"` });
+          } else {
+            // Social/small talk (classified as 'general').
+            reply = buildReply('social');
+          }
         }
         break;
       }
@@ -372,6 +428,7 @@ export class MuskAgent {
       reply = buildReply('doubt');
       if (!registeredDoubts.includes(message)) {
         registeredDoubts.push(message);
+        this.recordDoubtMessage(message);
         this.push({ kind: 'doubt', intent, detail: `guard fallback for: "${message}"` });
       }
     }
@@ -499,25 +556,33 @@ export class MuskAgent {
   }
 
   // Receives the lead's answer: registers it (never as a doubt), clears the
-  // pending ask, and sends nothing of its own — the next qualification question
-  // (asked by the caller) is the agent's message for that turn.
+  // pending ask, and ends the turn with a short reaction to what the lead just
+  // said. The next qualification question is asked by the caller (it is the
+  // agent's message for that turn), so the reaction and the question travel as
+  // two short messages, the way a person writes.
   //
-  // Why no acknowledgement: a courtesy line here would be one fixed string, sent
-  // as its own message, on EVERY answer — the same "Gracias, lo apunto." three
-  // times in a row. That repetition is what reads as a bot, and "lo apunto" is
-  // operator-speak about our own bookkeeping. The questions already open
-  // naturally ("Para orientarte mejor, ¿...?"), so silence beats filler; any
-  // acknowledgement worth sending is MUSK copy and needs its sign-off (rule 11).
+  // Why a reaction now, and why not before: an earlier version sent nothing,
+  // because ONE fixed courtesy line repeated on every answer ("Gracias, lo
+  // apunto.") is the tell that reads as a bot. The fix is not silence but
+  // specificity: the reaction is matched against the lead's own words
+  // (content.qualificationQuestions[].reactions), so two different answers
+  // never produce the same line. When no reaction matches, the turn sends
+  // nothing: silence still beats filler.
   //
   // The exception is the LAST answer: with no question left, the agent proposes
-  // the call, which is the flow's objective (AGENTS.md). That closing reuses the
-  // wording already approved for the price answer instead of phrasing a new one.
+  // the call, which is the flow's objective (AGENTS.md). The close is
+  // content.closingInvitation when the profile has its own wording; otherwise
+  // it reuses the sentence already approved for that moment
+  // (REPLY_TEMPLATES.callProposal), so no new lead-facing copy is invented at
+  // runtime (rule 11).
   private receiveAnswer(message: string, intent: Intent): TurnResult {
     const ask = this.pendingAsk;
     this.pendingAsk = null;
+    let reaction = '';
     if (ask && ask.kind === 'qualification') {
       this.qualificationAnswersById.set(ask.id, message);
       this.push({ kind: 'answer', intent, detail: `answer to ${ask.id}: "${message}"` });
+      reaction = this.reactionFor(ask.id, message);
     } else if (ask && ask.kind === 'callProposal') {
       // The ask was the call proposal (a yes/no question): its answer decides
       // whether rule 9 fires, so it never goes through the generic path.
@@ -530,10 +595,11 @@ export class MuskAgent {
     let reply = '';
     let ruleViolations: string[] = [];
     if (!this.hasQualificationLeft()) {
-      const closing = buildReply('callProposal');
-      const guard = guardReply(closing);
+      const closing = this.closingReply();
+      const text = reaction === '' ? closing : `${reaction} ${closing}`;
+      const guard = guardReply(text);
       if (guard.ok) {
-        reply = closing;
+        reply = text;
         // The closing asks for the call, so it leaves the ask armed: the lead's
         // next message is RECEIVED as its answer instead of being classified as
         // a brand-new message (which is what produced "¡Hola! Soy el asistente"
@@ -544,6 +610,16 @@ export class MuskAgent {
       } else {
         // Defense in depth: a lead-facing string that violates the guard is
         // never sent. The skip stays visible in the records.
+        ruleViolations = guard.violations.map((violation) => `${violation.id}(rule ${violation.rule})`);
+      }
+    } else if (reaction !== '') {
+      // A message of its own: the next question follows it.
+      const guard = guardReply(reaction);
+      if (guard.ok) {
+        reply = reaction;
+        this.lastOutbound = reply;
+        this.push({ kind: 'reply', intent, detail: reply });
+      } else {
         ruleViolations = guard.violations.map((violation) => `${violation.id}(rule ${violation.rule})`);
       }
     }
@@ -558,6 +634,29 @@ export class MuskAgent {
       ruleViolations,
       capturedAnswer: { questionId: ask && ask.kind === 'qualification' ? ask.id : null, text: message },
     };
+  }
+
+  // Short reaction to the lead's answer, from approved content (rule 11). First
+  // keyword match wins; no match means no reaction, never a generic filler.
+  private reactionFor(questionId: string, message: string): string {
+    const question = this.content.qualificationQuestions.find((item) => item.id === questionId);
+    if (!question?.reactions?.length) return '';
+    const folded = normalizeEs(message);
+    for (const reaction of question.reactions) {
+      if (reaction.keywords.some((keyword) => folded.includes(normalizeEs(keyword)))) {
+        return isPendingDecision(reaction.say) ? '' : reaction.say;
+      }
+    }
+    return '';
+  }
+
+  // The close that asks for the call: the profile's own wording when it has one,
+  // otherwise the sentence already approved for that moment. A TODO(decisión)
+  // placeholder is never sent (rule 4).
+  private closingReply(): string {
+    const own = this.content.closingInvitation;
+    if (own !== undefined && own.trim().length > 0 && !isPendingDecision(own)) return own;
+    return buildReply('callProposal');
   }
 
   // The lead's answer to the call question. A confirmed handoff (rule 9) needs
@@ -605,6 +704,7 @@ export class MuskAgent {
       // goes through neverRepeat, because this path returns before runTurn's
       // tail: without it, two identical doubt replies in a row could be sent.
       const doubt = this.neverRepeat(buildReply('doubt'));
+      this.recordDoubtMessage(message);
       this.push({ kind: 'doubt', intent, detail: `registered (non-availability in the answer): "${message}"` });
       this.lastOutbound = doubt;
       this.push({ kind: 'reply', intent, detail: doubt });
@@ -670,6 +770,7 @@ export class MuskAgent {
     // Anything else: the same rule 5 handling as any other message the agent
     // has no approved answer for.
     const doubt = this.neverRepeat(buildReply('doubt'));
+    this.recordDoubtMessage(message);
     this.push({ kind: 'doubt', intent, detail: `registered (no yes/no in the answer): "${message}"` });
     this.lastOutbound = doubt;
     this.push({ kind: 'reply', intent, detail: doubt });
@@ -765,14 +866,80 @@ export class MuskAgent {
   }
 
   private buildHandoff(reason: HandoffReason, lastMessage: string): HandoffContext {
-    return {
+    const handoff: HandoffContext = {
       reason,
       leadId: this.lead.id,
       contact: this.lead.contact,
       bucket: this.lead.bucket,
       lastMessage,
-      summary: `${this.conversationRecords.length} registered event(s) before handoff. Last lead message: "${lastMessage}"`,
+      summary: this.buildHandoffSummary(reason, lastMessage),
+      formation: this.content.formationName,
+      qualification: this.qualificationAnswers.map(({ id, text }) => ({
+        question: this.qualificationQuestionLabel(id),
+        answer: text,
+      })),
+      doubts: [...this.doubtMessages],
     };
+    if (this.lead.lossReason !== undefined) handoff.lossReason = this.lead.lossReason;
+    return handoff;
+  }
+
+  // Commercial-facing summary of the conversation (spec §3.3), Spanish (es-ES).
+  // It only echoes facts the engine recorded — approved content, the lead's
+  // answers and the lead's own words — so it can never introduce a price, a
+  // syllabus detail or a promise (hard rules 1, 2 and 4). Doubts are bounded so
+  // the notice stays readable on WhatsApp.
+  private buildHandoffSummary(reason: HandoffReason, lastMessage: string): string {
+    const reasonText =
+      reason === 'human_requested' ? 'pidió hablar con una persona' : 'aceptó la llamada';
+    const parts = [`${this.content.formationName}: el lead ${reasonText}.`];
+
+    // Why the lead was lost in the original campaign (spec §8.2: the lot carries
+    // the loss reason). It is MUSK's own recorded data, not new copy, and it is
+    // what lets the commercial segment the call before picking up the phone.
+    if (this.lead.lossReason !== undefined && this.lead.lossReason.trim() !== '') {
+      parts.push(`Motivo por el que se perdió en la campaña: ${this.lead.lossReason}.`);
+    }
+
+    const answers = this.qualificationAnswers.map(
+      ({ id, text }) => `${this.qualificationQuestionLabel(id)} → ${text}`,
+    );
+    parts.push(
+      answers.length > 0
+        ? `Cualificación: ${answers.join('; ')}.`
+        : 'Cualificación: sin respuestas registradas.',
+    );
+
+    if (this.doubtMessages.length === 0) {
+      parts.push('Dudas registradas: ninguna.');
+    } else {
+      const visible = this.doubtMessages.slice(0, 5);
+      const remaining = this.doubtMessages.length - visible.length;
+      const listed = visible.map((doubt) => `"${doubt}"`).join('; ');
+      parts.push(
+        remaining > 0
+          ? `Dudas registradas: ${listed}; … y ${remaining} más.`
+          : `Dudas registradas: ${listed}.`,
+      );
+    }
+
+    parts.push(`Último mensaje del lead: ${lastMessage}`);
+    return parts.join(' ');
+  }
+
+  // The question wording the lead actually saw, or its id while MUSK has not
+  // approved that wording yet (a TODO(decisión) is never quoted, rule 4).
+  private qualificationQuestionLabel(id: string): string {
+    const question = this.content.qualificationQuestions.find((item) => item.id === id);
+    if (!question || isPendingDecision(question.text) || question.text.trim() === '') return id;
+    return question.text;
+  }
+
+  // One entry per registered doubt, in arrival order and deduplicated. Called
+  // next to every kind 'doubt' record, so buildHandoff() never has to parse the
+  // operator-facing detail strings.
+  private recordDoubtMessage(message: string): void {
+    if (!this.doubtMessages.includes(message)) this.doubtMessages.push(message);
   }
 
   private push(record: ConversationRecord): void {

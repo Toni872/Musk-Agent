@@ -76,6 +76,7 @@ export const DEFAULT_LEAD: LeadContact = {
   id: 'ui-lead',
   contact: '+3460000000',
   bucket: 'ilocalizable',
+  lossReason: 'no respondió a los intentos de llamada',
 };
 
 // Content profile -> ApprovedContent. No environment access, no LLM: the UI is
@@ -98,6 +99,12 @@ export function formatHandoff(handoff: HandoffContext): string {
     `handoff = reason=${handoff.reason} lead=${handoff.leadId}` +
     ` contact=${handoff.contact} bucket=${handoff.bucket}`
   );
+}
+
+// Operator-facing view of the commercial summary the agent built from the
+// conversation (spec §3.3). The demo has to show it, not hide it in the payload.
+export function formatHandoffSummary(handoff: HandoffContext): string {
+  return `resumen para el comercial = ${handoff.summary}`;
 }
 
 export class Chat {
@@ -205,6 +212,7 @@ export class Chat {
     });
     if (result.handoff) {
       this.messages.push({ role: 'diagnostic', text: formatHandoff(result.handoff) });
+      this.messages.push({ role: 'diagnostic', text: formatHandoffSummary(result.handoff) });
     }
     if (result.ruleViolations.length > 0) {
       this.messages.push({

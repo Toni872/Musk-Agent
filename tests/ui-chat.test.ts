@@ -88,6 +88,18 @@ describe('ui/chat view-model', () => {
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
     expect(diagnostics.some((message) => message.text.startsWith('handoff = '))).toBe(true);
+    // Spec §3.3: the operator must see the commercial summary, not only the
+    // routing line. It is a diagnostic, so no agent bubble is added.
+    const summaryLine = diagnostics.find((message) =>
+      message.text.startsWith('resumen para el comercial = '),
+    );
+    expect(summaryLine).toBeDefined();
+    expect(summaryLine?.text).toContain(DEMO_CONTENT.formationName);
+    expect(summaryLine?.text).toContain('aceptó la llamada');
+    // Spec §8.2: the lot's loss reason travels with the lead, so the commercial
+    // knows why it was lost before picking up the phone.
+    expect(summaryLine?.text).toContain('no respondió a los intentos de llamada');
+    expect(summaryLine?.text).toContain('Sí, llámame cuando queráis');
     expect(state.records.some((record) => record.kind === 'handoff')).toBe(true);
     // Rule 9: once handed off, no further qualification question is asked.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');

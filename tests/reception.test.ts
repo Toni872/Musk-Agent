@@ -32,6 +32,18 @@ function armQualification(agent: MuskAgent): string {
   return question.id;
 }
 
+// The close this profile ships (a profile without one falls back to the
+// approved sentence in REPLY_TEMPLATES).
+function demoClosing(): string {
+  return DEMO_CONTENT.closingInvitation ?? buildReply('callProposal');
+}
+
+// The reaction this profile ships for a given answer of a given question.
+function demoReaction(questionId: string, index: number): string {
+  const question = DEMO_CONTENT.qualificationQuestions.find((item) => item.id === questionId);
+  return question?.reactions?.[index]?.say ?? '';
+}
+
 describe('recepción de respuestas (answer reception)', () => {
   // 1. Opening armed: a bare affirmative first message is received as the
   //    answer to the opening (not as a fresh query) and questionId is null for
@@ -47,8 +59,8 @@ describe('recepción de respuestas (answer reception)', () => {
   });
 
   // 2. A qualification ask arms the reception: the next non-query message is
-  //    captured as its answer (registered, never as a doubt) and the turn sends
-  //    nothing — the next qualification question is the agent's message.
+  //    captured as its answer (registered, never as a doubt) and the turn
+  //    answers with the reaction matched to THAT answer (content.reactions).
   it('tras una pregunta de cualificación, la respuesta se captura y no es duda', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
@@ -56,7 +68,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const result = await agent.runTurn('parto de cero');
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
-    expect(result.reply).toBe('');
+    expect(result.reply).toBe(demoReaction('starting-experience', 0));
     expect(result.registeredDoubts).toHaveLength(0);
     expect(agent.qualificationAnswers).toEqual([{ id, text: 'parto de cero' }]);
     expect(agent.records.some((record) => record.kind === 'answer')).toBe(true);
@@ -183,29 +195,40 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(result.capturedAnswer).toEqual({ questionId: null, text: 'Si' });
   });
 
-  // 10. The reception turn sends no message of its own: the answer is recorded
-  //     and the conversation continues with the next qualification question.
-  //     This locks out the robot tell — one canned acknowledgement ("Gracias,
-  //     lo apunto.") repeated identically as its own message on every answer.
-  it('el turno de recepción no envía mensaje propio: sigue la siguiente pregunta', async () => {
+  // 10. The reception turn reacts to what the lead actually said, and the
+  //     reaction is specific to THAT answer: a different answer gets a different
+  //     line. This is what replaced the old silence — a single fixed courtesy
+  //     message ("Gracias, lo apunto.") repeated on every answer is the robot
+  //     tell, so the reaction is content-driven instead (rule 11: MUSK copy).
+  //     The next qualification question still travels as its own message.
+  it('el turno de recepción reacciona a lo que dijo el lead y sigue con la pregunta', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
 
     const result = await agent.runTurn('parto de cero');
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
-    expect(result.reply).toBe('');
-    // Nothing was sent, so no outbound message is recorded: only the answer.
-    expect(agent.records.map((record) => record.kind)).not.toContain('reply');
-    // The ask is cleared, so the next question can be asked.
+    expect(result.reply).toBe(demoReaction('starting-experience', 0));
+    expect(agent.records.filter((record) => record.kind === 'reply')).toHaveLength(1);
+
+    // The other answer to the same question gets a DIFFERENT line.
+    const other = makeDemoAgent();
+    armQualification(other);
+    const withExperience = await other.runTurn('he tocado algo de programación');
+    expect(withExperience.reply).toBe(demoReaction('starting-experience', 1));
+    expect(withExperience.reply).not.toBe(result.reply);
+
+    // The ask is cleared, so the next question can still be asked.
     expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
   });
 
   // 11. When the answered question was the LAST one, there is nothing left to
   //     ask and the agent proposes the call — the objective of the flow. The
-  //     closing reuses the wording already approved (the same sentence the price
-  //     answer closes with), so no new lead-facing copy is introduced (rule 11).
-  it('al agotar las preguntas propone la llamada con la frase ya aprobada', async () => {
+  //     reaction to that last answer opens the message and the profile's own
+  //     close follows it (content.closingInvitation). A profile without its own
+  //     close falls back to the sentence already approved for that moment, so no
+  //     lead-facing copy is invented at runtime (rule 11).
+  it('al agotar las preguntas propone la llamada con la reacción y el cierre del perfil', async () => {
     const agent = makeDemoAgent();
     expect(armQualification(agent)).toBe('starting-experience');
     await agent.runTurn('parto de cero');
@@ -217,12 +240,13 @@ describe('recepción de respuestas (answer reception)', () => {
       questionId: 'time-interest',
       text: 'lo antes posible',
     });
-    expect(result.reply).toBe(buildReply('callProposal'));
-    // Not new copy: it is the tail the price answer already ships.
+    expect(result.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+    // The fallback sentence is still the tail the price answer already ships.
     expect(buildReply('price').endsWith(buildReply('callProposal'))).toBe(true);
     const replies = agent.records.filter((record) => record.kind === 'reply');
-    expect(replies).toHaveLength(1);
-    expect(replies[0].detail).toBe(buildReply('callProposal'));
+    // The last outbound message is the closing; the earlier one was the reaction
+    // to the first answer.
+    expect(replies[replies.length - 1].detail).toBe(result.reply);
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
 
@@ -237,7 +261,7 @@ describe('recepción de respuestas (answer reception)', () => {
     await agent.runTurn('parto de cero');
     expect(armQualification(agent)).toBe('time-interest');
     const proposal = await agent.runTurn('lo antes posible');
-    expect(proposal.reply).toBe(buildReply('callProposal'));
+    expect(proposal.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
 
     const answer = await agent.runTurn('sI');
 
@@ -257,7 +281,7 @@ describe('recepción de respuestas (answer reception)', () => {
     await agent.runTurn('parto de cero');
     expect(armQualification(agent)).toBe('time-interest');
     const closing = await agent.runTurn('lo antes posible');
-    expect(closing.reply).toBe(buildReply('callProposal'));
+    expect(closing.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
 
     const refusal = await agent.runTurn('no gracias');
 
@@ -593,6 +617,37 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
     expect(result.ruleViolations).toHaveLength(0);
   });
 
+  // Spec §3.3 / §8.2: the commercial must arrive with the lead's qualification
+  // answers, not only with the reason the handoff fired. Full DEMO flow: answer
+  // both qualification questions, then accept the call.
+  it('la derivación completa lleva formación, respuestas y último mensaje al comercial', async () => {
+    const agent = await armCallProposal();
+    const lastMessage = 'sí, llámame cuando queráis';
+
+    const result = await agent.runTurn(lastMessage);
+    const handoff = result.handoff;
+
+    expect(result.action).toBe('handoff');
+    expect(handoff).toBeDefined();
+    expect(handoff?.formation).toBe(DEMO_CONTENT.formationName);
+    expect(handoff?.qualification).toEqual([
+      { question: DEMO_CONTENT.qualificationQuestions[0].text, answer: 'parto de cero' },
+      { question: DEMO_CONTENT.qualificationQuestions[1].text, answer: 'lo antes posible' },
+    ]);
+    expect(handoff?.doubts).toEqual([]);
+    expect(handoff?.lastMessage).toBe(lastMessage);
+    expect(handoff?.summary.startsWith(DEMO_CONTENT.formationName)).toBe(true);
+    expect(handoff?.summary).toContain('aceptó la llamada');
+    expect(handoff?.summary).toContain(
+      `${DEMO_CONTENT.qualificationQuestions[0].text} → parto de cero`,
+    );
+    expect(handoff?.summary).toContain(
+      `${DEMO_CONTENT.qualificationQuestions[1].text} → lo antes posible`,
+    );
+    expect(handoff?.summary).toContain('Dudas registradas: ninguna');
+    expect(handoff?.summary.endsWith(lastMessage)).toBe(true);
+  });
+
   // F4 (answer path): the negation guard recognises the negators that actually
   // negate a Spanish acceptance — `nunca`, `tampoco`, `jamas` (folded) and
   // `nada` — not only `no`. A negated acceptance is a REFUSAL (rule 9 counts
@@ -759,7 +814,8 @@ describe('preguntas sin signo de interrogación (questions without "?")', () => 
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text });
     expect(result.registeredDoubts).toHaveLength(0);
-    expect(result.reply).toBe('');
+    // Still captured (not a question) and answered with the matched reaction.
+    expect(result.reply).toBe(demoReaction('starting-experience', 0));
   });
 });
 
@@ -815,19 +871,22 @@ describe('contacto entregado sin pregunta armada (fresh path)', () => {
     expect(result.reply).toBe(buildReply('callAccepted'));
   });
 
-  // The same trap one step further: an invitation sent with no ask armed. If
-  // the lead answers it with his number, it must still close.
-  it('tras una invitación a la llamada sin ask armado, el móvil sigue cerrando', async () => {
+  // An invitation that has been sent must stay listening. Before, a bare "si"
+  // with nothing armed got the social greeting, and the repeat replacement then
+  // sent the invitation WITHOUT arming it, so what came next fell through. Now
+  // the "si" proposes the call itself (approved copy), the ask is armed by the
+  // tail, and the next turn is received as its answer.
+  it('tras la apertura, un "si" sin ask armado propone la llamada y se queda escuchando', async () => {
     const agent = makeDemoAgent();
     await agent.runTurn('Si'); // the opening is answered; nothing is armed after
-    await agent.runTurn('si');
-    const repeated = await agent.runTurn('si'); // identical → replaced by the invitation
-    expect(repeated.reply).toBe(buildReply('callProposal'));
 
-    const result = await agent.runTurn('612345678');
+    const proposed = await agent.runTurn('si');
+    expect(proposed.reply).toBe(buildReply('callProposal'));
+    expect(proposed.action).toBe('none');
 
-    expect(result.action).toBe('handoff');
-    expect(result.handoff?.reason).toBe('call_accepted');
+    const accepted = await agent.runTurn('si');
+    expect(accepted.action).toBe('handoff');
+    expect(accepted.handoff?.reason).toBe('call_accepted');
   });
 
   // Precedence: the mandatory informational answers (rules 1-3) are never
@@ -949,5 +1008,47 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
     expect(first.reply).toBe(buildReply('price'));
     expect(second.reply).toBe(buildReply('price'));
     expect(second.reply).not.toBe(buildReply('callProposal'));
+  });
+});
+
+// Reportado desde la UI con el perfil REAL: la respuesta aprobada de la FAQ
+// termina ofreciendo la llamada ("...o lo vemos con detalle en una llamada sin
+// compromiso") y el lead contestaba "si". Como no había ningún ask armado,
+// "si" se clasificaba como mensaje nuevo y recibía el saludo social: el lead
+// confirmaba algo y el agente volvía a presentarse.
+describe('un "si" suelto avanza el flujo, no vuelve a saludar', () => {
+  it('tras una respuesta de FAQ, "si" propone la llamada y el siguiente "si" deriva', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+
+    const query = await agent.runTurn('informacion');
+    expect(query.intent).toBe('general');
+
+    const yes = await agent.runTurn('si');
+    expect(yes.reply).toBe(buildReply('callProposal'));
+    expect(yes.reply).not.toBe(buildReply('social'));
+    expect(yes.action).toBe('none');
+
+    const accepted = await agent.runTurn('si');
+    expect(accepted.action).toBe('handoff');
+    expect(accepted.handoff?.reason).toBe('call_accepted');
+  });
+
+  it('un "no" suelto se registra como duda (regla 5) y no saluda', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+
+    await agent.runTurn('informacion');
+    const no = await agent.runTurn('no');
+
+    expect(no.reply).toBe(buildReply('decline'));
+    expect(no.reply).not.toBe(buildReply('social'));
+    expect(no.registeredDoubts).toContain('no');
+    expect(no.action).toBe('none');
+  });
+
+  it('un saludo de verdad sigue recibiendo el saludo social', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+
+    const hello = await agent.runTurn('hola');
+    expect(hello.reply).toBe(buildReply('social'));
   });
 });

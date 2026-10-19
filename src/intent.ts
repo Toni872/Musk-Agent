@@ -55,6 +55,17 @@ const SOCIAL_GREETING =
   /^(hola|buenas|buenos dias|buenas tardes|buenas noches|hey|que tal|como estas|adios|hasta luego|gracias)(?:\s+(ok|vale|perfecto|genial|claro|gracias|adios|hasta luego|que tal|como estas))?$/;
 const SOCIAL_ACK = /^(ok|vale|perfecto|entendido|genial|claro|si|no)$/;
 
+// A bare acknowledgement ("si", "vale", "ok", "no") carries no question of its
+// own: it answers whatever the agent just offered. The engine has to tell it
+// apart from a real greeting, because answering a "si" with the social greeting
+// ignores the lead and resets the conversation. Kept here so the list of
+// acknowledgements lives in one place (see SOCIAL_ACK).
+export function bareAcknowledgement(input: string): 'yes' | 'no' | null {
+  const folded = normalizeEs(input);
+  if (!SOCIAL_ACK.test(folded)) return null;
+  return folded === 'no' ? 'no' : 'yes';
+}
+
 // Resolves a message against the approved FAQ. Returns the entry whose
 // keyword appears in the folded message, or null when nothing is approved.
 export function findApprovedAnswer(content: ApprovedContent, message: string): FaqEntry | null {

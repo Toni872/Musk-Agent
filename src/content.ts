@@ -18,10 +18,23 @@ export interface FaqEntry {
   answer: string;
 }
 
+export interface QualificationReaction {
+  // What the lead's own words are matched against (normalized, accent-folded).
+  keywords: string[];
+  // Short reply to THAT answer (rule 11: MUSK copy). Its job is to make the next
+  // question read as a conversation instead of a form. Every reaction is
+  // answer-specific on purpose: one fixed courtesy line repeated on every answer
+  // is the robot tell the engine avoids (see MuskAgent.receiveAnswer).
+  say: string;
+}
+
 export interface QualificationQuestion {
   id: string;
   text: string;
   purpose: string;
+  // Optional per-answer reactions: first keyword match wins. No match means no
+  // reaction, which is the safe default (silence beats filler).
+  reactions?: QualificationReaction[];
 }
 
 export interface ApprovedContent {
@@ -39,6 +52,12 @@ export interface ApprovedContent {
   faq: FaqEntry[];
   qualificationQuestions: QualificationQuestion[];
   initialMessage: string;
+  // Lead-facing close used once the qualification runs out and the agent asks
+  // for the call. When it is missing or still a TODO(decisión), the agent falls
+  // back to the sentence already approved for that moment
+  // (REPLY_TEMPLATES.callProposal), so a profile can sharpen the close without
+  // inventing copy at runtime (rule 11).
+  closingInvitation?: string;
 }
 
 // A decision that is still open with MUSK is stored as a "TODO(decisión)"

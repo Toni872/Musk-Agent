@@ -111,15 +111,41 @@ export const DEMO_CONTENT: ApprovedContent = {
   qualificationQuestions: [
     {
       id: 'starting-experience',
-      text: 'Para orientarte mejor, ¿partes de cero o ya tienes algo de experiencia en el sector?',
+      text: 'Para no hacerte perder tiempo: ¿partes de cero o ya has tocado algo de programación?',
       purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
+      // Answer-specific, so two different leads never read the same line.
+      reactions: [
+        {
+          keywords: ['de cero', 'de 0', 'parto de 0', 'cero', 'nada', 'no tengo experiencia', 'poca', 'ninguna'],
+          say: 'Perfecto, entonces lo enfocamos desde los fundamentos.',
+        },
+        {
+          keywords: ['algo', 'algun', 'he tocado', 'un poco', 'se algo', 'programado', 'trabajo', 'experiencia'],
+          say: 'Bien, entonces partimos de lo que ya sabes.',
+        },
+      ],
     },
     {
       id: 'time-interest',
-      text: '¿Cuándo te gustaría empezar: lo antes posible o dentro de unos meses?',
+      text: '¿Y cuándo te encajaría empezar: lo antes posible o más adelante?',
       purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
+      reactions: [
+        {
+          keywords: ['lo antes posible', 'cuanto antes', 'cuando antes', 'pronto', 'este mes', 'inmediato', 'ya'],
+          say: 'Genial, mejor no dejarlo para más adelante.',
+        },
+        {
+          keywords: ['meses', 'mas adelante', 'despues', 'ano que viene', 'verano', 'tranquil', 'no tengo prisa'],
+          say: 'Sin problema, así lo tienes claro para cuando te decidas.',
+        },
+      ],
     },
   ],
+  // Sharper close than the generic sentence: names what the call gives and asks
+  // for a concrete day and time instead of an open "when suits you" (rule 8:
+  // no pressure, no promise of immediate attention).
+  closingInvitation:
+    'Con lo que me cuentas, lo más útil es que lo veas con una persona del equipo: te explican el programa con detalle, resuelven tus dudas y no te compromete a nada. ¿Qué día y a qué hora te viene mejor que te llamemos?',
   initialMessage:
-    'Hola, te escribimos desde Escuela Musk. ¿Te sigue interesando la formación de especialización tecnológica? Podemos resolver tus dudas por aquí y, si te encaja, te llamamos sin compromiso.',
+    'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación de especialización tecnológica: ¿sigue siendo algo que te interese? Puedo contarte en qué consiste y qué salidas tiene, y si encaja te pongo con una persona del equipo, sin compromiso.',
 };
