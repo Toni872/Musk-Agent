@@ -1,14 +1,13 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-16, 69/69 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-19, 124/124 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
 ## Preparación (una vez)
 
 ```powershell
-cd musk
-npm install
+npm install          # desde la raíz del repositorio
 npm run typecheck
 npm test
 ```
@@ -18,7 +17,6 @@ npm test
 La demo se corre en **una terminal real** (Windows Terminal / PowerShell) porque el REPL necesita TTY:
 
 ```powershell
-cd musk
 npm run sim
 ```
 
@@ -146,11 +144,12 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ## Verificación automatizada (sin tipear)
 
 ```powershell
-cd musk
 npm run typecheck   # cero errores
-npm test            # 120 tests, sin red
+npm test            # 124 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
+npm run build:ui    # empaqueta el simulador de navegador
+npm run ui          # sirve el simulador en http://localhost:4173
 ```
 
 El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 40 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard: las paráfrasis sin palabra clave que fallaban (C19-C22, C34-C35) se cerraron ampliando el ruteo, sin tocar ningún texto de cara al lead.

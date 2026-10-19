@@ -3,7 +3,7 @@
 Estado: **descriptivo del código actual** (no propone cambios). Verificado leyendo
 los 15 archivos del agente uno por uno.
 
-Fecha: 18 de octubre de 2026.
+Fecha: 18 de octubre de 2026. Cifras y recuento de líneas actualizados el 19 de octubre de 2026, tras el rediseño de la interfaz y el cierre del MVP.
 
 Alcance: únicamente el agente conversacional de `musk/`. Queda fuera cualquier
 otro producto del repositorio.
@@ -26,7 +26,7 @@ dos ideas de diseño que lo gobiernan todo:
 | Cifra | Valor |
 |---|---|
 | Archivos TypeScript del agente | 15 |
-| Tests automáticos | 102 |
+| Tests automáticos | 124 |
 | Casos en el banco de evaluación | 40 |
 | Reglas duras codificadas | 11 |
 | Familias de frases prohibidas en el guardián | 8 |
@@ -38,24 +38,24 @@ dos ideas de diseño que lo gobiernan todo:
 
 | Archivo | Líneas | Responsabilidad |
 |---|---|---|
-| `src/agent.ts` | 697 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
-| `src/content.ts` | 225 | Contenido aprobado ("Curso de Desarrollo Full Stack") + detección de `TODO(decisión)` |
-| `src/rules.ts` | 340 | Reglas 1–11, disparadores, guardián, textos fijos |
+| `src/agent.ts` | 982 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
+| `src/content.ts` | 253 | Contenido aprobado ("Curso de Desarrollo Full Stack") + detección de `TODO(decisión)` |
+| `src/rules.ts` | 358 | Reglas 1–11, disparadores, guardián, textos fijos |
 | `src/simulator.ts` | 159 | Consola interactiva (`--demo`, `--smoke`) |
-| `src/content.demo.ts` | 103 | Contenido de muestra (solo con `--demo`) |
-| `src/intent.ts` | 90 | Clasificador determinista en español |
+| `src/content.demo.ts` | 151 | Contenido de muestra (solo con `--demo`) |
+| `src/intent.ts` | 101 | Clasificador determinista en español |
 | `src/llm.ts` | 84 | Proveedor de IA opcional (compatible OpenAI) + doble para tests |
 | `src/eval.ts` | 240 | Medición de recuperación y métricas |
 | `src/eval.dataset.ts` | 365 | 40 casos etiquetados (C01–C40) en 5 grupos |
-| `tests/rules.test.ts` | 722 | 48 tests |
-| `tests/reception.test.ts` | 645 | 37 tests |
-| `tests/ui-chat.test.ts` | 178 | 11 tests |
+| `tests/rules.test.ts` | 748 | 49 tests |
+| `tests/reception.test.ts` | 1054 | 58 tests |
+| `tests/ui-chat.test.ts` | 190 | 11 tests |
 | `tests/eval.test.ts` | 94 | 6 tests |
-| `ui/chat.ts` | 220 | Modelo de vista del chat (sin DOM, testeable) |
-| `ui/main.ts` | 166 | Pintado en el navegador |
+| `ui/chat.ts` | 228 | Modelo de vista del chat (sin DOM, testeable) |
+| `ui/main.ts` | 260 | Pintado en el navegador |
 | `ui/server.mjs` | 71 | Servidor estático local |
 | `ui/build.mjs` | 33 | Empaquetado a `ui/dist/app.js` |
-| `ui/index.html` / `ui/styles.css` | 16 / 330 | Interfaz |
+| `ui/index.html` / `ui/styles.css` | 27 / 770 | Interfaz |
 
 ---
 
@@ -270,6 +270,10 @@ Umbrales que los tests exigen (`tests/eval.test.ts`): **0 falsos positivos**,
 - La copia publicada se sirve de forma estática (un `app.js` + `index.html` +
   `styles.css` por rutas relativas), por lo que puede alojarse en cualquier
   hosting estático.
+- La vista lleva la piel de marca de MUSK (paleta en variables CSS, tipografía
+  Outfit, adaptación a móvil y respeto por `prefers-reduced-motion`).
+- Publicación actual: Vercel (`vercel.json` empaqueta la interfaz), con **deploy
+  manual** desde la raíz del repositorio. El repositorio no despliega solo.
 
 ---
 
@@ -277,8 +281,8 @@ Umbrales que los tests exigen (`tests/eval.test.ts`): **0 falsos positivos**,
 
 | Archivo | Tests | Qué garantiza |
 |---|---|---|
-| `tests/rules.test.ts` | 48 | Reglas obligatorias (precio, temario, financiación, desconocido, humano, parada); variantes y precisión de la parada; guardas estructurales (el contenido no tiene campos de precio ni de temario, ni texto con dinero); presencia de los marcadores `TODO(decisión)`; la FAQ y el contenido de muestra pasan el guardián; apertura y cualificación; cobertura del contenido aprobado; vocabulario de la propuesta de llamada y aceptación negada (regla 9) |
-| `tests/reception.test.ts` | 37 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
+| `tests/rules.test.ts` | 49 | Reglas obligatorias (precio, temario, financiación, desconocido, humano, parada); variantes y precisión de la parada; guardas estructurales (el contenido no tiene campos de precio ni de temario, ni texto con dinero); presencia de los marcadores `TODO(decisión)`; la FAQ y el contenido de muestra pasan el guardián; apertura y cualificación; cobertura del contenido aprobado; vocabulario de la propuesta de llamada y aceptación negada (regla 9) |
+| `tests/reception.test.ts` | 58 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
 | `tests/ui-chat.test.ts` | 11 | Perfiles, marcadores, diagnóstico por turno, dudas (regla 5), parada, reinicio |
 | `tests/eval.test.ts` | 6 | Umbrales de evaluación citados arriba |
 
@@ -328,8 +332,7 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-cd musk
-npm test          # 102 tests
+npm test          # 124 tests
 npm run eval      # 40 casos con métricas
 npm run sim:demo  # conversar con el agente (perfil de muestra)
 npm run sim       # conversar con el contenido aprobado (se ve el hueco)
@@ -337,7 +340,7 @@ npm run ui        # interfaz local en http://localhost:4173
 npm run typecheck # comprobación de tipos
 ```
 
-Orden de lectura recomendado para entenderlo de verdad (unas 3.900 líneas de
+Orden de lectura recomendado para entenderlo de verdad (unas 4.800 líneas de
 TypeScript en total: las de `src/` y `tests/`, sin contar las de `ui/`, que son
 la capa de vista de la simulación, no el agente; todas comentadas explicando el
 porqué):

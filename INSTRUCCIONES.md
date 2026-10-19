@@ -14,11 +14,11 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
 
 ## 2. Descomprime e instala
 
-1. Descomprime el zip donde quieras (por ejemplo, en el Escritorio). Dentro te quedará una carpeta llamada `musk`.
-2. Abre una terminal **ya dentro de esa carpeta `musk`**. No hace falta ejecutar nada como administrador (y no lo hagas: si el título de la ventana dice "Administrador", ábrela normal).
-   - **Windows**: abre la carpeta `musk` en el Explorador → haz clic en la barra de direcciones de arriba → escribe `powershell` → Enter.
-   - **Mac**: abre la Terminal, escribe `cd ` (con un espacio al final), arrastra la carpeta `musk` a la ventana y pulsa Enter.
-3. Comprueba que estás en el sitio correcto: escribe `dir` (Windows) o `ls` (Mac). Debes ver `package.json` entre los archivos. Si no lo ves, no estás dentro de `musk`.
+1. Descomprime el zip donde quieras (por ejemplo, en el Escritorio). Dentro te quedará una carpeta (por ejemplo, `Musk-Agent`).
+2. Abre una terminal **ya dentro de esa carpeta**. No hace falta ejecutar nada como administrador (y no lo hagas: si el título de la ventana dice "Administrador", ábrela normal).
+   - **Windows**: abre esa carpeta en el Explorador → haz clic en la barra de direcciones de arriba → escribe `powershell` → Enter.
+   - **Mac**: abre la Terminal, escribe `cd ` (con un espacio al final), arrastra la carpeta a la ventana y pulsa Enter.
+3. Comprueba que estás en el sitio correcto: escribe `dir` (Windows) o `ls` (Mac). Debes ver `package.json` entre los archivos. Si no lo ves, no estás dentro de la carpeta.
 4. Instala y comprueba que todo está bien:
 
    ```
@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **69 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **124 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -79,4 +79,4 @@ Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumn
 - Todo es **local y simulado**: no hay canal real, no hay leads reales, no se sube nada a internet.
 - El contenido es el del **piloto (Curso de Desarrollo Full Stack)** trabajado desde el dossier; la redacción final está pendiente de vuestra validación.
 - Si algo falla o aparece un error, **copiad el mensaje de error** y enviádselo a Script9 tal cual.
-- Si ves un error `EPERM` o una ruta que empieza por `C:\WINDOWS\system32`, es que la terminal se abrió fuera de la carpeta `musk` (habitualmente porque se abrió como administrador). Cierra esa ventana y repite el paso 2.
+- Si ves un error `EPERM` o una ruta que empieza por `C:\WINDOWS\system32`, es que la terminal se abrió fuera de la carpeta del proyecto (habitualmente porque se abrió como administrador). Cierra esa ventana y repite el paso 2.
