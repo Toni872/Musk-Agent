@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The gate. tests/eval.test.ts asserts the retrieval floors (0 false
+      # positives, 0 guard violations, exact routing of the forbidden topics,
+      # coverage of the approved FAQ) on top of the rule and reception suites.
+      - name: Tests
+        run: npm test
+
+      # Report only, kept in the log for the record: the eval CLI always exits 0,
+      # so the floors are enforced by the test above, not by this command.
+      - name: Retrieval report
+        run: npm run eval
+
+      - name: Build browser simulator
+        run: npm run build:ui

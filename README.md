@@ -115,6 +115,17 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 
+## Comprobación automática (CI)
+
+`.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 124 tests, incluidos los
+suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
+`npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
+exige `tests/eval.test.ts`, no el informe.
+
+Antes del canal real con leads reales, la lista de cierre está en
+`docs/checklist-canal-real.md`.
+
 ## Siguiente paso
 
 Cerrar con Nicolas las decisiones de contenido pendientes (duración, mensaje inicial, cualificación) y las de operación mediante la demo en el REPL, antes de pensar en canal real o muestra con leads reales.
