@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest';
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import { normalizeEs } from '../src/intent';
 import { MockProvider } from '../src/llm';
-import { guardReply, RULES } from '../src/rules';
+import { ANSWER_TRIGGERS, acceptanceConfirmed, buildReply, extractSpanishPhone, guardReply, momentConfirmed, NEGATED_ACCEPTANCE, PHONE_CUE, REPLY_TEMPLATES, RULES, TRAILING_NEGATOR } from '../src/rules';
 
 const lead: LeadContact = {
   id: 'lead-test-001',
@@ -516,5 +517,221 @@ describe('cobertura de información (routing a contenido aprobado)', () => {
       expect(entry.answer, `FAQ ${entry.id} sin importes ni cifras`).not.toMatch(/€|\beuros?\b|\d/i);
       expect(entry.keywords.length, `FAQ ${entry.id} necesita keywords`).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Answer vocabulary for the call proposal (rule 9): an explicit moment closes
+// the handoff, an explicit non-availability never does, and a phone number
+// counts only when it is a real Spanish mobile handed over on purpose.
+// Trigger patterns run against folded text (normalizeEs: lowercase, accents
+// stripped), so the unit tests fold the same way the engine does.
+// ---------------------------------------------------------------------------
+
+describe('vocabulario de respuesta a la propuesta de llamada (regla 9)', () => {
+  it('availability: un momento explícito sí, un saludo jamás', () => {
+    // "buenas tardes" alone is a greeting, not a moment: no availability
+    // context ("por", "esta", "a las ..."), so it must never close (rule 9).
+    expect(ANSWER_TRIGGERS.availability.test(normalizeEs('buenas tardes'))).toBe(false);
+    expect(ANSWER_TRIGGERS.availability.test(normalizeEs('por las tardes'))).toBe(true);
+    expect(ANSWER_TRIGGERS.availability.test(normalizeEs('sí, sobre las seis'))).toBe(true);
+    expect(ANSWER_TRIGGERS.availability.test(normalizeEs('lo antes posible'))).toBe(false);
+  });
+
+  it('nonAvailability: la indisponibilidad explícita se detecta siempre', () => {
+    expect(ANSWER_TRIGGERS.nonAvailability.test(normalizeEs('no puedo'))).toBe(true);
+    // Evaluated BEFORE availability: a refusal that names a moment still wins.
+    expect(ANSWER_TRIGGERS.nonAvailability.test(normalizeEs('no puedo por la tarde'))).toBe(true);
+  });
+
+  it('extractSpanishPhone: solo un móvil real entregado a propósito', () => {
+    // Digits of two dates, concatenated, hide a 9-digit window starting with
+    // 6/7/9: no cue, not a whole-message number → null, never a handoff.
+    expect(extractSpanishPhone('el 12/03/2027 y el 15/06/2027')).toBeNull();
+    // Country code glued on is not a 9-digit mobile: null.
+    expect(extractSpanishPhone('34612345678')).toBeNull();
+    // A handed-over number returns the 9 digits, separators removed.
+    expect(extractSpanishPhone('mi número es 612 345 678')).toBe('612345678');
+    expect(extractSpanishPhone('+34 612 345 678')).toBe('612345678');
+    // The cue is what authorises a number embedded in a longer message.
+    expect(PHONE_CUE.test(normalizeEs('te dejo mi número'))).toBe(true);
+    expect(PHONE_CUE.test(normalizeEs('buenas tardes'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Aceptación negada (regla 9): un "no" que scopes la frase de aceptación es
+// una negación, nunca un disparador confirmado. Antes de esto,
+// "no me viene bien" clasificaba como 'general' y el camino de mensaje nuevo
+// cerraba la conversación como call_accepted con "Perfecto, dejo anotado que
+// te va bien la llamada" — un lead que acaba de decir que la llamada NO le
+// convenía. Todos los caminos nuevos reutilizan plantillas EXISTENTES de
+// REPLY_TEMPLATES (ningún copy nuevo para el lead, regla 11).
+// ---------------------------------------------------------------------------
+
+describe('aceptación negada (regla 9): el "no" anula la aceptación', () => {
+  // F1, fresh-message path: classify() now returns 'unknown' for a negated
+  // acceptance, so runTurn replies with the existing rule 5 doubt — the doubt
+  // is registered, no handoff fires, no stop fires (rule 7 does not apply
+  // here) and no rule violation is produced.
+  it('una aceptación negada NUNCA dispara el handoff como mensaje nuevo', async () => {
+    const negated = [
+      'no me viene bien',
+      'no me va bien',
+      'no, no me viene bien',
+      'no acepto la llamada',
+      'no, no acepto',
+      'nunca me viene bien',
+      'tampoco me viene bien',
+      'jamás me viene bien',
+      'nunca por las tardes',
+      'para nada me viene bien',
+      'me viene bien, no',
+      'me viene bien pero no',
+    ];
+    for (const message of negated) {
+      const { agent } = makeAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent, `"${message}" debería clasificarse como unknown`).toBe('unknown');
+      expect(result.action, `"${message}" no debe derivar`).toBe('none');
+      expect(result.handoff).toBeUndefined();
+      expect(result.reply, `"${message}" debe reutilizar la plantilla de duda`).toBe(buildReply('doubt'));
+      expect(result.registeredDoubts).toContain(message);
+      expect(result.ruleViolations).toHaveLength(0);
+      expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+      expect(agent.isStopped).toBe(false);
+    }
+  });
+
+  // F1, the safe direction must NOT eat real acceptances: these close exactly
+  // as before, with the approved callAccepted copy and no rule violations.
+  it('las aceptaciones sin negar siguen cerrando con el copy aprobado', async () => {
+    const confirmed = ['acepto la llamada', 'me viene bien', 'sí, me viene bien'];
+    for (const message of confirmed) {
+      const { agent } = makeAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent, `"${message}" debería clasificarse como general`).toBe('general');
+      expect(result.action, `"${message}" debe derivar`).toBe('handoff');
+      expect(result.handoff?.reason).toBe('call_accepted');
+      expect(result.reply).toBe(buildReply('callAccepted'));
+      expect(result.ruleViolations).toHaveLength(0);
+      expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+    }
+  });
+
+  // F3, fresh message: "cuando puedas" (the tuteo form) is a confirmed
+  // acceptance (rule 9) and closes with the already-approved copy.
+  it('"cuando puedas" (mensaje nuevo) → handoff con el copy aprobado', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('cuando puedas');
+
+    expect(result.intent).toBe('general');
+    expect(result.action).toBe('handoff');
+    expect(result.handoff?.reason).toBe('call_accepted');
+    expect(result.reply).toBe(buildReply('callAccepted'));
+    expect(result.ruleViolations).toHaveLength(0);
+    expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+  });
+
+  // F3 + rule 7: adding "llamame/llamadme" to the acceptance trigger must NOT
+  // catch a request to stop — "no me llames" is a rule 7 stop through
+  // STOP_TRIGGER (which classify() tests first), so it can never handoff.
+  it('regla 7: "no me llames" es parada y jamás un handoff (aunque "llamame" acepta)', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('no me llames');
+
+    expect(result.intent).toBe('stop');
+    expect(result.action).toBe('stop');
+    expect(result.handoff).toBeUndefined();
+    expect(result.registeredNoContinuar).toBe(true);
+    expect(result.ruleViolations).toHaveLength(0);
+    expect(agent.isStopped).toBe(true);
+  });
+
+  // The predicates themselves: the trigger must match AND the negation guard
+  // must not scope it. NEGATED_ACCEPTANCE tests the TAIL of the text that
+  // PRECEDES the trigger match (the predicates slice it), never a whole
+  // message — one narrow guard, not a negation engine.
+  it('acceptanceConfirmed: el disparador coincide y el "no" no lo scopes', () => {
+    expect(acceptanceConfirmed(normalizeEs('acepto la llamada'))).toBe(true);
+    expect(acceptanceConfirmed(normalizeEs('sí, me viene bien'))).toBe(true);
+    expect(acceptanceConfirmed(normalizeEs('cuando puedas'))).toBe(true);
+    expect(acceptanceConfirmed(normalizeEs('no me viene bien'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('no, no acepto la llamada'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('me gusta el cine'))).toBe(false);
+    // F4: the wider negator set (nunca/tampoco/jamas/nada) blocks, and so does
+    // a bare negator TRAILING the trigger — but only bare, not "no hay
+    // problema".
+    expect(acceptanceConfirmed(normalizeEs('nunca me viene bien'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('tampoco me viene bien'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('jamás me viene bien'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('para nada me viene bien'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('me viene bien, no'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('me viene bien pero no'))).toBe(false);
+    expect(acceptanceConfirmed(normalizeEs('sí, me viene bien, no hay problema'))).toBe(true);
+  });
+
+  it('momentConfirmed: un momento negado no cierra, uno afirmativo sí', () => {
+    expect(momentConfirmed(normalizeEs('por las tardes'))).toBe(true);
+    expect(momentConfirmed(normalizeEs('sí, sobre las seis'))).toBe(true);
+    expect(momentConfirmed(normalizeEs('no por las tardes'))).toBe(false);
+    expect(momentConfirmed(normalizeEs('sí, pero no el jueves'))).toBe(false);
+    expect(momentConfirmed(normalizeEs('no, mejor a las seis'))).toBe(false);
+    // F4: the wider negator set blocks the moment too, so both predicates stay
+    // in lockstep (same guard, same suffix check).
+    expect(momentConfirmed(normalizeEs('nunca por las tardes'))).toBe(false);
+    expect(momentConfirmed(normalizeEs('tampoco el jueves'))).toBe(false);
+    // A greeting is not a moment, so there is nothing to confirm.
+    expect(momentConfirmed(normalizeEs('buenas tardes'))).toBe(false);
+  });
+
+  // Bare "manana" is a WHEN and not a greeting (the Spanish greeting is
+  // "buenas tardes"/"buenos dias"), so it IS a moment — the customer's own word
+  // — while the farewell that carries it is not: a goodbye must never arrange a
+  // call, and the rule 5 doubt path keeps the safe direction.
+  it('momentConfirmed: "mañana" suelto es un momento, la despedida no', () => {
+    expect(momentConfirmed(normalizeEs('mañana'))).toBe(true);
+    expect(momentConfirmed(normalizeEs('mañana por la tarde'))).toBe(true);
+    expect(momentConfirmed(normalizeEs('hasta mañana'))).toBe(false);
+    expect(momentConfirmed(normalizeEs('nos vemos mañana'))).toBe(false);
+    // "hasta el lunes" collides with the day-name form; the farewell wins.
+    expect(momentConfirmed(normalizeEs('hasta el lunes'))).toBe(false);
+    // The day answer itself is still an acceptance.
+    expect(momentConfirmed(normalizeEs('el lunes'))).toBe(true);
+  });
+
+  it('NEGATED_ACCEPTANCE: cualquier negador al final del prefijo, con es2022 sin lookbehind', () => {
+    expect(NEGATED_ACCEPTANCE.test('no ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('no no ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('si pero no ')).toBe(true);
+    // F4: the negators that actually negate a Spanish acceptance, not only "no".
+    expect(NEGATED_ACCEPTANCE.test('nunca ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('tampoco ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('jamas ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('para nada ')).toBe(true);
+    expect(NEGATED_ACCEPTANCE.test('bueno ')).toBe(false);
+    expect(NEGATED_ACCEPTANCE.test('si ')).toBe(false);
+    expect(NEGATED_ACCEPTANCE.test('')).toBe(false);
+    // Hard constraint: no lookbehind anywhere (Safari 15.4-16.3 parses
+    // es2022 but throws on it at load time, killing the whole page).
+    expect(NEGATED_ACCEPTANCE.source).not.toContain('(?<');
+  });
+
+  // F4 trailing check: a BARE negator at the very END of the text after a
+  // trigger match is the ONLY trailing case that blocks — no filler-word
+  // allowance, so "no hay problema" never blocks. es2022-safe, no lookbehind.
+  it('TRAILING_NEGATOR: solo un negador suelto al final bloquea', () => {
+    expect(TRAILING_NEGATOR.test(' no')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' pero no')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' nunca')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' tampoco')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' jamas')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' nada')).toBe(true);
+    expect(TRAILING_NEGATOR.test(' no hay problema')).toBe(false);
+    expect(TRAILING_NEGATOR.test(' bien')).toBe(false);
+    expect(TRAILING_NEGATOR.test('')).toBe(false);
+    expect(TRAILING_NEGATOR.source).not.toContain('(?<');
   });
 });

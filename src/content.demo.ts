@@ -39,7 +39,18 @@ export const DEMO_CONTENT: ApprovedContent = {
   faq: [
     {
       id: 'sobre-musk',
-      keywords: ['sobre musk', 'que es musk', 'quienes sois', 'vuestra empresa', 'sois musk'],
+      keywords: [
+        'sobre musk',
+        'sobre escuela musk',
+        'escuela musk',
+        'que es musk',
+        'que es escuela musk',
+        'quienes sois',
+        'vuestra empresa',
+        'sois musk',
+        'hablame de musk',
+        'cuentame sobre musk',
+      ],
       answer:
         'Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras.',
     },
@@ -81,7 +92,18 @@ export const DEMO_CONTENT: ApprovedContent = {
     },
     {
       id: 'informacion',
-      keywords: ['informacion', 'mas informacion', 'dame informacion', 'de que va', 'en que consiste'],
+      keywords: [
+        'informacion',
+        'mas informacion',
+        'dame informacion',
+        'de que va',
+        'en que consiste',
+        'cuentame mas',
+        'cuentame',
+        'mas sobre',
+        'quiero saber mas',
+        'dime mas',
+      ],
       answer:
         'Claro. Es una formación práctica y acompañada para dar el salto profesional en el sector tecnológico, trabajando por proyectos reales desde el primer día. Si quieres, te cuento más o lo vemos con detalle con el equipo.',
     },

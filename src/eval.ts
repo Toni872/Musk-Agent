@@ -15,7 +15,7 @@ import { EVAL_CASES, groupOf, type EvalCase } from './eval.dataset';
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT } from './content';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
-import { guardReply, HANDOFF_TRIGGERS } from './rules';
+import { acceptanceConfirmed, guardReply } from './rules';
 
 export type RetrievalOutcome = 'hit' | 'wrong-answer' | 'miss' | 'false-positive' | 'correct-null';
 
@@ -104,7 +104,9 @@ export function runRetrievalEval(content: ApprovedContent, cases: EvalCase[]): E
 
   for (const evalCase of cases) {
     const actualIntent = classify(evalCase.question, content);
-    const callAccepted = HANDOFF_TRIGGERS.callAccepted.test(normalizeEs(evalCase.question));
+    // Mirror of the agent's fresh 'general' branch: only a CONFIRMED
+    // acceptance suppresses the FAQ (a negated one is not an acceptance).
+    const callAccepted = acceptanceConfirmed(normalizeEs(evalCase.question));
     const faqHit =
       actualIntent === 'general' && !callAccepted ? findApprovedAnswer(content, evalCase.question) : null;
     const actualAnswerId = faqHit?.id ?? null;

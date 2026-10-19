@@ -3,7 +3,7 @@
 // the mandatory rule tests deterministic and fully offline.
 
 import type { ApprovedContent, FaqEntry } from './content';
-import { HANDOFF_TRIGGERS, STOP_TRIGGER } from './rules';
+import { acceptanceConfirmed, HANDOFF_TRIGGERS, STOP_TRIGGER } from './rules';
 
 export type Intent = 'price' | 'temario' | 'financiacion' | 'unknown' | 'human' | 'stop' | 'decline' | 'general';
 
@@ -69,9 +69,12 @@ export function findApprovedAnswer(content: ApprovedContent, message: string): F
 
 // Classification order matters: stop beats everything (rule 7), then the
 // confirmed human-handoff request (rule 9), then the forbidden topics, then
-// call acceptance (rule 9), approved content, soft decline (rule 5 family) and
-// social small talk. Anything else is 'unknown' and is handled by rule 5
-// (register doubt).
+// call acceptance (rule 9 — a CONFIRMED one: acceptanceConfirmed rejects a
+// bare "no" scoping the phrase, so a negated acceptance such as
+// "no me viene bien" falls through to 'unknown' and gets the rule 5 doubt
+// reply instead of classifying as 'general', which used to close the deal),
+// approved content, soft decline (rule 5 family) and social small talk.
+// Anything else is 'unknown' and is handled by rule 5 (register doubt).
 export function classify(message: string, content: ApprovedContent): Intent {
   const folded = normalizeEs(message);
   if (INPUT_PATTERNS.stop.test(folded)) return 'stop';
@@ -79,7 +82,7 @@ export function classify(message: string, content: ApprovedContent): Intent {
   if (INPUT_PATTERNS.price.test(folded)) return 'price';
   if (INPUT_PATTERNS.temario.test(folded)) return 'temario';
   if (INPUT_PATTERNS.financiacion.test(folded)) return 'financiacion';
-  if (HANDOFF_TRIGGERS.callAccepted.test(folded)) return 'general';
+  if (acceptanceConfirmed(folded)) return 'general';
   if (findApprovedAnswer(content, folded)) return 'general';
   if (INPUT_PATTERNS.decline.test(folded)) return 'decline';
   if (SOCIAL_GREETING.test(folded) || SOCIAL_ACK.test(folded)) return 'general';

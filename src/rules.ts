@@ -60,8 +60,13 @@ export const HANDOFF_TRIGGERS = {
   humanRequested:
     /\b(hablar|contactar|hablas|escribir|decir) con (una |un )?(persona|humano|gente|alguien)\b|\bpersona (real|de verdad)\b|\bhumano de verdad\b|\batencion al cliente\b|\bun asesor\b|\bun comercial\b|\bme atienda (una |un )?(persona|humano)\b/,
   // Rule 9 (confirmed): the lead accepts or agrees to a call.
+  // F3 additions (rule 9): "cuando puedas" is the tuteo form of the already
+  // covered "cuando querais/puedais" and was in NEITHER this trigger nor
+  // ANSWER_TRIGGERS.availability; a lead asking to be called IS an acceptance
+  // ("llamame"/"llamadme"). "no me llames" cannot match the latter — "llames"
+  // is a different word — and STOP_TRIGGER (rule 7) wins in classify() anyway.
   callAccepted:
-    /\b(acepto|aceptamos|de acuerdo|perfecto|genial|vale)\b[^.?!]{0,60}\bllamad|\b(si|sí)[,.]? ?(me )?(va|viene) bien\b|\bme (va|viene) bien\b|\bcuando (querais|puedais|os venga bien|te venga bien)\b|\bque me (llamen|llame)\b|\bacuerd\w* (la|una) llamada\b|\bpara (la|una) llamada\b/,
+    /\b(acepto|aceptamos|de acuerdo|perfecto|genial|vale)\b[^.?!]{0,60}\bllamad|\b(si|sí)[,.]? ?(me )?(va|viene) bien\b|\bme (va|viene) bien\b|\bcuando (querais|puedais|puedas|os venga bien|te venga bien)\b|\bque me (llamen|llame)\b|\bacuerd\w* (la|una) llamada\b|\bpara (la|una) llamada\b|\bllamad?me\b/,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -81,7 +86,178 @@ export const ANSWER_TRIGGERS = {
   // (rule 8). Whole-message match on purpose: "no entiendo" is not a refusal.
   negative:
     /\b(?:no|nop|paso|nada|mejor no|ahora no|prefiero que no|prefiero no|de momento no|por ahora no|no gracias)\b$/,
+  // Explicit "cannot / not a good moment" (rule 9). Evaluated BEFORE
+  // availability, so "no puedo por la tarde" — which names a moment — never
+  // closes the deal: acceptance must be CONFIRMED, not inferred.
+  nonAvailability:
+    /\b(?:no puedo|no puedo hablar|no me viene bien|no me va bien|imposible|no es buen momento|mejor otro dia|otro momento|ahora no puedo)\b/,
+  // An explicit moment answers the call proposal with WHEN, which is an
+  // acceptance (rule 9): the lead is arranging the call, not refusing it.
+  // Most alternatives need an availability context ("por", "esta", "el lunes",
+  // "a las ...") so that a bare greeting is NOT a moment: "buenas tardes" alone
+  // never matches. Bare "manana" IS accepted, because it is a WHEN and not a
+  // greeting — in Spanish the greeting form is "buenas tardes"/"buenos dias",
+  // never "mañana" — but it is also half of the farewell "hasta manana", so
+  // momentConfirmed blocks every farewell frame (see FAREWELL_FRAMES below).
+  // Anything ambiguous ("lo antes posible", "depende") matches nothing here and
+  // stays in the rule 5 doubt family.
+  availability:
+    /\b(?:hoy por las? (?:manana|tarde|noche)|manana por las? (?:manana|tarde)|esta (?:manana|tarde|noche)|por las? (?:manana|tarde|noche)s?|por la semana que viene|esta semana|la semana que viene|la proxima semana|pasado manana|manana|mediodia|primera hora|(?:despues|antes) de (?:comer|cenar)|el (?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)|sobre las (?:\d+|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)|a las (?:\d+|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)|cuando (?:querais|puedais|puedas|te venga bien|os venga bien))\b/,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Negation guard for a CONFIRMED acceptance (rule 9)
+// ---------------------------------------------------------------------------
+
+// Rule 9: a NEGATED acceptance is a REFUSAL, never a confirmed trigger. Before
+// this guard existed, "no me viene bien" matched HANDOFF_TRIGGERS.callAccepted
+// through "me viene bien", classify() returned 'general', and the fresh-message
+// path closed the deal with the callAccepted copy: a lead who had just said
+// the call does NOT suit them was told "Perfecto, dejo anotado que te va bien
+// la llamada" and the conversation closed as call_accepted.
+//
+// Negators recognised: `no`, `nunca`, `tampoco`, `jamas` (folded form —
+// normalizeEs strips the accent) and `nada` (which also covers "para nada me
+// viene bien"). These are the negators that actually negate a Spanish
+// acceptance; while only `no` was recognised, "nunca me viene bien" still
+// closed the deal as call_accepted.
+//
+// One narrow guard, NOT a general negation engine. It matches the TAIL of the
+// text PRECEDING a trigger match (the predicates below slice that prefix for
+// you — testing this regex against a whole message is meaningless): the prefix
+// must END in a bare negator, optionally followed by up to two filler words
+// before the trigger ("no, mejor a las seis" folds to "no mejor a las seis").
+// That is the folded-text proxy for "a bare negator scoping the phrase within
+// the same sentence": normalizeEs turns sentence punctuation into spaces, so
+// distance is what is left to scope with.
+// ACCEPTED TRADE-OFF, measured not assumed: the two-filler window also
+// swallows a negator that belongs to an idiom rather than to the trigger, so
+// "no hay problema, me va bien" and "no sé, me viene bien" read as NEGATED and
+// fall to the rule 5 doubt path instead of closing. That is a false negative
+// on a real acceptance: the lead loses one smooth step and the agent goes on
+// to offer a human contact. It is the price of never closing on a refusal
+// (rule 9), and tightening it would need real clause scoping that the folded
+// text no longer carries — normalizeEs erases the punctuation. When in doubt
+// we do NOT close. Widening the negator set (nunca/tampoco/jamas/nada) widens
+// exactly this false-negative set — the safe direction: rule 9 needs a
+// CONFIRMED acceptance, and the doubt path registers and offers a human.
+// No lookbehind on purpose: the UI bundle targets es2022 and Safari 15.4-16.3
+// parses es2022 but throws on lookbehind assertions at load time, which would
+// take the whole page down for one guard (see extractSpanishPhone).
+export const NEGATED_ACCEPTANCE = /(?:^|\s)(?:no|nunca|tampoco|jamas|nada)(?:\s+\w+){0,2}\s+$/;
+
+// The mirror image, same class, one extra narrow check: the guard above only
+// sees the text BEFORE a trigger match, so a bare negator at the very END of
+// the message used to slip through and close the deal ("me viene bien, no").
+// Applied to the text AFTER the trigger match, from the SAME negator list.
+// Deliberately NO filler-word allowance: only a BARE trailing negator blocks,
+// so "sí, me viene bien, no hay problema" still closes (the trailing "no hay
+// problema" is not a bare negator) while "me viene bien pero no" does not.
+// That is the only trailing case that blocks — a bare trailing negator.
+// No lookbehind, same es2022/Safari 15.4-16.3 constraint as the guard above.
+export const TRAILING_NEGATOR = /(?:^|\s)(?:no|nunca|tampoco|jamas|nada)$/;
+
+// The ONE predicate for "did the lead CONFIRM the call acceptance?": the
+// acceptance trigger must match AND the negation guard must not scope it —
+// neither before the trigger (NEGATED_ACCEPTANCE) nor trailing the whole
+// message (TRAILING_NEGATOR).
+// Used at every place that decides a confirmed acceptance (the fresh-message
+// 'general' branch and isReceivableAnswer in agent.ts, classify() in
+// intent.ts, and eval.ts's routing mirror), so a negated acceptance can never
+// close the deal from any of them.
+export function acceptanceConfirmed(folded: string): boolean {
+  const match = HANDOFF_TRIGGERS.callAccepted.exec(folded);
+  if (match === null) return false;
+  if (NEGATED_ACCEPTANCE.test(folded.slice(0, match.index))) return false;
+  return !TRAILING_NEGATOR.test(folded.slice(match.index + match[0].length));
+}
+
+// F2 — a moment carrying a negation that scopes it must NOT close the handoff.
+// A predicate over ANSWER_TRIGGERS.availability plus the same
+// NEGATED_ACCEPTANCE guard, instead of a second regex re-listing the moments:
+// a duplicated moment list would silently drift from `availability` and fail
+// in the UNSAFE direction (a negated moment closing the deal again).
+//
+// DECISION (supersedes the earlier "no, mejor a las seis closes"): when in
+// doubt we do NOT close. "Perfecto, dejo anotado que te va bien la llamada"
+// promises a real person a call, and wrongly promising that call breaks
+// rule 9 (the trigger counts a CONFIRMED acceptance only), whereas the doubt
+// path registers the doubt and offers a human contact — which is the
+// product's actual goal: the close is always human (AGENTS.md objective).
+// Both guards apply here too (prefix negator AND bare trailing negator), so
+// the two predicates cannot drift: "nunca por las tardes" and "por las
+// tardes, no" both stay in the doubt path.
+// Bare "manana" answers "when" (above) but it is also half of the farewell
+// "hasta manana" — and "hasta el lunes" is the same trap one line down, where
+// the farewell collides with the day-name alternative that IS an acceptance. A
+// goodbye must NEVER arrange a call, so any farewell frame blocks the moment
+// outright. The boundary is deliberate: "el lunes" (a day answer) still closes,
+// "hasta el lunes" (a goodbye) does not. The false negative lands in the safe
+// direction — a goodbye that really meant "call me tomorrow" falls to the rule
+// 5 doubt path, where the agent registers the doubt and offers a human — while
+// a goodbye never promises a call nobody agreed to (rule 9). Same
+// es2022/Safari 15.4-16.3 constraint as the guards above: no lookbehind.
+export const FAREWELL_FRAMES =
+  /\b(?:hasta manana|hasta el (?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)|hasta luego|hasta pronto|nos vemos|ya te digo|ya te cuento|adios|chao)\b/;
+
+export function momentConfirmed(folded: string): boolean {
+  if (FAREWELL_FRAMES.test(folded)) return false;
+  const match = ANSWER_TRIGGERS.availability.exec(folded);
+  if (match === null) return false;
+  if (NEGATED_ACCEPTANCE.test(folded.slice(0, match.index))) return false;
+  return !TRAILING_NEGATOR.test(folded.slice(match.index + match[0].length));
+}
+
+// Words that show the lead is HANDING OVER a contact (rule 9: the contact is
+// what the call needs, so handing it over accepts the call). "te dejo mi
+// numero" / "te paso mi numero" are subsumed by "mi numero"; "puedes llamar" /
+// "puede llamar" compact to "puedes? llamar".
+export const PHONE_CUE =
+  /\b(?:mi numero|mi telefono|mi movil|llamame|llamadme|puedes? llamar)\b/;
+
+// Mirrors normalizeEs (intent.ts). rules.ts cannot import it: intent.ts already
+// imports the trigger constants from THIS file at module top level, so the
+// import back would be a cycle that crashes (TDZ) whenever rules.ts is the
+// entry module. Kept identical on purpose — if normalizeEs changes, change
+// this too.
+function foldForTrigger(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[¿?¡!.,;:()"'“”«»[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Extracts a Spanish mobile number the lead deliberately handed over, or null
+// (rule 9: only a CONFIRMED acceptance closes; ambiguous input stays in the
+// rule 5 doubt family). Precision over recall:
+//  - the candidate is EXACTLY 9 digits starting with 6/7/9, joined only by
+//    single spaces/dots/dashes, and not part of a longer digit run (the
+//    prefix and lookahead guards) — so "34612345678" (country code glued on) never
+//    matches, while "612 345 678" and "612.345.678" do;
+//  - it closes the deal only when the lead clearly hands it over: a PHONE_CUE
+//    in the message, or the whole message being nothing but the number
+//    (optionally preceded by "+34"/"0034" — a bare "34" prefix is NOT
+//    stripped, which is why "34612345678" alone returns null);
+//  - separators are never joined ACROSS other characters, so a date soup like
+//    "el 12/03/2027 y el 15/06/2027" yields no candidate at all.
+export function extractSpanishPhone(message: string): string | null {
+  const folded = foldForTrigger(message);
+  // No lookbehind on purpose: the UI bundle targets es2022, and Safari 15.4-16.3
+  // parses es2022 but throws on (?<!...) at load time, which would take the whole
+  // page down for one guard. "(?:^|\D)" is the equivalent prefix check.
+  const candidate = /(?:^|\D)([679](?:[ .-]?\d){8})(?!\d)/.exec(folded);
+  if (candidate && PHONE_CUE.test(folded)) {
+    return candidate[1].replace(/[ .-]/g, '');
+  }
+  const whole = folded.replace(/[ .-]/g, '');
+  if (/^(?:\+34|0034)?[679]\d{8}$/.test(whole)) {
+    return whole.replace(/^(?:\+34|0034)/, '');
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Output guard (rules 1-4, 6): validates any reply before it reaches the lead
