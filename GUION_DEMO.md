@@ -95,6 +95,19 @@ Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verifica
 | `no me escribáis más` | Regla 7: detiene la conversación |
 | `¿tenéis campus en Valencia?` | Regla 5: registra la duda y propone contacto humano (una pregunta real no se traga como respuesta) |
 
+Y en la respuesta a la propuesta de llamada (ampliado 18-10, tras la traza del cliente) — lo que **sí** cierra el handoff y lo que no:
+
+| Escribe el lead | Qué sigue haciendo |
+|---|---|
+| `mañana` / `el jueves` / `por las tardes` | Regla 9: momento dado = acuerdo, handoff `call_accepted` |
+| `687 723 287` / `mi móvil es 687 723 287` | Regla 9: el contacto ES la llamada, handoff `call_accepted` |
+| `hasta mañana` | **NO** cierra: es una despedida, cae en la regla 5 (una despedida nunca agenda una llamada) |
+| `no puedo por la tarde` | **NO** cierra: non-availability, regla 5 |
+| ante la respuesta de duda, `si` | El agente **sigue escuchando** esa pregunta: `si` → handoff (antes: saludo social) |
+| una respuesta aprobada repetida (`cuéntame más` x2) | Se repite la respuesta: la invitación ya no la sustituye |
+| tras pedir humano, el teléfono | No responde (habla el comercial), pero el contacto queda registrado para el aviso |
+
+
 Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(decisión)`, así que no se envían y el mecanismo no altera nada del guion de la conversación 1.
 
 ## Frase de apertura recomendada
@@ -135,7 +148,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ```powershell
 cd musk
 npm run typecheck   # cero errores
-npm test            # 69 tests, sin red
+npm test            # 120 tests, sin red
 npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 ```
