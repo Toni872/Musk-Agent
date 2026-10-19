@@ -17,3 +17,4 @@ tmp-*.mts
 
 # Test coverage
 coverage/
+.vercel
