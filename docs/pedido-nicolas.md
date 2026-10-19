@@ -6,10 +6,11 @@ hay aquí está acordado.
 Fecha: 17 de octubre de 2026. Revisión de dialecto y registro: 18 de octubre de
 2026 (apartados 5 a 7).
 
-Relacionado: `musk/src/content.ts` (contenido aprobado), `musk/src/content.demo.ts`
-(contenido de ejemplo), `AGENTS.md` ("Decisiones abiertas") y
+Relacionado: `src/content.ts` (contenido aprobado), `src/content.demo.ts`
+(contenido de ejemplo), `AGENTS.md` ("Decisiones abiertas"),
 `docs/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
-lote: las decisiones que no son de contenido).
+lote: las decisiones que no son de contenido) y `docs/checklist-canal-real.md`
+(qué queda por cerrar antes de tocar un lead real).
 
 ## Contexto
 
