@@ -37,6 +37,8 @@ export interface QualificationQuestion {
   reactions?: QualificationReaction[];
 }
 
+import type { KbPassage } from './kb';
+
 export interface ApprovedContent {
   formationName: string;
   generalDescription: string;
@@ -58,6 +60,20 @@ export interface ApprovedContent {
   // (REPLY_TEMPLATES.callProposal), so a profile can sharpen the close without
   // inventing copy at runtime (rule 11).
   closingInvitation?: string;
+  // Profile-specific second acknowledgement of a rule-5 doubt, used when the
+  // same doubt reply would be sent twice in a row. It is NEVER sent unless the
+  // profile provides it: a profile without it falls back to the bare approved
+  // invitation, so no unapproved copy reaches the real profile (rules 4, 11).
+  doubtFollowup?: string;
+  // Optional knowledge base for the deterministic retrieval layer
+  // (src/retrieval.ts). A passage is the only thing that can be sent as a
+  // knowledge-base answer, and it is sent verbatim after the output guard.
+  //
+  // It is OPTIONAL and, while the copy is pending MUSK sign-off (hard rules
+  // 4 and 11), it is NOT set on APPROVED_CONTENT: only the DEMO profile
+  // carries it. A profile without a knowledge base behaves exactly as before:
+  // every question it cannot answer from the FAQ escalates to rule 5.
+  kb?: KbPassage[];
 }
 
 // A decision that is still open with MUSK is stored as a "TODO(decisión)"
@@ -176,7 +192,21 @@ export const APPROVED_CONTENT: ApprovedContent = {
     },
     {
       id: 'modalidad',
-      keywords: ['modalidad', 'online', 'clases', 'horario', 'directo', 'workshops', 'sede', 'presencial'],
+      keywords: [
+        'modalidad',
+        'online',
+        'clases',
+        'horario',
+        'directo',
+        'workshops',
+        'sede',
+        'presencial',
+        'donde esta',
+        'donde queda',
+        'academia',
+        'ubicacion',
+        'direccion',
+      ],
       answer:
         'La formación es online, con clases en directo y workshops, además de recursos y una comunidad de desarrollo. Los detalles de horarios y disponibilidad los concretamos contigo en una llamada.',
     },

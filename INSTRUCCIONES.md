@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **124 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **130 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 

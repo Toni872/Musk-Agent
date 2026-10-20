@@ -82,6 +82,21 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Convenciones técnicas
 
+- **Capa de base de conocimiento (Fase 0).** `src/kb.ts` guarda la base de
+  conocimiento aprobada como datos (pasajes con id, título, respuesta para el
+  lead, términos de recuperación y procedencia) y `src/retrieval.ts` la consulta
+  de forma determinista (BM25 + cobertura de términos, sin LLM, sin embeddings
+  ni dependencias). Reglas de la capa: la base de conocimiento decide si una
+  pregunta puede responderse y con qué pasaje; **el umbral vive en el código,
+  como constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`), nunca en
+  un prompt; los temas prohibidos (precio, financiación, fechas, devoluciones,
+  becas, ubicación, requisitos) se rechazan siempre y escalan (regla 5). El
+  contenido es **copy pendiente de firma de MUSK** (reglas 4 y 11): vive solo
+  en el perfil DEMO (`src/content.demo.ts`); el perfil aprobado
+  (`src/content.ts`) no lo lleva y, sin base de conocimiento, se comporta
+  exactamente como antes. Ninguna respuesta de la base de conocimiento puede
+  contener una cifra (lo fija un test). La FAQ escrita a mano conserva
+  prioridad sobre la base de conocimiento.
 - Las etiquetas conversacionales del asistente son distintas de los estados del CRM
   (nuevo, pendiente, beca, perdido…). No las mezcles ni las mapees por API en esta
   fase.
@@ -101,8 +116,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (124 tests) y `npm run eval`
-  (40 casos etiquetados del bucle de evaluación). La comprobación automática corre
+- Antes de tocar nada: `npm run typecheck`, `npm test` (158 tests) y `npm run eval`
+  (43 casos etiquetados del bucle de evaluación de la FAQ + 30 de la base de
+  conocimiento). La comprobación automática corre
   también en cada push (`.github/workflows/ci.yml`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.

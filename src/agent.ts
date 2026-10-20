@@ -10,7 +10,15 @@
 import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMProvider } from './llm';
-import { bareAcknowledgement, classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
+import {
+  bareAcknowledgement,
+  classify,
+  findApprovedAnswer,
+  isWholeMessageAnswer,
+  normalizeEs,
+  type Intent,
+} from './intent';
+import { retrieve } from './retrieval';
 import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, extractSpanishPhone, guardReply, momentConfirmed, RULES } from './rules';
 
 export type LeadBucket = 'ilocalizable' | 'no_comprador';
@@ -48,6 +56,11 @@ export interface HandoffContext {
   qualification: { question: string; answer: string }[];
   // The lead's messages registered as doubts, in arrival order, deduplicated.
   doubts: string[];
+  // The lead's own messages that arrived AFTER the handoff, in arrival order.
+  // The agreed moment usually comes late ("mañana" and then "mañana a las
+  // 9:00"), and the commercial must learn it (spec §3.6: the notice carries
+  // contact and context).
+  afterHandoff?: string[];
 }
 
 export interface TurnResult {
@@ -61,13 +74,15 @@ export interface TurnResult {
   registeredDoubts: string[];
   registeredNoContinuar: boolean;
   ruleViolations: string[];
+  // Present on the handoff turn AND on post-handoff turns, where it carries
+  // the UPDATED context: the agreed moment can arrive after the handoff.
   handoff?: HandoffContext;
   // Present when this turn was RECEIVED as the answer to the ask the agent had
   // just made. questionId is null for the opening message.
   capturedAnswer?: { questionId: string | null; text: string };
 }
 
-export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question' | 'answer';
+export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question' | 'answer' | 'kb';
 
 export interface ConversationRecord {
   kind: RecordKind;
@@ -75,6 +90,17 @@ export interface ConversationRecord {
   // question) has no classified intent, and is left empty instead of faked.
   intent?: Intent;
   detail: string;
+  // Provenance of a knowledge-base turn (Phase 0): the passage that answered
+  // (or the closest one when nothing cleared the thresholds), the score and
+  // the coverage it reached, and the thresholds that were applied.
+  // Operator-facing only: the lead never sees it.
+  kb?: {
+    passageId: string;
+    score: number;
+    coverage: number;
+    minScore: number;
+    minCoverage: number;
+  };
 }
 
 export interface MuskAgentOptions {
@@ -116,6 +142,16 @@ export class MuskAgent {
   // sends the same message twice in a row: for the lead it is the clearest bot
   // tell, and for us it hides a turn that moved nothing.
   private lastOutbound = '';
+  // The agent asked the rule-5 doubt question ("¿te viene bien que te
+  // contacten?") and is waiting for its yes/no. It applies to the IMMEDIATELY
+  // following message only: a bare "sí" there is a confirmed acceptance
+  // (rule 9) and must reach the commercial, not be filed as the answer to the
+  // pending qualification question.
+  private awaitingDoubtAnswer = false;
+  // The handoff context handed to the commercial. It is kept and amended in
+  // place when the lead sends something after the handoff (the agreed moment
+  // usually arrives late), so the notice always carries the latest message.
+  private lastHandoffContext?: HandoffContext;
 
   constructor(options: MuskAgentOptions = {}) {
     this.content = options.content ?? APPROVED_CONTENT;
@@ -152,6 +188,8 @@ export class MuskAgent {
     this.lastOutbound = '';
     this.qualificationAnswersById.clear();
     this.doubtMessages.length = 0;
+    this.awaitingDoubtAnswer = false;
+    this.lastHandoffContext = undefined;
     if (this.opening() !== null) this.pendingAsk = { kind: 'opening' };
   }
 
@@ -203,6 +241,12 @@ export class MuskAgent {
   // at the qualification stage without replaying the opening first.
   nextQualificationQuestion(): QualificationQuestion | null {
     if (this.stopped || this.handoffFired) return null;
+    // The agent just asked the rule-5 doubt question ("¿te viene bien que te
+    // contacten?"): a second question on top of it would leave the lead unable
+    // to answer either. The qualification question is DEFERRED, not lost: an
+    // ask that was already made stays pending and its answer is still
+    // received normally.
+    if (this.awaitingDoubtAnswer) return null;
     if (this.pendingAsk !== null && this.pendingAsk.kind !== 'opening') return null;
     for (const question of this.content.qualificationQuestions) {
       if (this.askedQuestions.has(question.id) || !this.isAskable(question)) continue;
@@ -245,23 +289,39 @@ export class MuskAgent {
       };
     }
 
+    // The doubt-proposal flag applies to the IMMEDIATELY following message
+    // only: it is read and cleared here, so it can never survive a turn.
+    const awaitingDoubtAnswer = this.awaitingDoubtAnswer;
+    this.awaitingDoubtAnswer = false;
+
     const intent = classify(message, this.content);
 
     // Rule 9: after the handoff the lead is with a person, so the agent stops
     // writing. One person talking is the point of the handoff; a second voice
     // here (a greeting, a doubt acknowledgement) is exactly what reads as a bot.
-    // Nothing is registered either: the turn belongs to the commercial now.
+    // Nothing is sent either: the turn belongs to the commercial now.
     if (this.handoffFired) {
-      // One exception, and it is bookkeeping only — nothing is sent: the lead
-      // hands over his phone AFTER the handoff. The humanRequest copy explicitly
-      // asks for it and the notice to the commercial must carry the contact so
-      // he can find the lead in the CRM (AGENTS.md), so dropping it silently
-      // would lose the one piece of data the handoff is for. The agent's silence
-      // is untouched: no reply, and the turn is still marked suppressed.
+      // Bookkeeping only — nothing is sent. EVERY post-handoff message is
+      // registered: the agreed moment usually arrives AFTER the handoff
+      // ("mañana" and then "mañana a las 9:00"), and the notice to the
+      // commercial must carry contact and context (spec §3.6). Only the phone
+      // number used to be kept, so everything else was silently dropped and
+      // the agreed time never reached the commercial. The agent's silence is
+      // untouched: no reply, and the turn is still marked suppressed.
       if (extractSpanishPhone(message) !== null) {
         this.push({ kind: 'answer', intent, detail: `contact given after the handoff: "${message}"` });
+      } else {
+        this.push({ kind: 'answer', intent, detail: `after the handoff: "${message}"` });
       }
-      return {
+      // The stored context is amended IN PLACE (same instance the caller
+      // holds) and returned, so the operator panel shows the corrected notice.
+      const context = this.lastHandoffContext;
+      if (context !== undefined) {
+        context.lastMessage = message;
+        context.afterHandoff = [...(context.afterHandoff ?? []), message];
+        context.summary = this.buildHandoffSummary(context.reason, message);
+      }
+      const result: TurnResult = {
         intent,
         action: 'none',
         reply: '',
@@ -270,6 +330,27 @@ export class MuskAgent {
         registeredNoContinuar: false,
         ruleViolations: [],
       };
+      if (context !== undefined) result.handoff = context;
+      return result;
+    }
+
+    // Rule 9 (doubt proposal): the agent asked "¿te viene bien que te
+    // contacten?" and the lead answers "sí". A bare affirmative can only be
+    // the answer to that question (the qualification questions are not yes/no
+    // questions), so it must win over the reception path that would otherwise
+    // file it as the answer to the pending qualification ask — a lead who
+    // says "sí, contactadme" is a conversion and must reach the commercial.
+    if (
+      awaitingDoubtAnswer &&
+      (intent === 'general' || intent === 'unknown') &&
+      ANSWER_TRIGGERS.affirmative.test(normalizeEs(message))
+    ) {
+      return this.acceptCall(
+        message,
+        intent,
+        undefined,
+        'affirmative answer to the doubt contact proposal',
+      );
     }
 
     // Reception: if the agent asked something and this message is not a query we
@@ -329,6 +410,7 @@ export class MuskAgent {
       case 'human': {
         // Rule 9 (confirmed trigger): lead asks for a person.
         handoff = this.buildHandoff('human_requested', message);
+        this.lastHandoffContext = handoff;
         reply = buildReply('humanRequest');
         action = 'handoff';
         this.push({ kind: 'handoff', intent, detail: 'reason=human_requested' });
@@ -352,12 +434,78 @@ export class MuskAgent {
         answersLead = true;
         break;
       }
+      case 'kb': {
+        // Rule 9 (confirmed trigger): a CONFIRMED acceptance outranks the
+        // knowledge-base answer. The lead is accepting the call, so the
+        // handoff fires with the approved call-accepted copy — answering with
+        // the passage would leave a conversion unanswered. Same check, same
+        // copy and same handoff as the 'general' branch.
+        if (acceptanceConfirmed(normalizeEs(message))) {
+          handoff = this.buildHandoff('call_accepted', message);
+          this.lastHandoffContext = handoff;
+          reply = buildReply('callAccepted');
+          action = 'handoff';
+          this.push({ kind: 'handoff', intent, detail: 'reason=call_accepted' });
+          break;
+        }
+        // The knowledge base answered it (deterministic retrieval, no LLM).
+        // The passage answer IS the reply: it is the approved copy, and the
+        // shared guard at the end of this method validates it before it
+        // reaches the lead (defense in depth, no second guard call here).
+        const outcome = retrieve(this.content.kb ?? [], message);
+        if (outcome.match === null) {
+          // Unreachable in practice (classify only returns 'kb' on a match),
+          // but the branch is kept: without an answer there is nothing to
+          // send, so the turn falls back to rule 5.
+          registeredDoubts.push(message);
+          reply = buildReply('doubt');
+          this.recordDoubtMessage(message);
+          this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
+          break;
+        }
+        const match = outcome.match;
+        reply = match.passage.answer;
+        // It answers the lead, so the anti-repeat mechanism must not replace
+        // it with the invitation (see the tail of runTurn).
+        answersLead = true;
+        this.push({
+          kind: 'kb',
+          intent,
+          detail: `kb = ${match.passage.id} (score ${match.score.toFixed(2)}, coverage ${match.coverage.toFixed(2)})`,
+          kb: {
+            passageId: match.passage.id,
+            score: match.score,
+            coverage: match.coverage,
+            minScore: outcome.thresholds.minScore,
+            minCoverage: outcome.thresholds.minCoverage,
+          },
+        });
+        break;
+      }
       case 'unknown': {
         // Rule 5: register the doubt, propose human contact, invent nothing.
         registeredDoubts.push(message);
         reply = buildReply('doubt');
         this.recordDoubtMessage(message);
         this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
+        // Escalation with context: what came closest in the knowledge base
+        // and how far it was from the thresholds. The operator sees WHY the
+        // knowledge base did not answer, without the lead ever seeing it.
+        const outcome = retrieve(this.content.kb ?? [], message);
+        if (outcome.best !== null) {
+          this.push({
+            kind: 'kb',
+            intent,
+            detail: `kb closest = ${outcome.best.passage.id} (score ${outcome.best.score.toFixed(2)}, coverage ${outcome.best.coverage.toFixed(2)}) — below thresholds (min score ${outcome.thresholds.minScore}, min coverage ${outcome.thresholds.minCoverage})`,
+            kb: {
+              passageId: outcome.best.passage.id,
+              score: outcome.best.score,
+              coverage: outcome.best.coverage,
+              minScore: outcome.thresholds.minScore,
+              minCoverage: outcome.thresholds.minCoverage,
+            },
+          });
+        }
         break;
       }
       case 'decline': {
@@ -379,6 +527,7 @@ export class MuskAgent {
           // classify() now sends to 'unknown' — and if an FAQ/greeting still
           // classifies it 'general', it fails this test and never handoffs.
           handoff = this.buildHandoff('call_accepted', message);
+          this.lastHandoffContext = handoff;
           reply = buildReply('callAccepted');
           action = 'handoff';
           this.push({ kind: 'handoff', intent, detail: 'reason=call_accepted' });
@@ -445,18 +594,26 @@ export class MuskAgent {
 
     // The ask invariant: a message that asks the lead for the contact or a
     // moment must leave the ask armed, so the answer is RECEIVED instead of
-    // being classified as a brand-new message. Three approved strings ask for
+    // being classified as a brand-new message. These strings ask for
     // it — the doubt reply ("¿Te viene bien que te contacten para aclararlo?"),
-    // the price answer (it ends with the invitation) and the invitation itself
+    // the profile's own follow-up acknowledgement, the price answer (it ends
+    // with the invitation) and the invitation itself
     // when it replaces a repeated message — and without arming, the lead's "sí"
     // was answered with the social greeting: the agent asked something and then
     // stopped listening. An ask that is ALREADY armed is never stolen (the
     // pending qualification question keeps priority, locked by tests).
     const asksForContact =
       reply === buildReply('doubt') ||
+      (this.content.doubtFollowup !== undefined && reply === this.content.doubtFollowup) ||
       reply === buildReply('price') ||
       reply === buildReply('callProposal');
     if (asksForContact) this.keepListeningForCall();
+
+    // The rule-5 doubt reply asks the lead whether a contact suits him, so the
+    // NEXT message is the answer to that yes/no question. A bare "sí" there is
+    // a confirmed acceptance (rule 9) and must not be filed as the answer to
+    // the pending qualification question.
+    if (this.isDoubtReply(reply)) this.awaitingDoubtAnswer = true;
 
     this.push({ kind: 'reply', intent, detail: reply });
 
@@ -528,9 +685,24 @@ export class MuskAgent {
 
   // A message is receivable as the pending answer unless it is something the
   // agent must ANSWER instead: a guarded intent, an explicit question, a
-  // call-acceptance handoff, or a question that matches approved FAQ content.
+  // call-acceptance handoff, or question that matches approved FAQ content.
   // Those keep the ask pending.
   private isReceivableAnswer(message: string, intent: Intent): boolean {
+    // The knowledge-base intent ('kb') means the message is a QUERY, exactly
+    // like an approved-FAQ match: the approved answer is sent and the pending
+    // ask stays armed. It is NOT receivable by default.
+    //
+    // BEFORE this rule the knowledge base matched 'kb' and the reception path
+    // treated it like 'unknown' (receivable), so a query that matched a
+    // passage was SWALLOWED: the agent sent nothing and filed the lead's own
+    // message as the answer to the pending ask. The lead was left in silence.
+    //
+    // EXCEPTION: a message that is genuinely the ANSWER to the pending ask is
+    // still received as that answer. The knowledge base decides WHAT may be
+    // answered; the pending ask keeps priority over a bare token that is
+    // clearly an answer, and the lead's own answer to our question is never
+    // stolen by the knowledge base.
+    if (intent === 'kb') return this.matchesPendingQuestionAnswer(message);
     if (intent !== 'unknown' && intent !== 'general') return false;
     // Rule 5 first: a question means the lead is ASKING, not answering.
     if (this.looksLikeQuestion(message)) return false;
@@ -544,6 +716,25 @@ export class MuskAgent {
     }
     return true;
   }
+
+  // True when the message is genuinely the ANSWER to the pending ask:
+  //   a) it matches the approved reaction keywords of the PENDING
+  //      qualification question (the same folding reactionFor uses);
+  //   b) it is a bare affirmative ("sí", "vale", "perfecto") — the answer to a
+  //      yes/no ask, not a query;
+  //   c) it is a bare negative ("no", "paso").
+  private matchesPendingQuestionAnswer(message: string): boolean {
+    const folded = normalizeEs(message);
+    const ask = this.pendingAsk;
+    if (ask !== null && ask.kind === 'qualification') {
+      const question = this.content.qualificationQuestions.find((item) => item.id === ask.id);
+      for (const reaction of question?.reactions ?? []) {
+        if (reaction.keywords.some((keyword) => folded.includes(normalizeEs(keyword)))) return true;
+      }
+    }
+    return isWholeMessageAnswer(folded);
+  }
+
 
   // True while the profile still has a question to ask: approved text, not asked
   // yet, and nobody else has taken over. Read-only — unlike
@@ -808,6 +999,8 @@ export class MuskAgent {
     this.push({ kind: 'handoff', intent, detail: `reason=call_accepted (${reasonDetail})` });
     this.lastOutbound = accepted;
     this.push({ kind: 'reply', intent, detail: accepted });
+    const context = this.buildHandoff('call_accepted', message);
+    this.lastHandoffContext = context;
     const result: TurnResult = {
       intent,
       action: 'handoff',
@@ -818,7 +1011,7 @@ export class MuskAgent {
       ruleViolations: guard.ok
         ? []
         : guard.violations.map((violation) => `${violation.id}(rule ${violation.rule})`),
-      handoff: this.buildHandoff('call_accepted', message),
+      handoff: context,
     };
     if (capturedAnswer) result.capturedAnswer = capturedAnswer;
     return result;
@@ -847,6 +1040,17 @@ export class MuskAgent {
     this.pendingAsk = { kind: 'callProposal' };
   }
 
+  // True when the reply the agent just sent is the rule-5 doubt proposal (the
+  // bare approved doubt template or the profile's own follow-up variant).
+  // That reply ends with a yes/no question ("¿te viene bien que te
+  // contacten?"), so the next message is its answer.
+  private isDoubtReply(reply: string): boolean {
+    if (reply === '') return false;
+    if (reply === buildReply('doubt')) return true;
+    const followup = this.content.doubtFollowup;
+    return followup !== undefined && followup.trim() !== '' && reply === followup;
+  }
+
   // The lead is never sent the same line twice in a row: an identical message
   // reads as a bot, so it is replaced by the approved invitation (or withheld
   // when that too would repeat — the operator takes over). Callers must NOT
@@ -858,6 +1062,20 @@ export class MuskAgent {
     if (reply !== this.lastOutbound) {
       this.lastOutbound = reply;
       return reply;
+    }
+    // A repeated rule-5 doubt acknowledgement swaps to the PROFILE's follow-up
+    // variant: replacing the second doubt with the bare contact-ask left the
+    // lead's question visibly unacknowledged — the exact bot tell this method
+    // exists to avoid. The variant is profile-specific copy (content.
+    // doubtFollowup), so a profile that does not ship it — every profile whose
+    // copy is actually approved by MUSK — keeps the bare invitation fallback
+    // below, and no unapproved wording is ever sent (rules 4 and 11).
+    if (reply === buildReply('doubt')) {
+      const followup = this.content.doubtFollowup;
+      if (followup !== undefined && followup.trim() !== '' && followup !== this.lastOutbound) {
+        this.lastOutbound = followup;
+        return followup;
+      }
     }
     const invitation = buildReply('callProposal');
     if (invitation === this.lastOutbound) return '';

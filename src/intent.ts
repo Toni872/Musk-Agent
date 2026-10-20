@@ -3,9 +3,28 @@
 // the mandatory rule tests deterministic and fully offline.
 
 import type { ApprovedContent, FaqEntry } from './content';
-import { acceptanceConfirmed, HANDOFF_TRIGGERS, STOP_TRIGGER } from './rules';
+import {
+  acceptanceConfirmed,
+  ANSWER_TRIGGERS,
+  HANDOFF_TRIGGERS,
+  matchesWholeMessage,
+  STOP_TRIGGER,
+} from './rules';
+import { retrieve } from './retrieval';
 
-export type Intent = 'price' | 'temario' | 'financiacion' | 'unknown' | 'human' | 'stop' | 'decline' | 'general';
+export type Intent =
+  | 'price'
+  | 'temario'
+  | 'financiacion'
+  | 'unknown'
+  | 'human'
+  | 'stop'
+  | 'decline'
+  | 'general'
+  // The lead's question is answered by the knowledge base (src/kb.ts) through
+  // the deterministic retrieval layer (src/retrieval.ts). It is the LAST
+  // resort before rule 5: the hand-written FAQ always keeps priority.
+  | 'kb';
 
 // Normalization for Spanish es-ES input: lowercase, strip accents, replace
 // punctuation with spaces and collapse whitespace. Trigger patterns are
@@ -22,7 +41,7 @@ export function normalizeEs(input: string): string {
 
 // Input-side topic patterns. Stop and human come from the shared rule triggers
 // (rules.ts) so classification and the guard layer can never drift apart.
-export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown'>, RegExp> = {
+export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown' | 'kb'>, RegExp> = {
   stop: STOP_TRIGGER,
   human: HANDOFF_TRIGGERS.humanRequested,
   price:
@@ -34,8 +53,11 @@ export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown'>, RegE
   // say options exist and refer to the call, so a wider net here is SAFER, not
   // riskier. Note `price` is still evaluated first (see classify), so a mixed
   // message ("cuánto cuesta y se puede financiar") keeps resolving to `price`.
+  // The `\bfinancia\w*` stem also covers reflexive/enclitic forms ("financiarse",
+  // "financiarlo") that `\bfinanciar\b` missed (regression coverage:
+  // tests/reception.test.ts, financing reflexive case).
   financiacion:
-    /\bfinanciacion\b|\bfinanciar\b|\bfinanciamiento\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bpagar\w* poco a poco\b|\bcuotas?\b|\bmensualidades?\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
+    /\bfinancia\w*\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bpagar\w* poco a poco\b|\bcuotas?\b|\bmensualidades?\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
   // Soft decline (rule 5 family): a bare "no me interesa" / "no estoy
   // interesado" is NOT a stop (rule 7) and NOT a confirmed handoff trigger
   // (rule 9). Only the bare/near-bare form is caught, so topic-specific
@@ -78,6 +100,24 @@ export function findApprovedAnswer(content: ApprovedContent, message: string): F
   return null;
 }
 
+// A message that IS the answer to the agent's pending ask (a bare yes/no) is
+// not a query, so the knowledge base must never answer it.
+//
+// Verified problem: the bare token "paso" matched the passage
+// 'kb-metodo-demostracion' (score 4.99) and was answered with the method
+// passage when the lead meant "paso de ti" (a decline). "vale", "perfecto",
+// "si", "ok", "claro" and "de acuerdo" do not match today, but the same rule
+// protects them.
+//
+// The knowledge base decides WHAT may be answered, not WHETHER the message is
+// an answer: a bare yes/no is the answer to a yes/no ask, never a query.
+export function isWholeMessageAnswer(folded: string): boolean {
+  return (
+    matchesWholeMessage(ANSWER_TRIGGERS.affirmative, folded) ||
+    matchesWholeMessage(ANSWER_TRIGGERS.negative, folded)
+  );
+}
+
 // Classification order matters: stop beats everything (rule 7), then the
 // confirmed human-handoff request (rule 9), then the forbidden topics, then
 // call acceptance (rule 9 — a CONFIRMED one: acceptanceConfirmed rejects a
@@ -85,7 +125,9 @@ export function findApprovedAnswer(content: ApprovedContent, message: string): F
 // "no me viene bien" falls through to 'unknown' and gets the rule 5 doubt
 // reply instead of classifying as 'general', which used to close the deal),
 // approved content, soft decline (rule 5 family) and social small talk.
-// Anything else is 'unknown' and is handled by rule 5 (register doubt).
+// Anything else is 'unknown' and is handled by rule 5 (register doubt),
+// UNLESS the content profile carries a knowledge base and the deterministic
+// retrieval layer finds a passage that clears its thresholds (intent 'kb').
 export function classify(message: string, content: ApprovedContent): Intent {
   const folded = normalizeEs(message);
   if (INPUT_PATTERNS.stop.test(folded)) return 'stop';
@@ -97,5 +139,21 @@ export function classify(message: string, content: ApprovedContent): Intent {
   if (findApprovedAnswer(content, folded)) return 'general';
   if (INPUT_PATTERNS.decline.test(folded)) return 'decline';
   if (SOCIAL_GREETING.test(folded) || SOCIAL_ACK.test(folded)) return 'general';
+  // Knowledge base (Phase 0): the deterministic retrieval layer over the
+  // approved knowledge base (src/kb.ts). It is consulted LAST, right before
+  // the rule-5 fallback, so NO existing classification changes: the guarded
+  // intents win, the hand-written FAQ keeps priority over the knowledge
+  // base, and a soft decline or a greeting is never answered from it.
+  //
+  // Only a profile that HAS a knowledge base can reach this branch
+  // (ApprovedContent.kb); without one the behaviour is exactly as before.
+  //
+  // A whole-message answer to the pending ask is skipped on purpose: it is
+  // the lead's ANSWER, not a query, and the knowledge base must not steal it
+  // (see isWholeMessageAnswer above).
+  if (content.kb !== undefined && content.kb.length > 0 && !isWholeMessageAnswer(folded)) {
+    const outcome = retrieve(content.kb, message);
+    if (outcome.match !== null) return 'kb';
+  }
   return 'unknown';
 }

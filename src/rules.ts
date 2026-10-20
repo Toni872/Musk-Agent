@@ -105,6 +105,26 @@ export const ANSWER_TRIGGERS = {
     /\b(?:hoy por las? (?:manana|tarde|noche)|manana por las? (?:manana|tarde)|esta (?:manana|tarde|noche)|por las? (?:manana|tarde|noche)s?|por la semana que viene|esta semana|la semana que viene|la proxima semana|pasado manana|manana|mediodia|primera hora|(?:despues|antes) de (?:comer|cenar)|el (?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)|sobre las (?:\d+|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)|a las (?:\d+|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)|cuando (?:querais|puedais|puedas|te venga bien|os venga bien))\b/,
 } as const;
 
+// Whole-message match for a trigger: the trigger must cover the ENTIRE folded
+// message, not just its tail.
+//
+// The answer triggers above are written with a trailing `$` on purpose: they
+// answer "does the message END with an acceptance/refusal?". That is the right
+// question for a call answer ("vale, hasta luego" is an acceptance). It is the
+// WRONG question for deciding whether a message IS an answer to the agent's
+// pending ask, because there a bare token inside a longer message ("quiero
+// saber si...") is not an answer at all.
+//
+// So the whole-message predicate is explicit: the match must start at the
+// beginning and cover the full folded text. Used by the knowledge base gate
+// (src/intent.ts) and by the reception path (src/agent.ts), so both agree on
+// what "a bare yes/no" means.
+export function matchesWholeMessage(trigger: RegExp, folded: string): boolean {
+  const match = trigger.exec(folded);
+  if (match === null) return false;
+  return match.index === 0 && match[0].length === folded.length;
+}
+
 // ---------------------------------------------------------------------------
 // Negation guard for a CONFIRMED acceptance (rule 9)
 // ---------------------------------------------------------------------------

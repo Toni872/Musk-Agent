@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-19, 124/124 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-20, 130/130 tests.
 
 > **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
 
@@ -104,6 +104,11 @@ Y en la respuesta a la propuesta de llamada (ampliado 18-10, tras la traza del c
 | ante la respuesta de duda, `si` | El agente **sigue escuchando** esa pregunta: `si` → handoff (antes: saludo social) |
 | una respuesta aprobada repetida (`cuéntame más` x2) | Se repite la respuesta: la invitación ya no la sustituye |
 | tras pedir humano, el teléfono | No responde (habla el comercial), pero el contacto queda registrado para el aviso |
+| tras la **duda** (regla 5), `si` | Regla 9: el "sí" es el acuerdo con que le contacten → handoff `call_accepted`. Antes se guardaba como respuesta a la pregunta de cualificación y la conversión se perdía |
+| tras la **duda** (regla 5), la siguiente pregunta | No se apila: la pregunta de cualificación se aplaza hasta que el lead conteste a la duda (dos preguntas seguidas no se responden) |
+| tras la **derivación**, `mañana a las 9:00` | No responde (habla el comercial), pero el momento queda registrado y el aviso al comercial se corrige con esa hora |
+
+> **Cambiado el 20-10 (defectos D5 y D6):** tras una duda (regla 5), un "sí" suelto **deriva ahora a humano** (regla 9): antes se archivaba como respuesta a la pregunta de cualificación y el lead se perdía. Y todo mensaje que llega **después** de la derivación queda registrado (el momento acordado suele llegar tarde: "mañana" y después "mañana a las 9:00"), amending el aviso al comercial; antes solo se guardaba el teléfono y el resto se perdía en silencio. El agente sigue sin escribir nada después de la derivación (regla 9).
 
 
 Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(decisión)`, así que no se envían y el mecanismo no altera nada del guion de la conversación 1.
@@ -145,13 +150,13 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 
 ```powershell
 npm run typecheck   # cero errores
-npm test            # 124 tests, sin red
-npm run eval        # bucle de evaluación: 40 casos etiquetados, informe de recall/precisión sobre el enrutado real
+npm test            # 138 tests, sin red
+npm run eval        # bucle de evaluación: 43 casos etiquetados, informe de recall/precisión sobre el enrutado real
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador
 npm run ui          # sirve el simulador en http://localhost:4173
 ```
 
-El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 40 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard: las paráfrasis sin palabra clave que fallaban (C19-C22, C34-C35) se cerraron ampliando el ruteo, sin tocar ningún texto de cara al lead.
+El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 43 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard: las paráfrasis sin palabra clave que fallaban (C19-C22, C34-C35) se cerraron ampliando el ruteo, sin tocar ningún texto de cara al lead.
 
 Para reproducir el guion completo de forma no interactiva se usa un driver temporal `.mts` que importa `MuskAgent` (mismo código del agente, sin la limitación del REPL).

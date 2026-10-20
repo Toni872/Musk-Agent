@@ -12,6 +12,7 @@ import { DEMO_CONTENT } from '../src/content.demo';
 import {
   CONTENT_BANNERS,
   DEFAULT_LEAD,
+  HANDOFF_REPLY_PLACEHOLDER,
   OPENING_PLACEHOLDER,
   STOPPED_REPLY_PLACEHOLDER,
   createChat,
@@ -109,6 +110,32 @@ describe('ui/chat view-model', () => {
     );
   });
 
+  // D5: the agreed moment usually arrives AFTER the handoff ("mañana" and then
+  // "mañana a las 9:00"). The agent stays silent (rule 9: the conversation is
+  // with a person now) but the notice to the commercial is corrected, so the
+  // operator panel shows the updated summary instead of losing the time.
+  it('un turno posterior a la derivación muestra el resumen actualizado', async () => {
+    const chat = createChat({ profile: 'demo' });
+    await chat.send('Sí, llámame cuando queráis');
+
+    const state = await chat.send('mañana a las 9:00');
+
+    // The silence of rule 9 is untouched.
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(agentMessages[agentMessages.length - 1].text).toBe(HANDOFF_REPLY_PLACEHOLDER);
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const summaryLines = diagnostics.filter((message) =>
+      message.text.startsWith('resumen para el comercial = '),
+    );
+    expect(summaryLines).toHaveLength(2);
+    const updated = summaryLines[summaryLines.length - 1];
+    expect(updated.text).toContain('9:00');
+    expect(updated.text).toContain('mañana a las 9:00');
+    // The handoff line is rendered again for the corrected notice.
+    expect(diagnostics.filter((message) => message.text.startsWith('handoff = '))).toHaveLength(2);
+  });
+
   // Rule 5 path through the UI. Uses the 'real' profile because the DEMO opening
   // arms the reception ask (constructor): while that ask is pending, an
   // unmatched message is RECEIVED as its answer (kind 'answer', no doubt), so
@@ -186,5 +213,23 @@ describe('ui/chat view-model', () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null, lead: DEFAULT_LEAD });
     expect(agent.isStopped).toBe(false);
     expect(agent.records).toHaveLength(0);
+  });
+
+  // The knowledge-base provenance is operator-facing: the lead sees only the
+  // answer, the operator sees which passage answered and with which score.
+  it('a knowledge-base turn shows the provenance as a diagnostic line', async () => {
+    const chat = createChat({ profile: 'demo' });
+    const state = await chat.send('¿me dan certificado de la UE?');
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const provenance = diagnostics.find((message) => message.text.startsWith('kb = '));
+    expect(provenance).toBeDefined();
+    expect(provenance?.text).toMatch(/^kb = kb-certificacion-arp \(score \d+\.\d+, coverage \d+\.\d+\)$/);
+
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(agentMessages.some((message) => message.text.includes('ARP'))).toBe(true);
+    // The lead-facing transcript never shows the score or the passage id.
+    expect(agentMessages.some((message) => message.text.includes('score'))).toBe(false);
+    expect(agentMessages.some((message) => message.text.includes('kb-certificacion-arp'))).toBe(false);
   });
 });

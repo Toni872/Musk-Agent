@@ -142,9 +142,11 @@ export class Chat {
     const message = text.trim();
     if (!message) return this.getState();
     this.messages.push({ role: 'lead', text: message });
+    const recordsBefore = this.agent.records.length;
     const result = await this.agent.runTurn(message);
     this.turnCount += 1;
     this.pushTurn(result);
+    this.pushKbProvenance(recordsBefore);
     const question = this.agent.nextQualificationQuestion();
     if (question) this.messages.push({ role: 'agent', text: question.text });
     return this.getState();
@@ -184,6 +186,18 @@ export class Chat {
     const pending = this.agent.pendingDecisions;
     if (pending.length > 0) {
       this.messages.push({ role: 'info', text: `pending : ${pending.join(', ')}` });
+    }
+  }
+
+  // Knowledge-base provenance of the turn, in the operator style of the other
+  // diagnostic lines: "kb = kb-catalogo (score 4.21, coverage 0.75)". It shows
+  // the passage that answered, or the closest one when nothing cleared the
+  // thresholds (the escalation context). The lead-facing transcript is
+  // untouched: the lead only ever sees the answer text.
+  private pushKbProvenance(recordsBefore: number): void {
+    const records = this.agent.records.slice(recordsBefore).filter((record) => record.kind === 'kb');
+    for (const record of records) {
+      this.messages.push({ role: 'diagnostic', text: record.detail });
     }
   }
 

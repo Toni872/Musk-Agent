@@ -13,6 +13,7 @@
 // no money text (hard rules 1, 2, 10).
 
 import type { ApprovedContent } from './content';
+import { KB_PASSAGES } from './kb';
 
 export const DEMO_CONTENT: ApprovedContent = {
   formationName: 'Formación de especialización tecnológica (muestra de demo)',
@@ -80,15 +81,51 @@ export const DEMO_CONTENT: ApprovedContent = {
     },
     {
       id: 'modalidad',
-      keywords: ['horario', 'clases', 'modalidad', 'online', 'presencial', 'sede'],
+      keywords: [
+        'horario',
+        'clases',
+        'modalidad',
+        'online',
+        'presencial',
+        'sede',
+        'donde esta',
+        'donde queda',
+        'academia',
+        'ubicacion',
+        'direccion',
+      ],
       answer:
-        'La formación es online, con clases en directo y grabaciones disponibles para que las veas cuando mejor te venga.',
+        'Todo es online: campus virtual, comunidad en Discord y tutores personales que te acompañan. No hay horarios fijos de conexión, así que puedes compaginarlo con tu rutina.',
     },
     {
       id: 'duracion',
       keywords: ['cuanto dura', 'duracion', 'cuanto tiempo', 'cuantos meses', 'cuantas semanas'],
       answer:
         'Es un programa pensado para compaginarlo con tu día a día: clases en directo y trabajo por proyectos a tu ritmo entre sesiones.',
+    },
+    {
+      // General catalog level allowed by rule 2; no prices, hours or salaries
+      // (guard). Placed just before the catch-all 'informacion' entry so every
+      // specific entry keeps priority ("qué enseñáis?" -> contenido, "qué
+      // cursos hay y son online?" -> modalidad) while the catalog still answers
+      // "qué cursos tenéis?". Wording pending MUSK sign-off.
+      id: 'catalogo-formaciones',
+      keywords: [
+        'que cursos',
+        'que formaciones',
+        'catalogo',
+        'que teneis',
+        'que ofreceis',
+        'que impartis',
+        'que ensenais',
+        'cursos hay',
+        'formaciones hay',
+      ],
+      // Short on purpose: this is a lead-capture agent, not a brochure. The
+      // full program detail lives in the knowledge base (kb-catalogo-*), which
+      // the agent only quotes when the lead asks for one specific programme.
+      answer:
+        'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, y los de desarrollo y videojuegos llevan IA. Dime qué te atrae y te oriento.',
     },
     {
       id: 'informacion',
@@ -146,6 +183,16 @@ export const DEMO_CONTENT: ApprovedContent = {
   // no pressure, no promise of immediate attention).
   closingInvitation:
     'Con lo que me cuentas, lo más útil es que lo veas con una persona del equipo: te explican el programa con detalle, resuelven tus dudas y no te compromete a nada. ¿Qué día y a qué hora te viene mejor que te llamemos?',
+  // Profile-specific second acknowledgement of a rule-5 doubt (see
+  // MuskAgent.neverRepeat). It lives HERE and not in the shared templates
+  // because it is not approved by MUSK yet (rules 4 and 11): a profile without
+  // it keeps the bare invitation fallback.
+  doubtFollowup:
+    'Eso también lo anoto como duda para que te lo confirmen. Si te encaja, una persona del equipo te contacta y lo veis todo con calma. ¿Te viene bien?',
+  // Knowledge base (demo-only, pending MUSK sign-off — rules 4 and 11).
+  // The approved profile (src/content.ts) does NOT get it: this copy is not
+  // signed off yet, and it must never reach a real lead.
+  kb: KB_PASSAGES,
   initialMessage:
     'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación de especialización tecnológica: ¿sigue siendo algo que te interese? Puedo contarte en qué consiste y qué salidas tiene, y si encaja te pongo con una persona del equipo, sin compromiso.',
 };

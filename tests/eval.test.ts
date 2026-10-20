@@ -7,10 +7,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { APPROVED_CONTENT } from '../src/content';
-import { EVAL_CASES } from '../src/eval.dataset';
-import { runRetrievalEval, type EvalReport } from '../src/eval';
+import { DEMO_CONTENT } from '../src/content.demo';
+import { EVAL_CASES, EVAL_KB_CASES } from '../src/eval.dataset';
+import { runRetrievalEval, runKbEval, type EvalReport, type KbEvalReport } from '../src/eval';
 
 const report: EvalReport = runRetrievalEval(APPROVED_CONTENT, EVAL_CASES);
+// The knowledge base lives only in the DEMO profile (pending MUSK sign-off),
+// so that is the profile the knowledge-base layer is measured on.
+const kbReport: KbEvalReport = runKbEval(DEMO_CONTENT, EVAL_KB_CASES);
 
 function failingIds(): string {
   return report.results
@@ -90,5 +94,50 @@ describe('bucle de evaluación: retrieval gate', () => {
       .map((entry) => entry.id)
       .filter((id) => !covered.has(id));
     expect(missing, `FAQ sin caso de evaluación: ${missing.join(', ')}`).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Knowledge-base layer (Phase 0): measured separately, with its own floors.
+// ---------------------------------------------------------------------------
+describe('bucle de evaluación: puerta de la base de conocimiento', () => {
+  // 7. Regla 5 y lista de temas prohibidos: el grupo que DEBE escalar
+  //    (precio, devolución, becas, sede, calendario, requisitos) jamás puede
+  //    ser respondido por la base de conocimiento. Absoluto: 0 falsos positivos.
+  it('el grupo que debe escalar nunca lo responde la base de conocimiento (falsos positivos = 0)', () => {
+    const falsePositiveIds = kbReport.results
+      .filter((result) => result.outcome === 'false-positive')
+      .map((result) => `${result.id}: ${result.question} -> ${result.actualPassageId}`)
+      .join(' | ');
+    expect(
+      kbReport.metrics.falsePositives,
+      `falsos positivos de la base de conocimiento: ${falsePositiveIds}`,
+    ).toBe(0);
+    expect(kbReport.metrics.falsePositiveRate).toBe(0);
+  });
+
+  // 8. El recall de la base de conocimiento no regresa por debajo del suelo
+  //    medido (baseline 2026-10-20: 22/22 = 1.00).
+  it('el recall de la base de conocimiento no regresa por debajo del suelo medido', () => {
+    const failing = kbReport.results
+      .filter((result) => result.outcome !== 'hit' && result.expectedPassageId !== null)
+      .map((result) => `${result.id} (${result.question})`)
+      .join(', ');
+    expect(kbReport.metrics.recall, `recall ${kbReport.metrics.recall.toFixed(4)}; fallidos: ${failing}`).toBeGreaterThanOrEqual(0.9);
+  });
+
+  // 9. Toda respuesta de la base de conocimiento pasa el guard de salida.
+  it('ninguna respuesta de la base de conocimiento rompe el guard', () => {
+    expect(kbReport.metrics.guardViolations).toBe(0);
+  });
+
+  // 10. La base de conocimiento no desplaza a la FAQ: el intent real de cada
+  //     caso etiquetado es el esperado.
+  it('el enrutado de la base de conocimiento es exacto (intents = 1)', () => {
+    const wrong = kbReport.results
+      .filter((result) => !result.intentOk)
+      .map((result) => `${result.id} (${result.actualIntent}, esperaba ${result.expectedIntent})`)
+      .join(', ');
+    expect(kbReport.metrics.intentAccuracy, `intents incorrectos: ${wrong}`).toBe(1);
   });
 });

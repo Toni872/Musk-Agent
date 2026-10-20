@@ -57,6 +57,15 @@ function noMessageNote(result: TurnResult): string {
     : '(no message sent: conversation stopped)';
 }
 
+// Knowledge-base provenance of a turn, in the same operator style as the
+// other lines: "kb = kb-catalogo (score 4.21, coverage 0.75)". It shows
+// either the passage that answered or, when nothing cleared the thresholds,
+// the closest one (the escalation context). Operator-facing only.
+function printKbProvenance(agent: MuskAgent, recordsBefore: number): void {
+  const records = agent.records.slice(recordsBefore).filter((record) => record.kind === 'kb');
+  for (const record of records) console.log(record.detail);
+}
+
 function printTurn(result: TurnResult): void {
   console.log(`agent   > ${result.reply || noMessageNote(result)}`);
   console.log(
@@ -99,9 +108,11 @@ async function runSmoke(): Promise<void> {
   printContentBanner();
   const agent = new MuskAgent({ content: CONTENT, provider: buildProvider(), lead: SMOKE_LEAD });
   printOpening(agent);
+  const recordsBefore = agent.records.length;
   const result = await agent.runTurn(SMOKE_QUESTION);
   console.log(`lead    > ${SMOKE_QUESTION}`);
   printTurn(result);
+  printKbProvenance(agent, recordsBefore);
   console.log('smoke: OK');
 }
 
@@ -140,8 +151,10 @@ async function runRepl(): Promise<void> {
         }
         continue;
       }
+      const recordsBefore = agent.records.length;
       const result = await agent.runTurn(line);
       printTurn(result);
+      printKbProvenance(agent, recordsBefore);
       // Brief qualification (MVP spec §4): one approved question per turn,
       // never an exam. Nothing is asked once the lead stops or hands off.
       const ask = agent.nextQualificationQuestion();

@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { buildReply, REPLY_TEMPLATES } from '../src/rules';
 
 const lead: LeadContact = {
@@ -42,6 +43,14 @@ function demoClosing(): string {
 function demoReaction(questionId: string, index: number): string {
   const question = DEMO_CONTENT.qualificationQuestions.find((item) => item.id === questionId);
   return question?.reactions?.[index]?.say ?? '';
+}
+
+// The approved answer of a knowledge-base passage, looked up by id (never
+// hardcoded in the test).
+function passageAnswer(id: string): string {
+  const found = KB_PASSAGES.find((entry) => entry.id === id);
+  if (found === undefined) throw new Error(`passage not found: ${id}`);
+  return found.answer;
 }
 
 describe('recepción de respuestas (answer reception)', () => {
@@ -292,8 +301,10 @@ describe('recepción de respuestas (answer reception)', () => {
   });
 
   // 14. No lead-facing message twice in a row: when the reply the engine would
-  //     send is the one it just sent, the approved call sentence goes out
-  //     instead. Repetition is the tell the client saw.
+  //     send is the one it just sent, a variant goes out instead. For a rule 5
+  //     doubt that variant is the approved follow-up acknowledgement — swapping
+  //     in the bare call sentence left the lead's second question visibly
+  //     unacknowledged, which is the tell the client saw.
   it('no envía dos veces seguidas el mismo mensaje', async () => {
     const agent = makeDemoAgent();
 
@@ -307,7 +318,7 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(first.reply).toBe(buildReply('doubt'));
 
     const second = await agent.runTurn('xyz');
-    expect(second.reply).toBe(buildReply('callProposal'));
+    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
     expect(second.reply).not.toBe(first.reply);
   });
 
@@ -315,7 +326,8 @@ describe('recepción de respuestas (answer reception)', () => {
   //      the copy of the human request asks for the phone and the notice to the
   //      commercial has to carry the contact so he can find the lead in the CRM
   //      (AGENTS.md). Nothing is sent, but the phone given after the handoff is
-  //      registered instead of dropped. A turn without a phone changes nothing.
+  //      registered instead of dropped. Since D5, EVERY post-handoff message is
+  //      registered (the agreed moment usually arrives late).
   it('tras la derivación por pedir humano, el teléfono que llega se registra sin responder', async () => {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
@@ -336,7 +348,10 @@ describe('recepción de respuestas (answer reception)', () => {
 
     const other = await agent.runTurn('gracias');
     expect(other.reply).toBe('');
-    expect(agent.records).toHaveLength(recordsAfterHandoff + 1);
+    // Every post-handoff message is now registered (D5): the agreed moment
+    // usually arrives late and the commercial must learn it.
+    expect(agent.records).toHaveLength(recordsAfterHandoff + 2);
+    expect(agent.records[agent.records.length - 1].detail).toBe('after the handoff: "gracias"');
   });
 
   // 15. After the handoff the agent stops writing: the lead is with a person, and
@@ -356,7 +371,10 @@ describe('recepción de respuestas (answer reception)', () => {
 
     expect(lead.reply).toBe('');
     expect(lead.suppressed).toBe(true);
-    expect(agent.records).toHaveLength(recordsAfterHandoff);
+    // The silence is unchanged, but the message is no longer dropped: it is
+    // registered so the commercial sees what the lead said after the handoff.
+    expect(agent.records).toHaveLength(recordsAfterHandoff + 1);
+    expect(agent.records[agent.records.length - 1].detail).toBe('after the handoff: "sI"');
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
 });
@@ -1050,5 +1068,359 @@ describe('un "si" suelto avanza el flujo, no vuelve a saludar', () => {
 
     const hello = await agent.runTurn('hola');
     expect(hello.reply).toBe(buildReply('social'));
+  });
+});
+
+// Financing reflexive/enclitic coverage (the `\bfinanciar\b` gap), the approved
+// follow-up variant for a second consecutive rule-5 doubt, and the new demo
+// content from the KB (catalog and enriched modality/location).
+describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
+  // Regression: "¿Los cursos pueden financiarse?" classified 'unknown' because
+  // the financing regex had no reflexive form. It must get the mandatory rule 3
+  // copy, and the pending opening ask must not capture it (guarded intents are
+  // never receivable answers).
+  it('financiación reflexiva: "¿Los cursos pueden financiarse?" clasifica financiacion', async () => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('¿Los cursos pueden financiarse?');
+
+    expect(result.intent).toBe('financiacion');
+    expect(result.reply).toBe(buildReply('financing'));
+    expect(result.capturedAnswer).toBeUndefined();
+    expect(result.registeredDoubts).toHaveLength(0);
+  });
+
+  // Two consecutive rule-5 doubts: the second gets the approved follow-up
+  // variant, never the bare contact-ask (that swap left the lead's question
+  // visibly unacknowledged). Both doubts stay registered for the handoff.
+  it('dos dudas seguidas: la segunda recibe la variante aprobada, no la invitación', async () => {
+    const agent = makeDemoAgent();
+
+    const first = await agent.runTurn('¿tienen piscina?');
+    expect(first.intent).toBe('unknown');
+    expect(first.reply).toBe(buildReply('doubt'));
+
+    const second = await agent.runTurn('¿me lo dices en ingles?');
+    expect(second.intent).toBe('unknown');
+    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
+    expect(second.reply).not.toBe(buildReply('callProposal'));
+
+    const handoff = await agent.runTurn('quiero hablar con una persona');
+    expect(handoff.action).toBe('handoff');
+    expect(handoff.handoff?.doubts).toEqual(['¿tienen piscina?', '¿me lo dices en ingles?']);
+  });
+
+  // Demo catalog entry (KB): the question routes to the new FAQ answer.
+  it('catálogo demo: "Que cursos teneis?" responde con la entrada catalogo-formaciones', async () => {
+    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('Que cursos teneis?');
+
+    expect(result.intent).toBe('general');
+    expect(result.reply).toBe(expected);
+    expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  // Demo modality/location (KB): "dónde está la academia" reaches the enriched
+  // modalidad answer (everything online, no fixed connection schedule).
+  it('modalidad demo: "Hola, donde esta la academia?" responde con la entrada modalidad', async () => {
+    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'modalidad')!.answer;
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('Hola, donde esta la academia?');
+
+    expect(result.intent).toBe('general');
+    expect(result.reply).toBe(expected);
+    expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  // Three consecutive rule-5 doubts: the engine never sends the same
+  // lead-facing text twice in a row, and the third message is NOT the bare
+  // contact invitation. Before the profile follow-up existed, the third doubt
+  // fell back to the bare invitation (or to a repeated doubt), and the
+  // invariant "same text twice in a row" was only reachable by accident.
+  it('tres dudas seguidas: nunca se repite el texto y la tercera no es la invitación', async () => {
+    const agent = makeDemoAgent();
+
+    const first = await agent.runTurn('¿tienen piscina?');
+    expect(first.intent).toBe('unknown');
+    expect(first.reply).toBe(buildReply('doubt'));
+
+    const second = await agent.runTurn('¿me lo dices en ingles?');
+    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
+    expect(second.reply).not.toBe(first.reply);
+
+    const third = await agent.runTurn('¿tiene parking?');
+    expect(third.intent).toBe('unknown');
+    expect(third.reply).not.toBe(second.reply);
+    expect(third.reply).not.toBe(buildReply('callProposal'));
+  });
+
+  // A profile WITHOUT its own follow-up wording keeps the old behaviour: the
+  // second consecutive doubt falls back to the bare approved invitation. The
+  // unapproved copy lives in the DEMO profile only (rules 4 and 11).
+  it('sin follow-up propio, la segunda duda vuelve a la invitación aprobada', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+
+    const first = await agent.runTurn('¿tienen piscina?');
+    expect(first.intent).toBe('unknown');
+    expect(first.reply).toBe(buildReply('doubt'));
+
+    const second = await agent.runTurn('¿me lo dices en ingles?');
+    expect(second.reply).toBe(buildReply('callProposal'));
+    expect(second.reply).not.toBe(first.reply);
+  });
+});
+
+// D6: a bare "sí" to the rule-5 doubt proposal NEVER escalated. The agent
+// asked "¿Te viene bien que te contacten para aclararlo?" but the pending ask
+// was the QUALIFICATION question, so the "sí" was filed as the answer to it
+// and no handoff fired: a lead who says "sí, contactadme" was a conversion
+// that got lost. A bare affirmative can only be the answer to that yes/no
+// question (the qualification questions are not yes/no questions).
+describe('el "sí" a la propuesta de contacto deriva (D6)', () => {
+  it('tras una duda, un "sí" deriva a humano y NO se captura como respuesta', async () => {
+    const agent = makeDemoAgent();
+
+    const doubt = await agent.runTurn('¿tienen piscina?');
+    expect(doubt.intent).toBe('unknown');
+    expect(doubt.reply).toBe(buildReply('doubt'));
+
+    const yes = await agent.runTurn('sí');
+
+    expect(yes.action).toBe('handoff');
+    expect(yes.handoff?.reason).toBe('call_accepted');
+    // The "sí" answers the contact proposal, NOT the qualification question.
+    expect(yes.capturedAnswer).toBeUndefined();
+    expect(agent.qualificationAnswers).toHaveLength(0);
+    expect(yes.reply).toBe(buildReply('callAccepted'));
+  });
+
+  it('tras una duda no se apila otra pregunta (la de cualificación se aplaza)', async () => {
+    const agent = makeDemoAgent();
+
+    await agent.runTurn('¿tienen piscina?');
+
+    // No second question on top of the doubt question: two questions in a row
+    // leave the lead unable to answer either. The ask is deferred, not lost.
+    expect(agent.nextQualificationQuestion()).toBeNull();
+  });
+
+  it('sin duda previa, un "sí" sigue siendo la respuesta a la pregunta pendiente', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    const result = await agent.runTurn('sí');
+
+    expect(result.action).toBe('none');
+    expect(result.handoff).toBeUndefined();
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'sí' });
+  });
+
+  it('tras una duda, una respuesta libre se recibe como respuesta a la pregunta pendiente', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    // The doubt does not steal the pending qualification ask.
+    const doubt = await agent.runTurn('¿tienen piscina?');
+    expect(doubt.reply).toBe(buildReply('doubt'));
+
+    const answer = await agent.runTurn('de cero');
+
+    expect(answer.action).toBe('none');
+    expect(answer.handoff).toBeUndefined();
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'de cero' });
+    expect(answer.registeredDoubts).toHaveLength(0);
+  });
+
+  it('tras una duda, un stop sigue parando (regla 7) y no es un afirmativo', async () => {
+    const agent = makeDemoAgent();
+
+    await agent.runTurn('¿tienen piscina?');
+
+    const stop = await agent.runTurn('no me escribas más');
+
+    expect(stop.intent).toBe('stop');
+    expect(stop.action).toBe('stop');
+    expect(stop.handoff).toBeUndefined();
+    expect(stop.registeredNoContinuar).toBe(true);
+    expect(agent.isStopped).toBe(true);
+  });
+});
+
+// D5: the agreed moment used to be LOST when it arrived after the handoff.
+// After the handoff, runTurn only recorded messages containing a Spanish phone
+// number; everything else was silently discarded, so the commercial never
+// learned "9:00" (MVP spec §3.6: the notice carries contact and context).
+describe('el momento acordado que llega tras la derivación no se pierde (D5)', () => {
+  it('el mensaje posterior a la derivación se registra y actualiza el aviso', async () => {
+    const agent = makeDemoAgent();
+
+    // Full demo flow: the lead answers, the agent proposes the call, and the
+    // lead answers with a moment ("mañana"), which closes the handoff.
+    await agent.runTurn('de cero');
+    await agent.runTurn('lo antes posible');
+    const handoff = await agent.runTurn('mañana');
+
+    expect(handoff.action).toBe('handoff');
+    expect(handoff.handoff?.reason).toBe('call_accepted');
+    expect(handoff.handoff?.lastMessage).toBe('mañana');
+
+    // The agreed time arrives AFTER the handoff: the agent stays silent (rule
+    // 9) but the message is registered and the notice is corrected.
+    const after = await agent.runTurn('mañana a las 9:00');
+
+    expect(after.reply).toBe('');
+    expect(after.suppressed).toBe(true);
+    expect(after.action).toBe('none');
+    expect(after.handoff?.summary).toContain('9:00');
+    expect(after.handoff?.summary.endsWith('mañana a las 9:00')).toBe(true);
+    expect(after.handoff?.lastMessage).toBe('mañana a las 9:00');
+    expect(after.handoff?.afterHandoff).toEqual(['mañana a las 9:00']);
+    expect(agent.records.some((record) => record.detail.includes('9:00'))).toBe(true);
+  });
+
+  it('el teléfono posterior a la derivación se sigue registrando como contacto', async () => {
+    const agent = makeDemoAgent();
+
+    await agent.runTurn('de cero');
+    await agent.runTurn('lo antes posible');
+    await agent.runTurn('mañana');
+
+    const after = await agent.runTurn('mi móvil es 687723287');
+
+    expect(after.reply).toBe('');
+    expect(after.suppressed).toBe(true);
+    expect(agent.records.some((record) => record.detail.includes('contact given after the handoff'))).toBe(
+      true,
+    );
+    expect(after.handoff?.lastMessage).toBe('mi móvil es 687723287');
+  });
+});
+
+// The knowledge base (Phase 0) answered the lead's question in SILENCE. A
+// message that MATCHES a passage but is not written with a question mark was
+// swallowed: classify() returned the 'kb' intent, the reception path treated
+// it like 'unknown' (receivable), so the agent sent NOTHING and filed the
+// lead's own message as the answer to the pending ask.
+//
+// The rule now: a knowledge-base match means the message is a QUERY, exactly
+// like an approved-FAQ match — the approved answer is sent and the pending ask
+// stays armed. The EXCEPTION is the lead's own answer to the pending ask,
+// which is never stolen by the knowledge base.
+describe('la base de conocimiento no se traga ni la pregunta ni la respuesta', () => {
+  it('una pregunta que casa con un pasaje se responde y NO se captura', async () => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('quiero el certificado de la UE');
+
+    expect(result.intent).toBe('kb');
+    expect(result.reply).not.toBe('');
+    expect(result.reply).toBe(passageAnswer('kb-certificacion-arp'));
+    expect(result.registeredDoubts).toEqual([]);
+    expect(result.ruleViolations).toEqual([]);
+    // The message was a QUERY, not the answer to the pending ask: it is not
+    // captured, and the ask stays armed.
+    expect(result.capturedAnswer).toBeUndefined();
+    expect(agent.qualificationAnswers).toHaveLength(0);
+  });
+
+  it('una pregunta que casa con un pasaje deja el ask pendiente', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    const result = await agent.runTurn('quiero el certificado de la UE');
+
+    expect(result.reply).toBe(passageAnswer('kb-certificacion-arp'));
+    // The ask was NOT stolen by the answer: it is still pending, so the lead's
+    // next message is still received as the answer to THAT question.
+    const answer = await agent.runTurn('no tengo experiencia');
+    expect(answer.capturedAnswer?.questionId).toBe(id);
+  });
+
+  it('la respuesta del lead a la pregunta pendiente NO se la queda la base de conocimiento', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+    expect(id).toBe('starting-experience');
+
+    // This message matches the passage 'kb-sin-experiencia' (intent 'kb')
+    // AND is the answer to the pending question.
+    const result = await agent.runTurn('no tengo experiencia');
+
+    expect(result.capturedAnswer?.questionId).toBe('starting-experience');
+    expect(result.capturedAnswer?.text).toBe('no tengo experiencia');
+    // The approved reaction is sent, NOT the passage answer.
+    expect(result.reply).toBe(demoReaction('starting-experience', 0));
+    expect(result.reply).not.toBe(passageAnswer('kb-sin-experiencia'));
+    expect(result.registeredDoubts).toEqual([]);
+  });
+
+  it('"paso" no activa el pasaje del método: sigue siendo un rechazo', async () => {
+    const agent = makeDemoAgent();
+
+    // The bare token "paso" matches the passage 'kb-metodo-demostracion'
+    // (score 4.99) on its own, and the lead meant "paso de ti" (a decline).
+    const first = await agent.runTurn('paso');
+
+    expect(first.intent).not.toBe('kb');
+    expect(first.reply).not.toBe(passageAnswer('kb-metodo-demostracion'));
+    expect(first.reply).not.toContain('aprendizaje demostrado');
+  });
+
+  it('"paso" como respuesta a la propuesta de llamada es un rechazo (regla 5)', async () => {
+    const agent = makeDemoAgent();
+    expect(armQualification(agent)).toBe('starting-experience');
+    await agent.runTurn('parto de cero');
+    expect(armQualification(agent)).toBe('time-interest');
+    const closing = await agent.runTurn('lo antes posible');
+    expect(closing.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+
+    const refusal = await agent.runTurn('paso');
+
+    expect(refusal.capturedAnswer).toEqual({ questionId: 'call-proposal', text: 'paso' });
+    expect(refusal.action).toBe('none');
+    expect(refusal.handoff).toBeUndefined();
+    expect(refusal.reply).toBe(buildReply('decline'));
+    expect(refusal.reply).not.toBe(passageAnswer('kb-metodo-demostracion'));
+    expect(agent.isStopped).toBe(false);
+  });
+
+  it('una aceptación confirmada manda sobre la respuesta de la base de conocimiento (regla 9)', async () => {
+    const agent = makeDemoAgent();
+
+    // The message matches a passage AND accepts the call: the handoff wins.
+    const result = await agent.runTurn('quiero el certificado de la UE y me va bien');
+
+    expect(result.action).toBe('handoff');
+    expect(result.handoff?.reason).toBe('call_accepted');
+    expect(result.reply).toBe(buildReply('callAccepted'));
+    expect(result.reply).not.toBe(passageAnswer('kb-certificacion-arp'));
+  });
+
+  it('una respuesta libre que no casa con ningún pasaje se sigue recibiendo como respuesta', async () => {
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    const result = await agent.runTurn('el lunes');
+
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'el lunes' });
+    expect(result.registeredDoubts).toEqual([]);
+    expect(result.handoff).toBeUndefined();
+  });
+
+  it('el "sí" que responde a la duda sigue derivando (D6, sin regresión)', async () => {
+    const agent = makeDemoAgent();
+
+    const doubt = await agent.runTurn('¿tienen piscina?');
+    expect(doubt.intent).toBe('unknown');
+    expect(doubt.reply).toBe(buildReply('doubt'));
+
+    const yes = await agent.runTurn('sí');
+
+    expect(yes.action).toBe('handoff');
+    expect(yes.handoff?.reason).toBe('call_accepted');
+    expect(yes.reply).toBe(buildReply('callAccepted'));
+    expect(yes.capturedAnswer).toBeUndefined();
   });
 });
