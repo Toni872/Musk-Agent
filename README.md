@@ -38,6 +38,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `src/content.ts` | Contenido aprobado del piloto (FullStack) curado desde el dossier; sin campos de precio ni de temario; marcas `TODO(decisión)` solo en lo no cerrado. La FAQ es la tabla de enrutado de la pregunta del lead a contenido aprobado (de lo específico a lo general) |
 | `src/content.demo.ts` | Perfil de contenido DEMO de muestra (no aprobado por MUSK), cargado solo con `--demo`; sin importes y con respuestas FAQ validadas por el guard |
 | `src/intent.ts` | Clasificador determinista en español (price, temario, financiacion, unknown, human, stop, general, kb) con normalización es-ES |
+| `src/text.ts` | Normalización es-ES compartida (`normalizeEs`): minúsculas, sin acentos, puntuación a espacios. Vive en su propio módulo para que la capa de disparadores (`src/rules.ts`) y la capa de intents la usen sin ciclo de importación |
 | `src/kb.ts` | Base de conocimiento de la escuela como datos: 35 pasajes con respuesta al lead, términos de recuperación y procedencia (solo perfil DEMO, pendiente de firma) |
 | `src/retrieval.ts` | Recuperación determinista sobre la base de conocimiento: tokenización es-ES, BM25, cobertura de términos, temas prohibidos y umbrales con nombre (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`) |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |

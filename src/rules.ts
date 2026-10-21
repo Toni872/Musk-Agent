@@ -6,6 +6,8 @@
 // Trigger patterns are tested against folded text (lowercase, accents stripped),
 // so they must be written without accented characters.
 
+import { normalizeEs } from './text';
+
 export interface RuleDefinition {
   id: number;
   label: string;
@@ -235,21 +237,6 @@ export function momentConfirmed(folded: string): boolean {
 export const PHONE_CUE =
   /\b(?:mi numero|mi telefono|mi movil|llamame|llamadme|puedes? llamar)\b/;
 
-// Mirrors normalizeEs (intent.ts). rules.ts cannot import it: intent.ts already
-// imports the trigger constants from THIS file at module top level, so the
-// import back would be a cycle that crashes (TDZ) whenever rules.ts is the
-// entry module. Kept identical on purpose — if normalizeEs changes, change
-// this too.
-function foldForTrigger(input: string): string {
-  return input
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[¿?¡!.,;:()"'“”«»[\]]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 // Extracts a Spanish mobile number the lead deliberately handed over, or null
 // (rule 9: only a CONFIRMED acceptance closes; ambiguous input stays in the
 // rule 5 doubt family). Precision over recall:
@@ -264,13 +251,16 @@ function foldForTrigger(input: string): string {
 //  - separators are never joined ACROSS other characters, so a date soup like
 //    "el 12/03/2027 y el 15/06/2027" yields no candidate at all.
 export function extractSpanishPhone(message: string): string | null {
-  const folded = foldForTrigger(message);
+  const folded = normalizeEs(message);
   // No lookbehind on purpose: the UI bundle targets es2022, and Safari 15.4-16.3
   // parses es2022 but throws on (?<!...) at load time, which would take the whole
   // page down for one guard. "(?:^|\D)" is the equivalent prefix check.
   const candidate = /(?:^|\D)([679](?:[ .-]?\d){8})(?!\d)/.exec(folded);
-  if (candidate && PHONE_CUE.test(folded)) {
-    return candidate[1].replace(/[ .-]/g, '');
+  // Capture group 1 is part of the pattern, so it is present whenever the
+  // regex matches; the guard only exists to satisfy noUncheckedIndexedAccess.
+  const digits = candidate?.[1];
+  if (digits !== undefined && PHONE_CUE.test(folded)) {
+    return digits.replace(/[ .-]/g, '');
   }
   const whole = folded.replace(/[ .-]/g, '');
   if (/^(?:\+34|0034)?[679]\d{8}$/.test(whole)) {

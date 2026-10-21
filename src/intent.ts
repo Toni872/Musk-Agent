@@ -11,6 +11,14 @@ import {
   STOP_TRIGGER,
 } from './rules';
 import { retrieve } from './retrieval';
+import { normalizeEs } from './text';
+
+// The normalizer lives in its own leaf module (src/text.ts) so that the
+// trigger layer (src/rules.ts) and this intent layer can share it without an
+// import cycle. It is re-exported here so the existing importers
+// (src/agent.ts, src/entailment.ts, src/eval.ts, tests/rules.test.ts) keep
+// working unchanged.
+export { normalizeEs } from './text';
 
 export type Intent =
   | 'price'
@@ -25,19 +33,6 @@ export type Intent =
   // the deterministic retrieval layer (src/retrieval.ts). It is the LAST
   // resort before rule 5: the hand-written FAQ always keeps priority.
   | 'kb';
-
-// Normalization for Spanish es-ES input: lowercase, strip accents, replace
-// punctuation with spaces and collapse whitespace. Trigger patterns are
-// written accent-free so they can be tested against the folded text.
-export function normalizeEs(input: string): string {
-  return input
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[¿?¡!.,;:()"'“”«»[\]]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 // Input-side topic patterns. Stop and human come from the shared rule triggers
 // (rules.ts) so classification and the guard layer can never drift apart.

@@ -97,6 +97,12 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   exactamente como antes. Ninguna respuesta de la base de conocimiento puede
   contener una cifra (lo fija un test). La FAQ escrita a mano conserva
   prioridad sobre la base de conocimiento.
+- **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee `normalizeEs`
+  (minúsculas, sin acentos, puntuación a espacios, espacios colapsados). Vive
+  aparte para que la capa de disparadores (`src/rules.ts`) y la capa de intents
+  (`src/intent.ts`) la usen sin ciclo de importación. `src/intent.ts` la
+  reexporta, de modo que los importadores existentes no cambian. `foldForGuard`
+  en `src/rules.ts` es deliberadamente distinta: no quita puntuación.
 - Las etiquetas conversacionales del asistente son distintas de los estados del CRM
   (nuevo, pendiente, beca, perdido…). No las mezcles ni las mapees por API en esta
   fase.

@@ -22,7 +22,7 @@
 // so they can be audited, reviewed and re-calibrated.
 
 import type { KbPassage } from './kb';
-import { normalizeEs } from './intent';
+import { normalizeEs } from './text';
 
 // ---------------------------------------------------------------------------
 // Tunables (auditable, named, never in a prompt)
@@ -248,7 +248,7 @@ function bm25(
 ): { scores: number[]; matched: string[][]; coverage: number[] } {
   const total = documents.length;
   const scores = new Array<number>(total).fill(0);
-  const matched = documents.map(() => [] as string[]);
+  const matched: string[][] = documents.map(() => []);
   const coverage = new Array<number>(total).fill(0);
   if (total === 0 || queryTerms.length === 0) return { scores, matched, coverage };
 
@@ -264,21 +264,33 @@ function bm25(
     if (documentFrequency === 0) continue;
     const idf = Math.log(1 + (total - documentFrequency + 0.5) / (documentFrequency + 0.5));
 
-    documents.forEach((document, index) => {
+    for (let index = 0; index < total; index += 1) {
+      const document = documents[index];
+      // The loop bound keeps the index in range; the guard only exists to
+      // satisfy noUncheckedIndexedAccess (an out-of-range index is impossible).
+      if (document === undefined) continue;
       let frequency = 0;
       for (const token of document.tokens) {
         if (sameTerm(token, term)) frequency += 1;
       }
-      if (frequency === 0) return;
+      if (frequency === 0) continue;
       const normalizer =
         BM25_K1 * (1 - BM25_B + (BM25_B * document.length) / averageLength);
-      scores[index] += idf * ((frequency * (BM25_K1 + 1)) / (frequency + normalizer));
-      matched[index].push(term);
-    });
+      // The score of a passage starts at 0 and only accumulates, so reading the
+      // previous value as 0 when it is missing is the same number.
+      const previous = scores[index] ?? 0;
+      scores[index] = previous + idf * ((frequency * (BM25_K1 + 1)) / (frequency + normalizer));
+      const terms = matched[index];
+      // `matched` is built with one entry per document, so the entry always
+      // exists; the guard only exists to satisfy noUncheckedIndexedAccess.
+      if (terms !== undefined) terms.push(term);
+    }
   }
 
   for (let index = 0; index < total; index += 1) {
-    coverage[index] = matched[index].length / queryTerms.length;
+    // A passage that matched no term has coverage 0.
+    const matchedTerms = matched[index];
+    coverage[index] = (matchedTerms?.length ?? 0) / queryTerms.length;
   }
   return { scores, matched, coverage };
 }
@@ -308,23 +320,33 @@ export function retrieve(passages: KbPassage[], query: string): RetrievalOutcome
   let bestIndex = -1;
   let bestScore = -1;
   for (let index = 0; index < documents.length; index += 1) {
+    // Every score and coverage is written for every index, so the fallback
+    // value 0 only exists to satisfy noUncheckedIndexedAccess.
+    const score = scores[index] ?? 0;
+    const passageCoverage = coverage[index] ?? 0;
     // The closest passage is the one with the highest score; ties are broken
     // by coverage and then by the passage order (stable, deterministic).
     const better =
-      scores[index] > bestScore ||
-      (scores[index] === bestScore && coverage[index] > (bestIndex >= 0 ? coverage[bestIndex] : -1));
+      score > bestScore ||
+      (score === bestScore && passageCoverage > (bestIndex >= 0 ? (coverage[bestIndex] ?? 0) : -1));
     if (better) {
-      bestScore = scores[index];
+      bestScore = score;
       bestIndex = index;
     }
   }
 
-  const build = (index: number): RetrievalResult => ({
-    passage: documents[index].passage,
-    score: scores[index],
-    coverage: coverage[index],
-    matchedTerms: matched[index],
-  });
+  // Builds the result for a passage index. It returns null for an index that
+  // does not exist (impossible for a valid bestIndex) instead of asserting.
+  const build = (index: number): RetrievalResult | null => {
+    const document = documents[index];
+    if (document === undefined) return null;
+    return {
+      passage: document.passage,
+      score: scores[index] ?? 0,
+      coverage: coverage[index] ?? 0,
+      matchedTerms: matched[index] ?? [],
+    };
+  };
 
   if (forbidden !== undefined) {
     // The topic must always escalate (rule 5): the closest passage is still

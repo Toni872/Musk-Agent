@@ -18,6 +18,7 @@ import {
   STOPPED_REPLY_PLACEHOLDER,
   createChat,
 } from '../ui/chat';
+import { at, first, last } from './helpers';
 
 function isPendingOpening(chatText: string): boolean {
   return chatText === OPENING_PLACEHOLDER;
@@ -31,7 +32,7 @@ describe('ui/chat view-model', () => {
 
     // The real profile keeps the opening as a TODO(decisión): nothing to send.
     expect(APPROVED_CONTENT.initialMessage).toMatch(/^TODO\s*\(/);
-    expect(isPendingOpening(state.messages[0].text)).toBe(true);
+    expect(isPendingOpening(first(state.messages).text)).toBe(true);
     expect(state.pendingDecisions).toContain('initialMessage');
     // The pending list must be surfaced as a visible message, not hidden.
     expect(state.messages.some((message) => message.text.startsWith('pending :'))).toBe(true);
@@ -42,8 +43,8 @@ describe('ui/chat view-model', () => {
     const state = createChat().getState();
     expect(state.profile).toBe('demo');
     expect(state.banner).toBe(CONTENT_BANNERS.demo);
-    expect(state.messages[0].role).toBe('agent');
-    expect(state.messages[0].text).toBe(DEMO_CONTENT.initialMessage);
+    expect(first(state.messages).role).toBe('agent');
+    expect(first(state.messages).text).toBe(DEMO_CONTENT.initialMessage);
     expect(state.pendingDecisions).toHaveLength(0);
   });
 
@@ -55,17 +56,17 @@ describe('ui/chat view-model', () => {
 
     const leadMessages = state.messages.filter((message) => message.role === 'lead');
     expect(leadMessages).toHaveLength(1);
-    expect(leadMessages[0].text).toBe('¿cuánto cuesta la formación?');
+    expect(first(leadMessages).text).toBe('¿cuánto cuesta la formación?');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
-    expect(diagnostics[0].text).toBe(
+    expect(first(diagnostics).text).toBe(
       'intent = price | action = none | suppressed = false | registered doubts = 0',
     );
 
     // After the turn the agent asks the first approved qualification question.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(agentMessages[agentMessages.length - 1].text).toBe(
-      DEMO_CONTENT.qualificationQuestions[0].text,
+    expect(last(agentMessages).text).toBe(
+      first(DEMO_CONTENT.qualificationQuestions).text,
     );
     expect(state.stopped).toBe(false);
     expect(state.records.map((record) => record.kind)).toContain('reply');
@@ -80,7 +81,7 @@ describe('ui/chat view-model', () => {
     // Opening + the next qualification question, nothing in between.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(agentMessages).toHaveLength(2);
-    expect(agentMessages[1].text).toBe(DEMO_CONTENT.qualificationQuestions[0].text);
+    expect(at(agentMessages, 1).text).toBe(first(DEMO_CONTENT.qualificationQuestions).text);
     expect(state.messages.every((message) => message.text.trim().length > 0)).toBe(true);
   });
 
@@ -105,9 +106,9 @@ describe('ui/chat view-model', () => {
     expect(state.records.some((record) => record.kind === 'handoff')).toBe(true);
     // Rule 9: once handed off, no further qualification question is asked.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(agentMessages[agentMessages.length - 1].role).toBe('agent');
-    expect(agentMessages[agentMessages.length - 1].text).not.toBe(
-      DEMO_CONTENT.qualificationQuestions[1].text,
+    expect(last(agentMessages).role).toBe('agent');
+    expect(last(agentMessages).text).not.toBe(
+      at(DEMO_CONTENT.qualificationQuestions, 1).text,
     );
   });
 
@@ -123,14 +124,14 @@ describe('ui/chat view-model', () => {
 
     // The silence of rule 9 is untouched.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(agentMessages[agentMessages.length - 1].text).toBe(HANDOFF_REPLY_PLACEHOLDER);
+    expect(last(agentMessages).text).toBe(HANDOFF_REPLY_PLACEHOLDER);
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
     const summaryLines = diagnostics.filter((message) =>
       message.text.startsWith('resumen para el comercial = '),
     );
     expect(summaryLines).toHaveLength(2);
-    const updated = summaryLines[summaryLines.length - 1];
+    const updated = last(summaryLines);
     expect(updated.text).toContain('9:00');
     expect(updated.text).toContain('mañana a las 9:00');
     // The handoff line is rendered again for the corrected notice.
@@ -146,7 +147,7 @@ describe('ui/chat view-model', () => {
     const chat = createChat({ profile: 'real' });
     const state = await chat.send('¿hacéis envíos a Canarias?');
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
-    expect(diagnostics[0].text).toBe(
+    expect(first(diagnostics).text).toBe(
       'intent = unknown | action = none | suppressed = false | registered doubts = 1',
     );
     expect(state.records.some((record) => record.kind === 'doubt')).toBe(true);
@@ -177,8 +178,8 @@ describe('ui/chat view-model', () => {
     expect(state.turnCount).toBe(0);
     expect(state.stopped).toBe(false);
     expect(state.records).toHaveLength(0);
-    expect(state.messages[0].text).toBe('conversation reset');
-    expect(state.messages[1].text).toBe(DEMO_CONTENT.initialMessage);
+    expect(first(state.messages).text).toBe('conversation reset');
+    expect(at(state.messages, 1).text).toBe(DEMO_CONTENT.initialMessage);
     expect(state.profile).toBe('demo');
   });
 
@@ -189,24 +190,24 @@ describe('ui/chat view-model', () => {
     const realState = chat.setProfile('real');
     expect(realState.profile).toBe('real');
     expect(realState.banner).toBe(CONTENT_BANNERS.real);
-    expect(realState.messages[0].text).toBe(OPENING_PLACEHOLDER);
+    expect(first(realState.messages).text).toBe(OPENING_PLACEHOLDER);
     expect(realState.turnCount).toBe(0);
 
     const demoState = chat.setProfile('demo');
     expect(demoState.profile).toBe('demo');
     expect(demoState.banner).toBe(CONTENT_BANNERS.demo);
-    expect(demoState.messages[0].text).toBe(DEMO_CONTENT.initialMessage);
+    expect(first(demoState.messages).text).toBe(DEMO_CONTENT.initialMessage);
   });
 
   it('a real-profile turn reaches the approved answer with no LLM provider', async () => {
     const chat = createChat({ profile: 'real' });
     const state = await chat.send('¿qué es MUSK?');
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
-    expect(diagnostics[0].text).toContain('intent = general');
+    expect(first(diagnostics).text).toContain('intent = general');
     // No qualification question is askable in the real profile (all are TODO).
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(agentMessages[agentMessages.length - 1].text).toBe(
-      APPROVED_CONTENT.faq[0].answer,
+    expect(last(agentMessages).text).toBe(
+      first(APPROVED_CONTENT.faq).answer,
     );
   });
 

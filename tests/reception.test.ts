@@ -16,6 +16,7 @@ import { DEMO_CONTENT } from '../src/content.demo';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { MockProvider } from '../src/llm';
 import { buildReply, REPLY_TEMPLATES } from '../src/rules';
+import { at, first, last } from './helpers';
 
 const lead: LeadContact = {
   id: 'lead-reception-001',
@@ -256,7 +257,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const replies = agent.records.filter((record) => record.kind === 'reply');
     // The last outbound message is the closing; the earlier one was the reaction
     // to the first answer.
-    expect(replies[replies.length - 1].detail).toBe(result.reply);
+    expect(last(replies).detail).toBe(result.reply);
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
 
@@ -344,15 +345,15 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(lead.reply).toBe('');
     expect(lead.suppressed).toBe(true);
     expect(agent.records).toHaveLength(recordsAfterHandoff + 1);
-    expect(agent.records[agent.records.length - 1].kind).toBe('answer');
-    expect(agent.records[agent.records.length - 1].detail).toContain('687723287');
+    expect(last(agent.records).kind).toBe('answer');
+    expect(last(agent.records).detail).toContain('687723287');
 
     const other = await agent.runTurn('gracias');
     expect(other.reply).toBe('');
     // Every post-handoff message is now registered (D5): the agreed moment
     // usually arrives late and the commercial must learn it.
     expect(agent.records).toHaveLength(recordsAfterHandoff + 2);
-    expect(agent.records[agent.records.length - 1].detail).toBe('after the handoff: "gracias"');
+    expect(last(agent.records).detail).toBe('after the handoff: "gracias"');
   });
 
   // 15. After the handoff the agent stops writing: the lead is with a person, and
@@ -375,7 +376,7 @@ describe('recepción de respuestas (answer reception)', () => {
     // The silence is unchanged, but the message is no longer dropped: it is
     // registered so the commercial sees what the lead said after the handoff.
     expect(agent.records).toHaveLength(recordsAfterHandoff + 1);
-    expect(agent.records[agent.records.length - 1].detail).toBe('after the handoff: "sI"');
+    expect(last(agent.records).detail).toBe('after the handoff: "sI"');
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
 });
@@ -650,18 +651,18 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
     expect(handoff).toBeDefined();
     expect(handoff?.formation).toBe(DEMO_CONTENT.formationName);
     expect(handoff?.qualification).toEqual([
-      { question: DEMO_CONTENT.qualificationQuestions[0].text, answer: 'parto de cero' },
-      { question: DEMO_CONTENT.qualificationQuestions[1].text, answer: 'lo antes posible' },
+      { question: first(DEMO_CONTENT.qualificationQuestions).text, answer: 'parto de cero' },
+      { question: at(DEMO_CONTENT.qualificationQuestions, 1).text, answer: 'lo antes posible' },
     ]);
     expect(handoff?.doubts).toEqual([]);
     expect(handoff?.lastMessage).toBe(lastMessage);
     expect(handoff?.summary.startsWith(DEMO_CONTENT.formationName)).toBe(true);
     expect(handoff?.summary).toContain('aceptó la llamada');
     expect(handoff?.summary).toContain(
-      `${DEMO_CONTENT.qualificationQuestions[0].text} → parto de cero`,
+      `${first(DEMO_CONTENT.qualificationQuestions).text} → parto de cero`,
     );
     expect(handoff?.summary).toContain(
-      `${DEMO_CONTENT.qualificationQuestions[1].text} → lo antes posible`,
+      `${at(DEMO_CONTENT.qualificationQuestions, 1).text} → lo antes posible`,
     );
     expect(handoff?.summary).toContain('Dudas registradas: ninguna');
     expect(handoff?.summary.endsWith(lastMessage)).toBe(true);
@@ -1519,7 +1520,7 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
     await agent.runTurn(ONLINE_QUESTION);
 
     expect(provider.calls).toHaveLength(1);
-    const system = provider.calls[0].system;
+    const system = first(provider.calls).system;
     expect(system).toContain(faqAnswer('modalidad'));
     expect(system).not.toContain(faqAnswer('informacion'));
     expect(system).not.toContain(faqAnswer('salidas'));
@@ -1536,8 +1537,8 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
 
     const grounding = agent.records.filter((record) => record.kind === 'grounding');
     expect(grounding).toHaveLength(1);
-    expect(grounding[0].detail).toContain('rephrase rejected');
-    expect(grounding[0].detail).toContain('unsupported');
-    expect(grounding[0].detail).toContain('used the approved text');
+    expect(first(grounding).detail).toContain('rephrase rejected');
+    expect(first(grounding).detail).toContain('unsupported');
+    expect(first(grounding).detail).toContain('used the approved text');
   });
 });
