@@ -6,12 +6,13 @@
 // fully deterministic and never call the LLM. The LLM is only consulted for
 // 'general' turns that match an approved FAQ entry, and its output is always
 // validated by guardReply AND by the grounding check (src/entailment.ts): the
-// model may only word the approved answer of the matched entry (fallback:
+// model may only use the content it was SHOWN — the approved answer of the
+// matched entry plus the approved profile context (fallback:
 // approved text, then registered doubt).
 
 import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
-import { checkEntailment } from './entailment';
+import { checkEntailment, composeGroundingSource, groundingProfileContext } from './entailment';
 import type { LLMProvider } from './llm';
 import {
   bareAcknowledgement,
@@ -658,13 +659,14 @@ export class MuskAgent {
 
   // Optional LLM phrasing for approved FAQ answers (Phase 1).
   //
-  // The contract is narrow: the model may only WORD the approved answer of the
-  // MATCHED entry, never add content. Two checks decide whether its answer
+  // The contract is narrow: the model may only WORD the approved source it was
+  // given — the approved answer of the MATCHED entry plus the approved profile
+  // context — never add content. Two checks decide whether its answer
   // reaches the lead:
   //
   //   1. the output guard (rules.ts): no amounts, no promotions, no promises;
   //   2. the grounding check (src/entailment.ts): every content token of the
-  //      model's answer must exist in the approved source. This is what stops
+  //      model's answer must exist in that source. This is what stops
   //      the leak the guard could not see: a number, a price word, or a term
   //      copied from ANOTHER FAQ entry of the same profile.
   //
@@ -709,7 +711,12 @@ export class MuskAgent {
       return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
     }
     const guard = guardReply(raw);
-    const entailment = checkEntailment(raw, entry.answer);
+    // The source is EVERYTHING the model was shown for this call: the
+    // approved answer of the matched entry PLUS the profile context
+    // (generalDescription + methodology). The prompt is built from the same
+    // pieces (see buildRequestPrompt / buildSystemPrompt), so the check and
+    // the prompt can never disagree about what was allowed.
+    const entailment = checkEntailment(raw, composeGroundingSource(entry, this.content));
     const guardViolations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
     const accepted = guard.ok && entailment.ok;
     if (accepted) {
@@ -1241,16 +1248,22 @@ export class MuskAgent {
     this.conversationRecords.push(record);
   }
 
-  // STABLE part of the LLM request: the role, the tone and the eleven hard
-  // rules. It does not change between calls, so it can be cached by the
-  // provider.
+  // STABLE part of the LLM request: the role, the tone, the eleven hard
+  // rules and the approved PROFILE CONTEXT (general description + methodology).
+  // It does not change between calls, so it can be cached by the provider.
   //
   // The FAQ answers are NOT here anymore (Phase 1). The prompt used to carry
   // EVERY answer of the profile, so the model could copy one entry's content
   // into another entry's answer, and the whole FAQ was re-sent on every call.
   // Now the request carries the ONE approved answer of the matched entry (see
-  // buildRequestPrompt) and the grounding check verifies the model stayed
-  // inside it.
+  // buildRequestPrompt) plus the profile context, and the grounding check
+  // verifies the model stayed inside exactly that source.
+  //
+  // The profile context is part of the source ON PURPOSE: the rule is that the
+  // model may only use content it was SHOWN, so the words of the context are
+  // legitimate in a rephrase ("formación", "metodología"...). The formation
+  // NAME is deliberately NOT here: it is an internal marker (in the demo
+  // profile it says "muestra de demo") and must never reach the lead.
   private buildSystemPrompt(): string {
     const hardRules = RULES.map((rule) => `${rule.id}. ${rule.summary}`).join('\n');
     const spanishRules = [
@@ -1273,12 +1286,14 @@ export class MuskAgent {
       spanishRules,
       'Referencia técnica de reglas (inglés):',
       hardRules,
+      'Contexto aprobado de la formación (puedes usar sus palabras al reformular, pero no añadir nada que no esté aquí):',
+      groundingProfileContext(this.content),
     ].join('\n');
   }
 
   // VOLATILE part of the LLM request: the per-call instruction plus the ONE
-  // approved source the model is allowed to word. The other FAQ answers of the
-  // profile are deliberately absent: the model must not be able to copy them.
+  // approved answer of the matched entry. The other FAQ answers of the profile
+  // are deliberately absent: the model must not be able to copy them.
   //
   // The instruction is written to the MODEL (not to the lead), in Spanish, as
   // the rest of the prompt.
@@ -1288,7 +1303,7 @@ export class MuskAgent {
       'Instrucción de esta llamada: reformula la respuesta aprobada usando solo la información de la fuente.',
       'No añadas números, precios, porcentajes, fechas, promesas ni hechos nuevos.',
       'Si la fuente no responde a la pregunta, dilo claramente sin inventar nada.',
-      `Fuente aprobada (la única respuesta que puedes usar): ${entry.answer}`,
+      `Respuesta aprobada de esta pregunta (la única de la FAQ que puedes usar): ${entry.answer}`,
     ].join('\n');
   }
 }

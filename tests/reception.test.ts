@@ -1542,3 +1542,114 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
     expect(first(grounding).detail).toContain('used the approved text');
   });
 });
+
+// ---------------------------------------------------------------------------
+// The SOURCE of the grounding check: everything the model was shown
+// ---------------------------------------------------------------------------
+//
+// The rule is: the model may only use content it was SHOWN. The source is
+// the approved answer of the matched entry PLUS the approved profile context
+// (general description + methodology), and NOT the formation name, the
+// skills/outcomes lists or the other FAQ entries.
+//
+// Measured on the DEMO profile: its formation name carries the internal
+// marker "(muestra de demo)", which must never be able to reach the lead.
+const demoEntry = (id: string) => {
+  const found = DEMO_CONTENT.faq.find((entry) => entry.id === id);
+  if (found === undefined) throw new Error(`FAQ entry not found: ${id}`);
+  return found;
+};
+
+const DEMO_ONLINE_QUESTION = 'donde esta la academia?';
+
+function makeDemoGroundedAgent(provider: MockProvider): MuskAgent {
+  return new MuskAgent({ content: DEMO_CONTENT, provider, lead });
+}
+
+describe('la fuente de fundamentación es todo lo que se le mostró al modelo', () => {
+  // 1. A faithful rephrase that uses a word of the profile context
+  //    ("formación", from generalDescription) is ACCEPTED: it was shown, so it
+  //    is allowed. This was a false negative: the LLM layer always fell back
+  //    to the raw approved text, which costs tokens and adds nothing.
+  it('una reformulación fiel que usa una palabra del contexto del perfil se acepta', async () => {
+    const rephrase =
+      'Es una formación online, con campus virtual, comunidad en Discord y tutores personales que te acompañan.';
+    const provider = new MockProvider(rephrase);
+    const agent = makeDemoGroundedAgent(provider);
+
+    const result = await agent.runTurn(DEMO_ONLINE_QUESTION);
+
+    expect(result.reply).toBe(rephrase);
+    expect(result.grounding?.ok).toBe(true);
+    expect(result.grounding?.unsupported).toEqual([]);
+    expect(result.ruleViolations).toEqual([]);
+  });
+
+  // 2. A rephrase that adds a number or a price is still REJECTED: the lead
+  //    receives the approved text.
+  it('una reformulación que añade un número o un precio se rechaza', async () => {
+    const provider = new MockProvider('Todo es online y cuesta 300 euros.');
+    const agent = makeDemoGroundedAgent(provider);
+
+    const result = await agent.runTurn(DEMO_ONLINE_QUESTION);
+
+    expect(result.reply).toBe(demoEntry('modalidad').answer);
+    expect(result.grounding?.ok).toBe(false);
+    expect(result.grounding?.unsupported).toContain('300');
+  });
+
+  // 3. A rephrase that uses a word of ANOTHER FAQ entry of the same profile
+  //    (and of neither the matched answer nor the profile context) is still
+  //    REJECTED: the cross-entry leak stays closed.
+  it('una reformulación con una palabra de otra entrada de la FAQ se rechaza', async () => {
+    const provider = new MockProvider(
+      'Te gradúas con el certificado de la Unión Europea y puedes hacer tu juego en Steam.',
+    );
+    const agent = makeDemoGroundedAgent(provider);
+
+    const result = await agent.runTurn(DEMO_ONLINE_QUESTION);
+
+    expect(result.reply).toBe(demoEntry('modalidad').answer);
+    expect(result.grounding?.ok).toBe(false);
+    expect(result.grounding?.unsupported).toContain('graduas');
+    expect(result.grounding?.unsupported).toContain('steam');
+  });
+
+  // 4. A rephrase that leaks the internal demo marker is REJECTED: the
+  //    formation name is not part of the source, so the model cannot say it.
+  it('una reformulación que filtra el marcador interno de demo se rechaza', async () => {
+    const provider = new MockProvider('Es una formación online de demo, con campus virtual y tutores.');
+    const agent = makeDemoGroundedAgent(provider);
+
+    const result = await agent.runTurn(DEMO_ONLINE_QUESTION);
+
+    expect(result.reply).toBe(demoEntry('modalidad').answer);
+    expect(result.grounding?.ok).toBe(false);
+    expect(result.grounding?.unsupported).toContain('demo');
+  });
+
+  // 5. The request carries the matched answer AND the profile context, and
+  //    does NOT carry the other FAQ answers nor the formation name.
+  it('la petición lleva la respuesta casada y el contexto, y nada más', async () => {
+    const provider = new MockProvider('respuesta');
+    const agent = makeDemoGroundedAgent(provider);
+
+    await agent.runTurn(DEMO_ONLINE_QUESTION);
+
+    expect(provider.calls).toHaveLength(1);
+    const system = first(provider.calls).system;
+    // The matched answer (the volatile part) and the profile context (the
+    // stable part) are both there.
+    expect(system).toContain(demoEntry('modalidad').answer);
+    expect(system).toContain(DEMO_CONTENT.generalDescription);
+    expect(system).toContain(DEMO_CONTENT.methodology);
+    // The other FAQ answers are not.
+    for (const entry of DEMO_CONTENT.faq) {
+      if (entry.id === 'modalidad') continue;
+      expect(system).not.toContain(entry.answer);
+    }
+    // The formation name (and its internal demo marker) are not.
+    expect(system).not.toContain(DEMO_CONTENT.formationName);
+    expect(system).not.toContain('muestra de demo');
+  });
+});

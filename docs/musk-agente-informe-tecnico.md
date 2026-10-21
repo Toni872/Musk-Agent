@@ -26,7 +26,7 @@ dos ideas de diseño que lo gobiernan todo:
 | Cifra | Valor |
 |---|---|
 | Archivos TypeScript del agente | 20 |
-| Tests automáticos | 189 |
+| Tests automáticos | 199 |
 | Casos en el banco de evaluación | 73 |
 | Reglas duras codificadas | 11 |
 | Familias de frases prohibidas en el guardián | 8 |
@@ -48,7 +48,7 @@ dos ideas de diseño que lo gobiernan todo:
 | `src/eval.ts` | 607 | Medición de recuperación y métricas |
 | `src/eval.dataset.ts` | 683 | 43 casos de la FAQ (C01–C43) en 5 grupos + 30 casos de la base de conocimiento en un array aparte (`EVAL_KB_CASES`) |
 | `tests/rules.test.ts` | 748 | 49 tests |
-| `tests/reception.test.ts` | 1543 | 86 tests |
+| `tests/reception.test.ts` | 1543 | 91 tests |
 | `tests/ui-chat.test.ts` | 257 | 14 tests |
 | `tests/eval.test.ts` | 184 | 12 tests |
 | `ui/chat.ts` | 267 | Modelo de vista del chat (sin DOM, testeable) |
@@ -285,10 +285,10 @@ Umbrales que los tests exigen (`tests/eval.test.ts`): **0 falsos positivos**,
 | Archivo | Tests | Qué garantiza |
 |---|---|---|
 | `tests/rules.test.ts` | 49 | Reglas obligatorias (precio, temario, financiación, desconocido, humano, parada); variantes y precisión de la parada; guardas estructurales (el contenido no tiene campos de precio ni de temario, ni texto con dinero); presencia de los marcadores `TODO(decisión)`; la FAQ y el contenido de muestra pasan el guardián; apertura y cualificación; cobertura del contenido aprobado; vocabulario de la propuesta de llamada y aceptación negada (regla 9) |
-| `tests/reception.test.ts` | 86 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
+| `tests/reception.test.ts` | 91 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
 | `tests/ui-chat.test.ts` | 14 | Perfiles, marcadores, diagnóstico por turno, dudas (regla 5), parada, reinicio |
 | `tests/eval.test.ts` | 12 | Umbrales de evaluación citados arriba |
-| `tests/entailment.test.ts` | 8 | Comprobación de fundamentación de la reformulación del LLM |
+| `tests/entailment.test.ts` | 13 | Comprobación de fundamentación de la reformulación del LLM |
 | `tests/retrieval.test.ts` | 20 | Capa de base de conocimiento: umbrales, temas prohibidos y agente de extremo a extremo |
 
 **No cubierto**: concurrencia entre varios leads, persistencia, reintentos, orden
@@ -337,7 +337,7 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-npm test          # 189 tests
+npm test          # 199 tests
 npm run eval      # 73 casos con métricas (43 de la FAQ + 30 de la base de conocimiento) más 22 de grounding
 npm run sim:demo  # conversar con el agente (perfil de muestra)
 npm run sim       # conversar con el contenido aprobado (se ve el hueco)

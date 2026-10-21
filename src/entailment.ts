@@ -1,16 +1,59 @@
 // Grounding check for the optional LLM layer (Phase 1).
 //
-// The model may only WORD an approved answer, never ADD content. This module
-// is the mechanical part of that contract: every content token of the model's
-// answer must already exist in the approved source, so a number, a price or a
-// word copied from another FAQ entry is reported as unsupported.
+// The model may only WORD the approved source it was shown, never ADD
+// content. This module is the mechanical part of that contract: every content
+// token of the model's answer must already exist in that source, so a number,
+// a price or a word copied from another FAQ entry is reported as unsupported.
+// The source itself is composed in composeGroundingSource() below.
 //
 // Deterministic, offline, dependency-free. It says nothing about the MEANING
 // of the sentence (it is a lexical check, not a semantic one): it only proves
 // that the model did not introduce any new term. That is exactly the leak the
 // output guard could not see.
 
+import type { ApprovedContent, FaqEntry } from './content';
+import { isPendingDecision } from './content';
 import { normalizeEs } from './intent';
+
+// ---------------------------------------------------------------------------
+// The SOURCE of the grounding check
+// ---------------------------------------------------------------------------
+//
+// The rule is: THE MODEL MAY ONLY USE CONTENT IT WAS SHOWN. The source is
+// therefore everything the model received for that call, not only the answer
+// of the matched entry.
+//
+// Checking against the matched answer alone was too strict: a faithful,
+// natural rephrase that uses a word which is legitimate but absent from THAT
+// answer was rejected (false negative). The clear case was "formación" —
+// approved content of the profile's own generalDescription, rejected as
+// "unsupported" against the 'modalidad' answer.
+//
+// The source is composed in ONE place, so the prompt and the check can never
+// disagree about what the model was allowed to say.
+//
+// DELIBERATELY EXCLUDED from the source (and therefore from the prompt):
+//   - formationName: an internal marker ("Formación de especialización
+//     tecnológica (muestra de demo)") that must NEVER reach the lead;
+//   - skills and outcomes: long lists that would let the model drift away
+//     from the question the lead actually asked;
+//   - the other FAQ entries: the cross-entry leak must stay closed.
+
+// The approved context of the profile that does not change between calls
+// (stable, cacheable): the general description and the methodology.
+export function groundingProfileContext(content: ApprovedContent): string {
+  return [content.generalDescription, content.methodology]
+    .filter((value) => value.trim() !== '' && !isPendingDecision(value))
+    .join('\n');
+}
+
+// The full source of one call: the approved answer of the MATCHED entry plus
+// the profile context. Both the prompt and the grounding check use this.
+export function composeGroundingSource(entry: FaqEntry, content: ApprovedContent): string {
+  return [entry.answer, groundingProfileContext(content)]
+    .filter((part) => part.trim() !== '')
+    .join('\n');
+}
 
 // Function words, articles, prepositions, pronouns, auxiliaries and openers.
 // They carry no content: a rephrase that only reorders or re-connects the

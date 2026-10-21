@@ -97,6 +97,18 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   exactamente como antes. Ninguna respuesta de la base de conocimiento puede
   contener una cifra (lo fija un test). La FAQ escrita a mano conserva
   prioridad sobre la base de conocimiento.
+- **Fuente de la fundamentación del LLM.** La regla es: el modelo solo puede usar
+  lo que se le mostró. La fuente de una llamada es la respuesta aprobada de la
+  entrada casada **más el contexto aprobado del perfil** (`generalDescription` y
+  `methodology`), y se compone en un solo sitio
+  (`composeGroundingSource`, en `src/entailment.ts`) para que el prompt y la
+  comprobación nunca discrepen. Quedan **fuera** de la fuente y del prompt: el
+  nombre de la formación (en el perfil DEMO es un marcador interno, "muestra de
+  demo", que no puede llegar al lead), las listas de habilidades y salidas (son
+  largas y desvían al modelo del tema de la pregunta) y las demás entradas de la
+  FAQ (la fuga entre entradas se mantiene cerrada). El contexto del perfil va en
+  la parte estable del prompt (no cambia entre llamadas, se cachea); la
+  respuesta casada, en la parte volátil.
 - **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee `normalizeEs`
   (minúsculas, sin acentos, puntuación a espacios, espacios colapsados). Vive
   aparte para que la capa de disparadores (`src/rules.ts`) y la capa de intents
@@ -122,7 +134,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (189 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (199 tests) y `npm run eval`
   (43 casos etiquetados del bucle de evaluación de la FAQ + 30 de la base de
   conocimiento + 22 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
