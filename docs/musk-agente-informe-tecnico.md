@@ -1,9 +1,9 @@
 # Informe técnico — Agente de Musk (`musk/`)
 
 Estado: **descriptivo del código actual** (no propone cambios). Verificado leyendo
-los 15 archivos del agente uno por uno.
+los 20 archivos del agente uno por uno.
 
-Fecha: 18 de octubre de 2026. Cifras y recuento de líneas actualizados el 19 de octubre de 2026, tras el rediseño de la interfaz y el cierre del MVP.
+Fecha: 18 de octubre de 2026. Cifras y recuento de líneas actualizados el 21 de octubre de 2026, tras el rediseño de la interfaz y el cierre del MVP.
 
 Alcance: únicamente el agente conversacional de `musk/`. Queda fuera cualquier
 otro producto del repositorio.
@@ -25,9 +25,9 @@ dos ideas de diseño que lo gobiernan todo:
 
 | Cifra | Valor |
 |---|---|
-| Archivos TypeScript del agente | 15 |
-| Tests automáticos | 124 |
-| Casos en el banco de evaluación | 40 |
+| Archivos TypeScript del agente | 20 |
+| Tests automáticos | 189 |
+| Casos en el banco de evaluación | 73 |
 | Reglas duras codificadas | 11 |
 | Familias de frases prohibidas en el guardián | 8 |
 | Contenidos pendientes de aprobación | 4 |
@@ -38,20 +38,20 @@ dos ideas de diseño que lo gobiernan todo:
 
 | Archivo | Líneas | Responsabilidad |
 |---|---|---|
-| `src/agent.ts` | 982 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
-| `src/content.ts` | 253 | Contenido aprobado ("Curso de Desarrollo Full Stack") + detección de `TODO(decisión)` |
-| `src/rules.ts` | 358 | Reglas 1–11, disparadores, guardián, textos fijos |
-| `src/simulator.ts` | 159 | Consola interactiva (`--demo`, `--smoke`) |
-| `src/content.demo.ts` | 151 | Contenido de muestra (solo con `--demo`) |
-| `src/intent.ts` | 101 | Clasificador determinista en español |
+| `src/agent.ts` | 1294 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
+| `src/content.ts` | 283 | Contenido aprobado ("Curso de Desarrollo Full Stack") + detección de `TODO(decisión)` |
+| `src/rules.ts` | 378 | Reglas 1–11, disparadores, guardián, textos fijos |
+| `src/simulator.ts` | 184 | Consola interactiva (`--demo`, `--smoke`) |
+| `src/content.demo.ts` | 198 | Contenido de muestra (solo con `--demo`) |
+| `src/intent.ts` | 159 | Clasificador determinista en español |
 | `src/llm.ts` | 84 | Proveedor de IA opcional (compatible OpenAI) + doble para tests |
-| `src/eval.ts` | 240 | Medición de recuperación y métricas |
-| `src/eval.dataset.ts` | 365 | 40 casos etiquetados (C01–C40) en 5 grupos |
+| `src/eval.ts` | 607 | Medición de recuperación y métricas |
+| `src/eval.dataset.ts` | 683 | 43 casos de la FAQ (C01–C43) en 5 grupos + 30 casos de la base de conocimiento en un array aparte (`EVAL_KB_CASES`) |
 | `tests/rules.test.ts` | 748 | 49 tests |
-| `tests/reception.test.ts` | 1054 | 58 tests |
-| `tests/ui-chat.test.ts` | 190 | 11 tests |
-| `tests/eval.test.ts` | 94 | 6 tests |
-| `ui/chat.ts` | 228 | Modelo de vista del chat (sin DOM, testeable) |
+| `tests/reception.test.ts` | 1543 | 86 tests |
+| `tests/ui-chat.test.ts` | 257 | 14 tests |
+| `tests/eval.test.ts` | 184 | 12 tests |
+| `ui/chat.ts` | 267 | Modelo de vista del chat (sin DOM, testeable) |
 | `ui/main.ts` | 260 | Pintado en el navegador |
 | `ui/server.mjs` | 71 | Servidor estático local |
 | `ui/build.mjs` | 33 | Empaquetado a `ui/dist/app.js` |
@@ -238,15 +238,18 @@ capturadas, traspaso y violaciones del guardián. Comandos: `/reset`, `/state`,
 
 ## 10. Evaluación
 
-40 casos etiquetados en 5 grupos (`src/eval.dataset.ts`):
+43 casos etiquetados de la FAQ en 5 grupos (`src/eval.dataset.ts`), más 30 casos
+de la base de conocimiento en un array aparte (`EVAL_KB_CASES`, grupos F y G):
 
 | Grupo | Casos | Contenido |
 |---|---|---|
 | A | C01–C18 | Coincidencia directa por palabra clave |
-| B | C19–C22 | Paráfrasis |
+| B | C19–C22, C41–C43 | Paráfrasis |
 | C | C23–C31 | Temas prohibidos |
 | D | C32–C35 | Sin respuesta aprobada |
 | E | C36–C40 | Derivación a humano y rechazo |
+| F | 22 casos de la base de conocimiento | Preguntas que la base de conocimiento debe responder |
+| G | 8 casos de la base de conocimiento | Preguntas que deben escalar (precio, financiación, devoluciones, becas, fechas, ubicación, requisitos) |
 
 Métricas: aciertos, respuestas erróneas, omisiones, falsos positivos, nulos
 correctos, **recuerdo**, **precisión**, exactitud de intención y violaciones del
@@ -282,9 +285,11 @@ Umbrales que los tests exigen (`tests/eval.test.ts`): **0 falsos positivos**,
 | Archivo | Tests | Qué garantiza |
 |---|---|---|
 | `tests/rules.test.ts` | 49 | Reglas obligatorias (precio, temario, financiación, desconocido, humano, parada); variantes y precisión de la parada; guardas estructurales (el contenido no tiene campos de precio ni de temario, ni texto con dinero); presencia de los marcadores `TODO(decisión)`; la FAQ y el contenido de muestra pasan el guardián; apertura y cualificación; cobertura del contenido aprobado; vocabulario de la propuesta de llamada y aceptación negada (regla 9) |
-| `tests/reception.test.ts` | 58 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
-| `tests/ui-chat.test.ts` | 11 | Perfiles, marcadores, diagnóstico por turno, dudas (regla 5), parada, reinicio |
-| `tests/eval.test.ts` | 6 | Umbrales de evaluación citados arriba |
+| `tests/reception.test.ts` | 86 | Captura de respuestas, precio mientras hay pregunta colgante, cierre proponiendo llamada, silencio tras el traspaso, antirrepetición, reinicio; y la respuesta a la propuesta de llamada: momento, teléfono entregado, indisponibilidad y negaciones |
+| `tests/ui-chat.test.ts` | 14 | Perfiles, marcadores, diagnóstico por turno, dudas (regla 5), parada, reinicio |
+| `tests/eval.test.ts` | 12 | Umbrales de evaluación citados arriba |
+| `tests/entailment.test.ts` | 8 | Comprobación de fundamentación de la reformulación del LLM |
+| `tests/retrieval.test.ts` | 20 | Capa de base de conocimiento: umbrales, temas prohibidos y agente de extremo a extremo |
 
 **No cubierto**: concurrencia entre varios leads, persistencia, reintentos, orden
 de mensajes, comportamiento ante errores del proveedor de IA más allá del doble de
@@ -332,15 +337,15 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-npm test          # 124 tests
-npm run eval      # 40 casos con métricas
+npm test          # 189 tests
+npm run eval      # 73 casos con métricas (43 de la FAQ + 30 de la base de conocimiento) más 22 de grounding
 npm run sim:demo  # conversar con el agente (perfil de muestra)
 npm run sim       # conversar con el contenido aprobado (se ve el hueco)
 npm run ui        # interfaz local en http://localhost:4173
 npm run typecheck # comprobación de tipos
 ```
 
-Orden de lectura recomendado para entenderlo de verdad (unas 4.800 líneas de
+Orden de lectura recomendado para entenderlo de verdad (unas 8.000 líneas de
 TypeScript en total: las de `src/` y `tests/`, sin contar las de `ui/`, que son
 la capa de vista de la simulación, no el agente; todas comentadas explicando el
 porqué):

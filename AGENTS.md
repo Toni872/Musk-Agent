@@ -116,9 +116,10 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (158 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (189 tests) y `npm run eval`
   (43 casos etiquetados del bucle de evaluación de la FAQ + 30 de la base de
-  conocimiento). La comprobación automática corre
+  conocimiento + 22 de fundamentación, que comprueban que la reformulación del
+  LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
   también en cada push (`.github/workflows/ci.yml`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.

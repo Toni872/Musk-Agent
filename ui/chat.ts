@@ -16,6 +16,7 @@ import {
 } from '../src/agent';
 import { APPROVED_CONTENT, type ApprovedContent } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import type { LLMProvider } from '../src/llm';
 
 export type ContentProfile = 'real' | 'demo';
 
@@ -52,6 +53,10 @@ export interface ChatState {
 export interface ChatOptions {
   profile?: ContentProfile;
   lead?: LeadContact;
+  // Optional LLM provider for the rephrase layer (Phase 1). Without it the UI
+  // is fully deterministic, exactly as before; with it, the grounding verdict
+  // of the turn becomes visible in the operator lines.
+  provider?: LLMProvider | null;
 }
 
 // Mirrors src/simulator.ts printContentBanner().
@@ -79,8 +84,9 @@ export const DEFAULT_LEAD: LeadContact = {
   lossReason: 'no respondió a los intentos de llamada',
 };
 
-// Content profile -> ApprovedContent. No environment access, no LLM: the UI is
-// fully deterministic (provider: null everywhere).
+// Content profile -> ApprovedContent. No environment access: the UI is fully
+// deterministic unless a provider is injected explicitly (provider: null by
+// default, so the browser demo never calls a model).
 export function contentFor(profile: ContentProfile): ApprovedContent {
   return profile === 'demo' ? DEMO_CONTENT : APPROVED_CONTENT;
 }
@@ -110,6 +116,7 @@ export function formatHandoffSummary(handoff: HandoffContext): string {
 export class Chat {
   private profile: ContentProfile;
   private readonly lead: LeadContact;
+  private readonly provider: LLMProvider | null;
   private agent: MuskAgent;
   private messages: ChatMessage[] = [];
   private turnCount = 0;
@@ -119,6 +126,7 @@ export class Chat {
     // the real opening as a TODO(decisión) until MUSK decides its wording.
     this.profile = options.profile ?? 'demo';
     this.lead = options.lead ?? DEFAULT_LEAD;
+    this.provider = options.provider ?? null;
     this.agent = this.buildAgent();
     this.showOpening();
   }
@@ -147,6 +155,7 @@ export class Chat {
     this.turnCount += 1;
     this.pushTurn(result);
     this.pushKbProvenance(recordsBefore);
+    this.pushGrounding(recordsBefore);
     const question = this.agent.nextQualificationQuestion();
     if (question) this.messages.push({ role: 'agent', text: question.text });
     return this.getState();
@@ -169,7 +178,11 @@ export class Chat {
   }
 
   private buildAgent(): MuskAgent {
-    return new MuskAgent({ content: contentFor(this.profile), provider: null, lead: this.lead });
+    return new MuskAgent({
+      content: contentFor(this.profile),
+      provider: this.provider,
+      lead: this.lead,
+    });
   }
 
   private restart(note?: string): void {
@@ -198,6 +211,18 @@ export class Chat {
     const records = this.agent.records.slice(recordsBefore).filter((record) => record.kind === 'kb');
     for (const record of records) {
       this.messages.push({ role: 'diagnostic', text: record.detail });
+    }
+  }
+
+  // Grounding verdict of the turn, in the operator style of the other
+  // diagnostic lines: "grounding = grounded rephrase of faq/modalidad" or
+  // "grounding = rephrase rejected (unsupported: "500"): used the approved
+  // text". A rejected rephrase must be visible in the demo. The lead-facing
+  // transcript is untouched: the lead only ever sees the answer text.
+  private pushGrounding(recordsBefore: number): void {
+    const records = this.agent.records.slice(recordsBefore).filter((record) => record.kind === 'grounding');
+    for (const record of records) {
+      this.messages.push({ role: 'diagnostic', text: `grounding = ${record.detail}` });
     }
   }
 

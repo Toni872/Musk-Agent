@@ -12,10 +12,12 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { EVAL_CASES, EVAL_KB_CASES, groupOf, type EvalCase, type KbEvalCase } from './eval.dataset';
+import { MuskAgent } from './agent';
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT } from './content';
 import { DEMO_CONTENT } from './content.demo';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
+import { MockProvider } from './llm';
 import { retrieve } from './retrieval';
 import { acceptanceConfirmed, guardReply } from './rules';
 
@@ -320,13 +322,116 @@ export function runKbEval(content: ApprovedContent, cases: KbEvalCase[]): KbEval
   return { results, metrics };
 }
 
+// ---------------------------------------------------------------------------
+// Grounding evaluation (Phase 1)
+//
+// A third, SEPARATE measurement over the labelled FAQ dataset: what happens
+// when the optional LLM layer answers a question with content the approved
+// source does NOT support.
+//
+// The provider is a MockProvider that always returns a deliberately
+// ungrounded answer (it adds a number and a price word). The invariant under
+// test is the one of the hard rules: the reply that reaches the lead must be
+// the APPROVED TEXT of the matched entry, never the model's answer. A
+// violation here is a rule 4 breach (unapproved content reaching the lead),
+// so the floor is absolute: 0.
+// ---------------------------------------------------------------------------
+
+// The deliberately ungrounded answer of the mock provider: it adds a number
+// ("500"), a price word ("euros") and two terms that belong to no approved
+// entry ("Discord", "Steam").
+export const UNGROUNDED_MODEL_ANSWER =
+  'Vale, cuesta 500 euros y lo ves en Discord y Steam.';
+
+export interface GroundingCaseResult {
+  id: string;
+  question: string;
+  expectedAnswerId: string;
+  // The lead-facing reply of the turn.
+  reply: string;
+  // True when the lead received the approved text of the matched entry.
+  usedApprovedText: boolean;
+  // The grounding verdict of the turn (the provider was consulted).
+  groundingOk: boolean;
+  unsupported: string[];
+  explanation: string;
+}
+
+export interface GroundingEvalMetrics {
+  total: number;
+  usedApprovedText: number;
+  // Lead-facing replies that are NOT the approved text. Must be 0.
+  violations: number;
+  // Turns where the grounding check rejected the rephrase (the check fired).
+  rejectedRephrases: number;
+}
+
+export interface GroundingEvalReport {
+  results: GroundingCaseResult[];
+  metrics: GroundingEvalMetrics;
+}
+
+// Absolute floor: an ungrounded answer must never reach the lead.
+export const GROUNDING_VIOLATION_TARGET = 0;
+
+export async function runGroundingEval(
+  content: ApprovedContent,
+  cases: EvalCase[],
+): Promise<GroundingEvalReport> {
+  const results: GroundingCaseResult[] = [];
+
+  for (const evalCase of cases) {
+    if (evalCase.expectedAnswerId === null) continue;
+    if (evalCase.expectedIntent !== 'general') continue;
+    const entry = content.faq.find((item) => item.id === evalCase.expectedAnswerId);
+    if (entry === undefined) continue;
+
+    // A fresh agent per case: the measurement is per question, with no state
+    // carried over from the previous one.
+    const provider = new MockProvider(UNGROUNDED_MODEL_ANSWER);
+    const agent = new MuskAgent({ content, provider });
+    const result = await agent.runTurn(evalCase.question);
+    if (provider.calls.length === 0) continue; // the LLM was not consulted on this turn
+
+    const usedApprovedText = result.reply === entry.answer;
+    const grounding = result.grounding;
+    const parts: string[] = [];
+    if (!usedApprovedText) {
+      parts.push('the lead received an ungrounded reply instead of the approved text');
+    }
+    if (grounding !== undefined && grounding.ok) {
+      parts.push('the grounding check accepted the ungrounded rephrase');
+    }
+    results.push({
+      id: evalCase.id,
+      question: evalCase.question,
+      expectedAnswerId: evalCase.expectedAnswerId,
+      reply: result.reply,
+      usedApprovedText,
+      groundingOk: grounding?.ok ?? false,
+      unsupported: grounding?.unsupported ?? [],
+      explanation: parts.join('; '),
+    });
+  }
+
+  const total = results.length;
+  const usedApprovedText = results.filter((result) => result.usedApprovedText).length;
+  const violations = results.filter((result) => !result.usedApprovedText).length;
+  const rejectedRephrases = results.filter((result) => !result.groundingOk).length;
+
+  return {
+    results,
+    metrics: { total, usedApprovedText, violations, rejectedRephrases },
+  };
+}
+
 function fixed(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
 export function formatReport(
   report: EvalReport,
-  options?: { verbose?: boolean; kb?: KbEvalReport },
+  options?: { verbose?: boolean; kb?: KbEvalReport; grounding?: GroundingEvalReport },
 ): string {
   const { metrics, results } = report;
   const lines: string[] = [];
@@ -371,6 +476,11 @@ export function formatReport(
   if (options?.kb !== undefined) {
     lines.push('');
     lines.push(formatKbReport(options.kb, { verbose: options.verbose }));
+  }
+
+  if (options?.grounding !== undefined) {
+    lines.push('');
+    lines.push(formatGroundingReport(options.grounding, { verbose: options.verbose }));
   }
 
   return lines.join('\n');
@@ -425,24 +535,73 @@ export function formatKbReport(report: KbEvalReport, options?: { verbose?: boole
   return lines.join('\n');
 }
 
-function main(argv: string[]): void {
+// The grounding section of the report. It is printed SEPARATELY from the FAQ
+// and the knowledge-base metrics: it measures the optional LLM layer, and its
+// floor (0 violations) is absolute.
+export function formatGroundingReport(
+  report: GroundingEvalReport,
+  options?: { verbose?: boolean },
+): string {
+  const { metrics, results } = report;
+  const lines: string[] = [];
+  lines.push('MUSK grounding evaluation (LLM rephrase vs approved source)');
+  lines.push(`  cases            ${String(metrics.total).padStart(3)}`);
+  lines.push(`  approved text    ${String(metrics.usedApprovedText).padStart(3)}`);
+  lines.push(
+    `  violations       ${String(metrics.violations).padStart(3)}   (target = ${GROUNDING_VIOLATION_TARGET})`,
+  );
+  lines.push(`  rejected rephrases ${String(metrics.rejectedRephrases).padStart(3)}`);
+
+  if (options?.verbose) {
+    lines.push('');
+    lines.push('All grounding cases');
+    for (const result of results) {
+      lines.push(
+        `  ${result.id}  ${result.usedApprovedText ? 'approved text' : 'FAIL        '}  grounding ${result.groundingOk ? 'ok  ' : 'FAIL'}  ${result.question}`,
+      );
+      if (result.explanation) lines.push(`       ${result.explanation}`);
+    }
+  }
+
+  const failures = results.filter((result) => !result.usedApprovedText || result.groundingOk);
+  lines.push('');
+  if (failures.length === 0) {
+    lines.push('Grounding failures: none');
+  } else {
+    lines.push('Grounding failures');
+    for (const result of failures) {
+      lines.push(`  ${result.id}  ${result.question}`);
+      lines.push(`       ${result.explanation}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+async function main(argv: string[]): Promise<void> {
   const verbose = argv.includes('--verbose');
   const asJson = argv.includes('--json');
   const report = runRetrievalEval(APPROVED_CONTENT, EVAL_CASES);
   // The knowledge base lives only in the DEMO profile (pending MUSK sign-off),
   // so that is the profile the knowledge-base layer is measured on.
   const kbReport = runKbEval(DEMO_CONTENT, EVAL_KB_CASES);
+  // The grounding layer is measured on the approved profile: the LLM rephrase
+  // is checked against the approved answer of the matched FAQ entry.
+  const groundingReport = await runGroundingEval(APPROVED_CONTENT, EVAL_CASES);
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify({ faq: report, kb: kbReport }, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ faq: report, kb: kbReport, grounding: groundingReport }, null, 2)}\n`,
+    );
     return;
   }
-  process.stdout.write(`${formatReport(report, { verbose, kb: kbReport })}\n`);
+  process.stdout.write(
+    `${formatReport(report, { verbose, kb: kbReport, grounding: groundingReport })}\n`,
+  );
 }
 
 // Zero import-time side effects: the CLI runs only when this module is the
 // process entry point (npm run eval / tsx src/eval.ts).
 const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  main(process.argv.slice(2));
+  await main(process.argv.slice(2));
 }

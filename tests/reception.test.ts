@@ -14,6 +14,7 @@ import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
+import { MockProvider } from '../src/llm';
 import { buildReply, REPLY_TEMPLATES } from '../src/rules';
 
 const lead: LeadContact = {
@@ -1422,5 +1423,121 @@ describe('la base de conocimiento no se traga ni la pregunta ni la respuesta', (
     expect(yes.handoff?.reason).toBe('call_accepted');
     expect(yes.reply).toBe(buildReply('callAccepted'));
     expect(yes.capturedAnswer).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grounding of the optional LLM layer (Phase 1)
+// ---------------------------------------------------------------------------
+
+// The approved answer of an FAQ entry, looked up by id (never hardcoded here).
+function faqAnswer(id: string): string {
+  const found = APPROVED_CONTENT.faq.find((entry) => entry.id === id);
+  if (found === undefined) throw new Error(`FAQ entry not found: ${id}`);
+  return found.answer;
+}
+
+// A question that reaches the 'modalidad' entry of the approved profile.
+const ONLINE_QUESTION = '¿la formación es online?';
+
+function makeGroundedAgent(provider: MockProvider): MuskAgent {
+  return new MuskAgent({ content: APPROVED_CONTENT, provider, lead });
+}
+
+describe('fundamentación de la reformulación del LLM (regla 4)', () => {
+  // 1. A faithful rephrase (the source's own words) is what the lead
+  //    receives, and the turn says the rephrase was grounded.
+  it('una reformulación fiel llega al lead y la fundamentación es correcta', async () => {
+    const rephrase =
+      'Los detalles de horarios y disponibilidad los concretamos contigo en una llamada: la formación es online, con clases en directo y workshops.';
+    const provider = new MockProvider(rephrase);
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(ONLINE_QUESTION);
+
+    expect(result.reply).toBe(rephrase);
+    expect(result.grounding?.ok).toBe(true);
+    expect(result.grounding?.unsupported).toEqual([]);
+    expect(result.ruleViolations).toEqual([]);
+  });
+
+  // 2. A rephrase that smuggles a price is rejected: the lead receives the
+  //    APPROVED text and the unsupported tokens are reported to the operator.
+  it('una reformulación que cuela un precio se rechaza y se usa el texto aprobado', async () => {
+    const provider = new MockProvider('La formación es online, con clases en directo, y cuesta 500 euros.');
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(ONLINE_QUESTION);
+
+    expect(result.reply).toBe(faqAnswer('modalidad'));
+    expect(result.grounding?.ok).toBe(false);
+    expect(result.grounding?.unsupported).toContain('500');
+  });
+
+  // 3. A rephrase that copies the content of ANOTHER FAQ entry is rejected
+  //    too: the source of the matched entry does not support it.
+  it('una reformulación que copia otra entrada de la FAQ se rechaza', async () => {
+    const provider = new MockProvider(faqAnswer('informacion'));
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(ONLINE_QUESTION);
+
+    expect(result.reply).toBe(faqAnswer('modalidad'));
+    expect(result.grounding?.ok).toBe(false);
+  });
+
+  // 4. A provider that throws: the approved text is sent (the turn must never
+  //    depend on the LLM).
+  it('un proveedor que falla devuelve el texto aprobado', async () => {
+    const provider = new MockProvider(() => {
+      throw new Error('provider down');
+    });
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(ONLINE_QUESTION);
+
+    expect(result.reply).toBe(faqAnswer('modalidad'));
+  });
+
+  // 5. A provider that returns an empty answer: the approved text is sent.
+  it('un proveedor que devuelve una respuesta vacía devuelve el texto aprobado', async () => {
+    const provider = new MockProvider('');
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(ONLINE_QUESTION);
+
+    expect(result.reply).toBe(faqAnswer('modalidad'));
+  });
+
+  // 6. The request carries the approved answer of the MATCHED entry and
+  //    nothing else: the model cannot copy another entry (the leak the old
+  //    prompt allowed, because it shipped the whole FAQ).
+  it('la petición lleva la respuesta aprobada de la entrada casada y solo esa', async () => {
+    const provider = new MockProvider('respuesta');
+    const agent = makeGroundedAgent(provider);
+
+    await agent.runTurn(ONLINE_QUESTION);
+
+    expect(provider.calls).toHaveLength(1);
+    const system = provider.calls[0].system;
+    expect(system).toContain(faqAnswer('modalidad'));
+    expect(system).not.toContain(faqAnswer('informacion'));
+    expect(system).not.toContain(faqAnswer('salidas'));
+  });
+
+  // 7. The verdict is visible to the operator: the turn records a
+  //    'grounding' entry, both when the rephrase is accepted and when it is
+  //    rejected.
+  it('el veredicto queda registrado para el operador', async () => {
+    const provider = new MockProvider('La formación es online, con clases en directo, y cuesta 500 euros.');
+    const agent = makeGroundedAgent(provider);
+
+    await agent.runTurn(ONLINE_QUESTION);
+
+    const grounding = agent.records.filter((record) => record.kind === 'grounding');
+    expect(grounding).toHaveLength(1);
+    expect(grounding[0].detail).toContain('rephrase rejected');
+    expect(grounding[0].detail).toContain('unsupported');
+    expect(grounding[0].detail).toContain('used the approved text');
   });
 });

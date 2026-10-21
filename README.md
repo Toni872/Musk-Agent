@@ -8,8 +8,8 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 158 tests en 5 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, UI y bucle de evaluación de retrieval), sin red ni API key.
-4. `npm run eval` → informe del **bucle de evaluación**: 43 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real) y 30 casos de la base de conocimiento (recall y falsos positivos, medidos aparte).
+3. `npm test` → 189 tests en 6 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, fundamentación, UI y bucle de evaluación de retrieval), sin red ni API key.
+4. `npm run eval` → informe del **bucle de evaluación**: 43 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 30 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
 7. `npm run sim:demo` → REPL con el **contenido DEMO de muestra** (`src/content.demo.ts`), para una demo funcional sin los `TODO(decisión)`.
@@ -22,7 +22,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Canal WhatsApp | No conectado: simulación local |
 | Leads y CRM | Datos simulados en memoria (`LeadContact` de prueba) |
 | Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
-| LLM | Opcional; solo para respuestas generales con FAQ aprobada |
+| LLM | Opcional; solo para **reformular** la respuesta aprobada de la FAQ casada. La salida pasa el guard de salida y la comprobación de fundamentación; si falla cualquiera, el lead recibe el texto aprobado |
 | Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
 | Contenido de la formación | Curado del dossier MUSK (piloto FullStack) con FAQ aprobadas; quedan `TODO(decisión)` (presentación de MUSK, mensaje inicial, cualificación); perfil DEMO adicional con `--demo` |
 | Cobertura de dudas del lead | Las FAQ actúan como tabla de enrutado (palabra clave → contenido aprobado), de lo específico a lo general: información general, qué se aprende, salidas, metodología, modalidad, acompañamiento, requisitos y duración. Encima de ellas, la **capa de base de conocimiento** (recuperación determinista, sin LLM) responde lo que la base de conocimiento cubre; lo que no está aprobado cae en la regla 5 |
@@ -41,19 +41,21 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `src/kb.ts` | Base de conocimiento de la escuela como datos: 35 pasajes con respuesta al lead, términos de recuperación y procedencia (solo perfil DEMO, pendiente de firma) |
 | `src/retrieval.ts` | Recuperación determinista sobre la base de conocimiento: tokenización es-ES, BM25, cobertura de términos, temas prohibidos y umbrales con nombre (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`) |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
-| `src/agent.ts` | Núcleo del agente: prompt de sistema, un turno por llamada, guard de reglas, flags de acción (`handoff` / `stop` / `none`), apertura (`opening`), cualificación (`nextQualificationQuestion`) y recepción de la respuesta del lead (`pendingAsk` / `receiveAnswer`) |
+| `src/entailment.ts` | Comprobación de fundamentación de la reformulación del LLM: cada palabra con contenido de la respuesta del modelo debe existir ya en la respuesta aprobada (los números incluidos). Lista explícita de palabras vacías (`ENTAILMENT_STOPWORDS`), determinista y sin dependencias |
+| `src/agent.ts` | Núcleo del agente: prompt de sistema (parte estable cacheable + fuente aprobada por llamada), un turno por llamada, guard de reglas, comprobación de fundamentación, flags de acción (`handoff` / `stop` / `none`), apertura (`opening`), cualificación (`nextQualificationQuestion`) y recepción de la respuesta del lead (`pendingAsk` / `receiveAnswer`) |
 | `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo; imprime apertura y decisiones abiertas |
 | `src/eval.dataset.ts` | Dataset etiquetado del bucle de evaluación: 43 casos de la FAQ (pregunta del lead → respuesta aprobada esperada + intent esperado) y 30 casos de la base de conocimiento (22 que debe responder, 8 que deben escalar), con la expectativa derivada de las reglas duras, no del comportamiento actual |
-| `src/eval.ts` | Bucle de evaluación de retrieval: scoring puro (hit / miss / wrong-answer / false-positive / correct-null, recall, precisión, intent y guard) + la sección independiente de la base de conocimiento (recall y falsos positivos) + CLI `npm run eval` (`--verbose`, `--json`). Cero efectos al importarlo |
+| `src/eval.ts` | Bucle de evaluación de retrieval: scoring puro (hit / miss / wrong-answer / false-positive / correct-null, recall, precisión, intent y guard) + la sección independiente de la base de conocimiento (recall y falsos positivos) + la sección independiente de fundamentación (0 violaciones) + CLI `npm run eval` (`--verbose`, `--json`). Cero efectos al importarlo |
 | `ui/chat.ts` | Capa pura (sin DOM) de la interfaz de chat: estado serializable, diagnóstico de turno y banners. Toda la lógica de conversación vive aquí; se puede testear sin navegador |
 | `ui/main.ts` | Capa DOM fina del simulador: solo pinta `ChatState` y reenvía eventos. Inserta texto con `textContent`, nunca `innerHTML` |
 | `ui/build.mjs` | Empaqueta `ui/main.ts` + `ui/chat.ts` + `src/*` en `ui/dist/app.js` con esbuild (salida minificada, sin `process.env`) |
 | `ui/server.mjs` | Servidor estático sin dependencias para `ui/dist` en `http://localhost:4173` |
 | `tests/rules.test.ts` | 49 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores + cobertura de información (routing a contenido aprobado) |
-| `tests/reception.test.ts` | 58 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas y `reset` |
-| `tests/ui-chat.test.ts` | 11 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil y reinicio |
-| `tests/eval.test.ts` | 10 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión + la puerta propia de la base de conocimiento (0 falsos positivos en el grupo que debe escalar) |
-| `tests/retrieval.test.ts` | 15 tests de la capa de base de conocimiento: cada respuesta pasa el guard, ninguna contiene una cifra, ninguna menciona un tema prohibido, resolución de preguntas conocidas, umbral, y el agente de extremo a extremo (responde con el pasaje, registra la procedencia y no registra duda; una pregunta fuera sigue escalando) |
+| `tests/reception.test.ts` | 86 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas, `reset` y fundamentación de la reformulación del LLM |
+| `tests/entailment.test.ts` | 8 tests de la comprobación de fundamentación: reformulación fiel, número inventado, palabra de otra entrada, palabras vacías, candidata vacía y la misma candidata contra una fuente que sí la respalda |
+| `tests/ui-chat.test.ts` | 14 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil, reinicio y la línea de fundamentación |
+| `tests/eval.test.ts` | 12 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión + la puerta propia de la base de conocimiento (0 falsos positivos en el grupo que debe escalar) + la puerta de fundamentación (0 violaciones) |
+| `tests/retrieval.test.ts` | 20 tests de la capa de base de conocimiento: cada respuesta pasa el guard, ninguna contiene una cifra, ninguna menciona un tema prohibido, resolución de preguntas conocidas, umbral, y el agente de extremo a extremo (responde con el pasaje, registra la procedencia y no registra duda; una pregunta fuera sigue escalando) |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -131,7 +133,7 @@ Reglas de la capa:
 
 El enrutado de respuestas aprobadas (`classify` → `findApprovedAnswer`) se mide con un **bucle de evaluación**: un dataset etiquetado de 43 casos de la FAQ y 30 de la base de conocimiento en `src/eval.dataset.ts` (pregunta del lead → respuesta aprobada esperada + intent esperado) que se ejecuta contra el código real y se puntúa.
 
-- **Qué mide**: aciertos (hit), respuestas equivocadas (wrong-answer), fallos (miss), falsos positivos (un tema prohibido que alcanza una FAQ) y correct-null, con recall, precisión, aciertos de intent y violaciones del guard de salida.
+- **Qué mide**: aciertos (hit), respuestas equivocadas (wrong-answer), fallos (miss), falsos positivos (un tema prohibido que alcanza una FAQ) y correct-null, con recall, precisión, aciertos de intent y violaciones del guard de salida. Además, una sección independiente de **fundamentación** (22 casos): con un proveedor que siempre responde con contenido no fundamentado, el lead debe recibir siempre el texto aprobado (0 violaciones, suelo absoluto).
 - **Qué NO es**: no añade embeddings, ni base de datos vectorial, ni ninguna llamada al LLM. Es un instrumento de medición, no un recuperador: no cambia el comportamiento en tiempo de ejecución.
 - **Etiquetas de oro**: derivadas de las reglas duras de `AGENTS.md`, no de lo que el código hace hoy. Cuando una etiqueta y el comportamiento actual no coinciden, la diferencia **es la medición** (los fallos se listan para llevarlos a una lista de bugs).
 - **Cómo se usa**: `npm run eval` imprime el resumen y solo los casos que fallan; `npm run eval -- --verbose` imprime todos los casos; `npm run eval -- --json` vuelca el informe completo en JSON.
@@ -149,6 +151,38 @@ Copia `.env.example` y define las variables si quieres reformulación LLM en el 
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
 
 Sin estas variables, el agente funciona igual en modo determinista con las respuestas aprobadas. Todo lo protegido por reglas ignora el LLM siempre.
+
+### El contrato del LLM: solo redactar, nunca añadir
+
+El modelo **no responde**: **redacta**. Su trabajo es dar forma a la respuesta
+aprobada de la entrada de FAQ que ha casado con la pregunta del lead, y nada
+más.
+
+1. **La fuente es una sola**: la petición lleva la respuesta aprobada de la
+   entrada casada, y nada más. El prompt ya **no incluye la FAQ entera** (antes
+   sí, y por eso el modelo podía copiar el contenido de otra entrada a la
+   respuesta de otra, o inventar un dato plausible que no incumplía ningún
+   patrón prohibido). La parte estable del prompt (rol, tono y las once reglas
+   duras) **no cambia entre llamadas**, así que es cacheable; la parte variable
+   (la fuente aprobada) cambia en cada llamada. Efecto directo: para la misma
+   pregunta, la petición al modelo baja de **5.596 a 2.893 caracteres**
+   (−48 %; la parte estable son 2.395), y el modelo ya no puede ver la
+   respuesta de otra entrada.
+2. **La salida pasa dos filtros**: el guard de salida (`guardReply`: sin
+   importes, promociones ni promesas) y la **comprobación de fundamentación**
+   (`src/entailment.ts`), que exige que cada palabra con contenido de la
+   respuesta del modelo exista ya en la fuente aprobada (los números
+   incluidos: un `500` inventado no está respaldado).
+3. **Si cualquiera de los dos falla, el lead recibe el texto aprobado**, nunca
+   la salida del modelo. El veredicto queda visible para el operador
+   (`grounding = ...` en la línea de diagnóstico del simulador y de la UI) y en
+   los registros de la conversación (tipo `grounding`), también cuando la
+   reformulación se rechaza.
+4. **Medido, no supuesto**: `npm run eval` incluye una sección de
+   fundamentación que pasa las 22 preguntas casables de la FAQ por el agente
+   con un proveedor que siempre responde con contenido no fundamentado, y
+   comprueba que el lead recibe siempre el texto aprobado (0 violaciones, suelo
+   absoluto).
 
 ## TODO(decisión) pendientes
 
@@ -175,15 +209,15 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 158 tests, cero fallos, sin red.
-- [ ] `npm run eval` imprime el informe del bucle de evaluación (43 casos de la FAQ + 30 de la base de conocimiento) sin regresar por debajo de los suelos de recall/precisión.
+- [ ] `npm test` pasa: 189 tests, cero fallos, sin red.
+- [ ] `npm run eval` imprime el informe del bucle de evaluación (43 casos de la FAQ + 30 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 158 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 189 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

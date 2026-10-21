@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { MuskAgent } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import { MockProvider } from '../src/llm';
 import {
   CONTENT_BANNERS,
   DEFAULT_LEAD,
@@ -231,5 +232,26 @@ describe('ui/chat view-model', () => {
     // The lead-facing transcript never shows the score or the passage id.
     expect(agentMessages.some((message) => message.text.includes('score'))).toBe(false);
     expect(agentMessages.some((message) => message.text.includes('kb-certificacion-arp'))).toBe(false);
+  });
+
+  // The grounding verdict of the LLM rephrase is operator-facing too: a
+  // rejected rephrase must be visible in the demo, and the lead must still
+  // receive the approved text.
+  it('a rejected rephrase shows the grounding verdict as a diagnostic line', async () => {
+    const provider = new MockProvider('La formación es online, con clases en directo, y cuesta 500 euros.');
+    const chat = createChat({ profile: 'real', provider });
+    const state = await chat.send('¿la formación es online?');
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const grounding = diagnostics.find((message) => message.text.startsWith('grounding = '));
+    expect(grounding).toBeDefined();
+    expect(grounding?.text).toContain('rephrase rejected');
+    expect(grounding?.text).toContain('used the approved text');
+
+    // The lead-facing transcript only carries the approved answer.
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    const approved = APPROVED_CONTENT.faq.find((entry) => entry.id === 'modalidad')?.answer ?? '';
+    expect(agentMessages.some((message) => message.text === approved)).toBe(true);
+    expect(agentMessages.some((message) => message.text.includes('500'))).toBe(false);
   });
 });

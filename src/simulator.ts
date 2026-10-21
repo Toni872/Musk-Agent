@@ -66,6 +66,16 @@ function printKbProvenance(agent: MuskAgent, recordsBefore: number): void {
   for (const record of records) console.log(record.detail);
 }
 
+// Grounding verdict of the optional LLM rephrase, in the same operator style
+// as the knowledge-base line: "grounding = grounded rephrase of faq/modalidad"
+// or "grounding = rephrase rejected (unsupported: "500"): used the approved
+// text". It makes a rejected rephrase visible in the demo. Operator-facing
+// only: the lead-facing transcript is untouched.
+function printGrounding(agent: MuskAgent, recordsBefore: number): void {
+  const records = agent.records.slice(recordsBefore).filter((record) => record.kind === 'grounding');
+  for (const record of records) console.log(`grounding = ${record.detail}`);
+}
+
 function printTurn(result: TurnResult): void {
   console.log(`agent   > ${result.reply || noMessageNote(result)}`);
   console.log(
@@ -113,6 +123,7 @@ async function runSmoke(): Promise<void> {
   console.log(`lead    > ${SMOKE_QUESTION}`);
   printTurn(result);
   printKbProvenance(agent, recordsBefore);
+  printGrounding(agent, recordsBefore);
   console.log('smoke: OK');
 }
 
@@ -155,6 +166,7 @@ async function runRepl(): Promise<void> {
       const result = await agent.runTurn(line);
       printTurn(result);
       printKbProvenance(agent, recordsBefore);
+      printGrounding(agent, recordsBefore);
       // Brief qualification (MVP spec §4): one approved question per turn,
       // never an exam. Nothing is asked once the lead stops or hands off.
       const ask = agent.nextQualificationQuestion();

@@ -9,12 +9,22 @@ import { describe, expect, it } from 'vitest';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
 import { EVAL_CASES, EVAL_KB_CASES } from '../src/eval.dataset';
-import { runRetrievalEval, runKbEval, type EvalReport, type KbEvalReport } from '../src/eval';
+import {
+  runRetrievalEval,
+  runKbEval,
+  runGroundingEval,
+  type EvalReport,
+  type KbEvalReport,
+  type GroundingEvalReport,
+} from '../src/eval';
 
 const report: EvalReport = runRetrievalEval(APPROVED_CONTENT, EVAL_CASES);
 // The knowledge base lives only in the DEMO profile (pending MUSK sign-off),
 // so that is the profile the knowledge-base layer is measured on.
 const kbReport: KbEvalReport = runKbEval(DEMO_CONTENT, EVAL_KB_CASES);
+// The grounding layer is measured on the approved profile, with a provider
+// that always answers with ungrounded content.
+const groundingReport: GroundingEvalReport = await runGroundingEval(APPROVED_CONTENT, EVAL_CASES);
 
 function failingIds(): string {
   return report.results
@@ -139,5 +149,36 @@ describe('bucle de evaluación: puerta de la base de conocimiento', () => {
       .map((result) => `${result.id} (${result.actualIntent}, esperaba ${result.expectedIntent})`)
       .join(', ');
     expect(kbReport.metrics.intentAccuracy, `intents incorrectos: ${wrong}`).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grounding layer (Phase 1): measured separately, with an absolute floor.
+// ---------------------------------------------------------------------------
+describe('bucle de evaluación: puerta de fundamentación', () => {
+  // 11. Regla 4: una reformulación no fundamentada (una que añade un número
+  //     o una palabra de otra entrada) NUNCA llega al lead: el turno entrega
+  //     el texto aprobado de la entrada casada. Absoluto: 0 violaciones.
+  it('una reformulación no fundamentada nunca llega al lead (violaciones = 0)', () => {
+    const failed = groundingReport.results
+      .filter((result) => !result.usedApprovedText)
+      .map((result) => `${result.id}: ${result.question}`)
+      .join(' | ');
+    expect(groundingReport.metrics.violations, `violaciones de fundamentación: ${failed}`).toBe(0);
+    expect(groundingReport.metrics.usedApprovedText).toBe(groundingReport.metrics.total);
+    expect(groundingReport.metrics.total).toBeGreaterThan(0);
+  });
+
+  // 12. La comprobación de fundamentación se dispara de verdad: en todos los
+  //     casos el veredicto es negativo (la reformulación no fundamentada se
+  //     rechaza y se usa el texto aprobado).
+  it('la comprobación de fundamentación rechaza la reformulación no fundamentada', () => {
+    const accepted = groundingReport.results
+      .filter((result) => result.groundingOk)
+      .map((result) => result.id)
+      .join(', ');
+    expect(groundingReport.metrics.rejectedRephrases, `aceptadas sin fundamentar: ${accepted}`).toBe(
+      groundingReport.metrics.total,
+    );
   });
 });

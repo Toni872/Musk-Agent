@@ -5,10 +5,13 @@
 // Guarded intents (stop, human, price, temario, financiacion, unknown) are
 // fully deterministic and never call the LLM. The LLM is only consulted for
 // 'general' turns that match an approved FAQ entry, and its output is always
-// validated by guardReply (fallback: approved text, then registered doubt).
+// validated by guardReply AND by the grounding check (src/entailment.ts): the
+// model may only word the approved answer of the matched entry (fallback:
+// approved text, then registered doubt).
 
 import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
+import { checkEntailment } from './entailment';
 import type { LLMProvider } from './llm';
 import {
   bareAcknowledgement,
@@ -80,9 +83,27 @@ export interface TurnResult {
   // Present when this turn was RECEIVED as the answer to the ask the agent had
   // just made. questionId is null for the opening message.
   capturedAnswer?: { questionId: string | null; text: string };
+  // Grounding verdict of the optional LLM layer (Phase 1): ok = the model's
+  // rephrase was accepted (output guard AND grounding check); unsupported = the
+  // tokens the approved source does not support. Present on every turn where
+  // the provider was consulted, INCLUDING the rejected ones: the operator must
+  // see the attempt. Operator-facing only: the lead never sees it.
+  grounding?: { ok: boolean; unsupported: string[] };
 }
 
-export type RecordKind = 'reply' | 'doubt' | 'handoff' | 'stop' | 'question' | 'answer' | 'kb';
+export type RecordKind =
+  | 'reply'
+  | 'doubt'
+  | 'handoff'
+  | 'stop'
+  | 'question'
+  | 'answer'
+  | 'kb'
+  // Grounding verdict of the LLM rephrase (Phase 1). Its own kind because the
+  // outcome is NOT the reply: it is the provenance of the reply (a rephrase
+  // that was accepted, or a rejected rephrase that fell back to the approved
+  // text). Operator-facing only.
+  | 'grounding';
 
 export interface ConversationRecord {
   kind: RecordKind;
@@ -367,6 +388,9 @@ export class MuskAgent {
     const registeredDoubts: string[] = [];
     let registeredNoContinuar = false;
     let localViolations: string[] = [];
+    // Grounding verdict of the optional LLM rephrase (Phase 1). Set on the
+    // turns where the provider was consulted, accepted or rejected.
+    let grounding: { ok: boolean; unsupported: string[] } | undefined;
     // True when the reply ANSWERS what the lead asked (an approved answer to a
     // question, guarded rules 1-3 included). Such a reply is never replaced by
     // the repeat-avoiding invitation: leaving the question unanswered to avoid
@@ -535,9 +559,10 @@ export class MuskAgent {
         }
         const faq = findApprovedAnswer(this.content, message);
         if (faq) {
-          const fromFaq = await this.replyFromApprovedFaq(message, faq);
+          const fromFaq = await this.replyFromApprovedFaq(message, faq, intent);
           reply = fromFaq.reply;
           localViolations = fromFaq.violations;
+          grounding = fromFaq.grounding;
           answersLead = true;
         } else {
           // A bare acknowledgement answers what the agent just offered. The
@@ -627,37 +652,89 @@ export class MuskAgent {
       ruleViolations,
     };
     if (handoff) result.handoff = handoff;
+    if (grounding) result.grounding = grounding;
     return result;
   }
 
-  // Optional LLM phrasing for approved FAQ answers. The provider output is
-  // guarded; on violation, error, or empty output the approved text is used.
+  // Optional LLM phrasing for approved FAQ answers (Phase 1).
+  //
+  // The contract is narrow: the model may only WORD the approved answer of the
+  // MATCHED entry, never add content. Two checks decide whether its answer
+  // reaches the lead:
+  //
+  //   1. the output guard (rules.ts): no amounts, no promotions, no promises;
+  //   2. the grounding check (src/entailment.ts): every content token of the
+  //      model's answer must exist in the approved source. This is what stops
+  //      the leak the guard could not see: a number, a price word, or a term
+  //      copied from ANOTHER FAQ entry of the same profile.
+  //
+  // If EITHER check fails, the reply that reaches the lead is the approved
+  // text. The verdict is recorded so the operator sees the attempt.
   private async replyFromApprovedFaq(
     question: string,
     entry: FaqEntry,
-  ): Promise<{ reply: string; violations: string[] }> {
+    intent: Intent,
+  ): Promise<{
+    reply: string;
+    violations: string[];
+    grounding?: { ok: boolean; unsupported: string[] };
+  }> {
     if (!this.provider) {
       return { reply: entry.answer, violations: [] };
     }
+    let raw: string;
     try {
-      const raw = (
+      raw = (
         await this.provider.complete({
-          system: this.systemPrompt,
+          system: this.buildRequestPrompt(entry),
           messages: [{ role: 'user', content: question }],
         })
       ).trim();
-      if (!raw) return { reply: entry.answer, violations: [] };
-      const guard = guardReply(raw);
-      if (!guard.ok) {
-        return {
-          reply: entry.answer,
-          violations: guard.violations.map((v) => `${v.id}(rule ${v.rule})`),
-        };
-      }
-      return { reply: raw, violations: [] };
     } catch {
-      return { reply: entry.answer, violations: [] };
+      // The provider failed: the approved text is sent, and the attempt stays
+      // visible in the records.
+      this.push({
+        kind: 'grounding',
+        intent,
+        detail: `rephrase not produced (provider failed): used the approved text`,
+      });
+      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
     }
+    if (!raw) {
+      this.push({
+        kind: 'grounding',
+        intent,
+        detail: `rephrase not produced (empty answer): used the approved text`,
+      });
+      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
+    }
+    const guard = guardReply(raw);
+    const entailment = checkEntailment(raw, entry.answer);
+    const guardViolations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
+    const accepted = guard.ok && entailment.ok;
+    if (accepted) {
+      this.push({
+        kind: 'grounding',
+        intent,
+        detail: `grounded rephrase of faq/${entry.id}`,
+      });
+      return { reply: raw, violations: [], grounding: { ok: true, unsupported: [] } };
+    }
+    const reasons: string[] = [];
+    if (!entailment.ok) {
+      reasons.push(`unsupported: ${entailment.unsupported.map((token) => `"${token}"`).join(', ')}`);
+    }
+    if (!guard.ok) reasons.push(`guard: ${guardViolations.join(', ')}`);
+    this.push({
+      kind: 'grounding',
+      intent,
+      detail: `rephrase rejected (${reasons.join('; ')}): used the approved text`,
+    });
+    return {
+      reply: entry.answer,
+      violations: guardViolations,
+      grounding: { ok: false, unsupported: entailment.unsupported },
+    };
   }
 
   // True when the lead's message is ASKING rather than answering the question
@@ -1164,9 +1241,17 @@ export class MuskAgent {
     this.conversationRecords.push(record);
   }
 
-  // System prompt: lead-facing agent strings, Spanish (es-ES), tuteo.
+  // STABLE part of the LLM request: the role, the tone and the eleven hard
+  // rules. It does not change between calls, so it can be cached by the
+  // provider.
+  //
+  // The FAQ answers are NOT here anymore (Phase 1). The prompt used to carry
+  // EVERY answer of the profile, so the model could copy one entry's content
+  // into another entry's answer, and the whole FAQ was re-sent on every call.
+  // Now the request carries the ONE approved answer of the matched entry (see
+  // buildRequestPrompt) and the grounding check verifies the model stayed
+  // inside it.
   private buildSystemPrompt(): string {
-    const faqLines = this.content.faq.map((entry) => `- ${entry.id}: ${entry.answer}`).join('\n');
     const hardRules = RULES.map((rule) => `${rule.id}. ${rule.summary}`).join('\n');
     const spanishRules = [
       '1. Nunca comuniques precios ni importes: solo la respuesta aprobada y la invitación a la llamada.',
@@ -1184,17 +1269,26 @@ export class MuskAgent {
     return [
       'Eres el asistente de WhatsApp de Escuela Musk. Hablas en español de España, con tú, cercano y profesional.',
       'Tu único objetivo es resolver dudas con información aprobada y conducir la conversación hacia una llamada con el equipo comercial. Nunca cierras una venta por WhatsApp.',
-      `Formación: ${this.content.formationName}`,
-      `Descripción general: ${this.content.generalDescription}`,
-      `Habilidades: ${this.content.skills.join('; ')}`,
-      `Salidas: ${this.content.outcomes.join('; ')}`,
-      `Metodología: ${this.content.methodology}`,
-      'Contenido aprobado (FAQ):',
-      faqLines,
       'Reglas duras (nunca incumplir):',
       spanishRules,
       'Referencia técnica de reglas (inglés):',
       hardRules,
+    ].join('\n');
+  }
+
+  // VOLATILE part of the LLM request: the per-call instruction plus the ONE
+  // approved source the model is allowed to word. The other FAQ answers of the
+  // profile are deliberately absent: the model must not be able to copy them.
+  //
+  // The instruction is written to the MODEL (not to the lead), in Spanish, as
+  // the rest of the prompt.
+  private buildRequestPrompt(entry: FaqEntry): string {
+    return [
+      this.systemPrompt,
+      'Instrucción de esta llamada: reformula la respuesta aprobada usando solo la información de la fuente.',
+      'No añadas números, precios, porcentajes, fechas, promesas ni hechos nuevos.',
+      'Si la fuente no responde a la pregunta, dilo claramente sin inventar nada.',
+      `Fuente aprobada (la única respuesta que puedes usar): ${entry.answer}`,
     ].join('\n');
   }
 }
