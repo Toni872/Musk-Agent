@@ -8,16 +8,25 @@
 
 ## 1. Resumen para decidir (1 minuto)
 
-Hoy el asistente conoce **una** formación (Curso de Desarrollo Full Stack) y responde **solo con contenido aprobado**.
+El perfil aprobado contiene el Curso de Desarrollo Full Stack; la respuesta inline
+posterior de Nicolás permite presentar las cinco formaciones a nivel general. El
+detalle completo de cada curso sigue fuera del alcance del MVP.
 
 Este documento propone cómo ampliarlo a todo el catálogo **sin perder precisión**:
 
 1. Una **ficha aprobada por curso** (nunca volcar los dossiers en bruto al agente).
 2. Un **router** que decide a qué curso se refiere el lead y, si no lo tiene claro, **pregunta** en vez de adivinar.
-3. **Reglas duras fuera del conocimiento**: precio, temario detallado, financiación y duración **no se "buscan" ni se generan**; se responden con plantilla aprobada o se derivan a una persona.
+3. **Reglas duras fuera del conocimiento**: precio, temario detallado y
+   condiciones de pago no se "buscan" ni se generan. Puede indicarse que existen
+   opciones de financiación y que la formación se completa en dos años con
+   flexibilidad; otros detalles de duración se derivan a una persona.
 4. Si no hay respuesta aprobada: **registrar la duda y proponer humano** (regla 5). Nunca inventar (regla 4).
 
-> ⚠️ **Aviso de alcance.** El alcance acordado del MVP es **una sola formación**, y `AGENTS.md` lista *"catálogo completo de cursos"* como **fuera de alcance**. Este documento es el artefacto para cambiar esa decisión: **requiere aprobación expresa** antes de implementar nada.
+> ⚠️ **Aviso de alcance.** Nicolás confirmó que se puede empezar con las cinco
+> formaciones a nivel de presentación general. El catálogo detallado completo
+> sigue fuera del alcance del MVP (`AGENTS.md`). Este documento propone ese nivel
+> de detalle y cualquier ampliación posterior; requiere aprobación expresa antes
+> de implementarse.
 
 ---
 
@@ -73,9 +82,11 @@ Prohibido:  syllabus | modules | temario | contenido_detallado
 Estos temas **nunca** se responden desde el conocimiento recuperado:
 
 - Precio e importes.
-- Condiciones de financiación (solo "existen opciones").
+- Condiciones de pago no aprobadas (están autorizadas las opciones de financiación
+  y la finalización flexible en dos años).
 - Temario detallado.
-- Duración exacta (mientras no haya respuesta aprobada).
+- Horas, fechas de inicio y otros detalles de duración; no el plazo de dos años
+  flexible que Nicolás ya confirmó.
 - Becas, descuentos y promociones no aprobadas.
 - Garantías de empleo o promesas de resultados.
 
@@ -152,7 +163,8 @@ Por **cada** curso, el mismo conjunto mínimo que ya exige `AGENTS.md`:
 
 1. Pregunta de **precio** → nunca da importes.
 2. Pregunta de **temario** → nunca da temario detallado.
-3. Pregunta de **financiación** → solo "existen opciones" + llamada.
+3. Pregunta de **financiación** → opciones y dos años flexibles para completar la
+   formación; nunca precios ni condiciones de pago.
 4. Pregunta **sin respuesta aprobada** → registra la duda y propone humano.
 5. Petición de **humano** → deriva.
 6. Petición de **parar** → se detiene.
@@ -170,7 +182,7 @@ Estas pruebas se amplían desde las 18 que ya existen en `musk/tests/rules.test.
 
 | Fase | Qué se hace | Requisito de entrada |
 |---|---|---|
-| **Fase 1 (actual)** | Piloto: **una** formación, simulador + reglas. | En curso. |
+| **Fase 1 (actual)** | Simulador y reglas; las cinco formaciones pueden aparecer a nivel general. | En curso. |
 | **Fase 2a** | Fichas por curso + router por campaña, en modo determinista (sin modelo). | Aprobación de alcance + contenido por curso. |
 | **Fase 2b** | Apoyo del modelo solo para *clasificar* intención y curso (nunca para datos). | Fase 2a validada. |
 | **Fase 3** | RAG con `pgvector` si el material crece. | Fase 2 medida y con volumen que lo justifique. |
@@ -197,6 +209,6 @@ Todo esto requiere tu decisión con Nicolás; las propuestas son por defecto, **
 2. **Lista de cursos** y **orden** de incorporación. *(Propuesta: los 3-5 más demandados primero.)*
 3. **Quién aprueba** el contenido de cada ficha y con qué SLA. *(Propuesta: Nicolás, con soporte de Script9 para redactar.)*
 4. **A qué curso apunta cada campaña** (mecanismo principal del router). *(Propuesta: 1 campaña = 1 curso.)*
-5. **Política de duración**: ¿respuesta aprobada o siempre derivar? *(Propuesta: derivar hasta que exista respuesta aprobada por curso.)*
+5. **Otros detalles de duración** (horas, calendario e inicio) por curso. El plazo flexible de dos años para completar la formación ya está confirmado; los demás detalles siguen derivándose.
 6. **Receptor de las dudas abiertas** y su cadencia de revisión. *(Propuesta: mismo receptor que los avisos de llamada.)*
 7. **Cursos con reglas específicas** (becas, promociones) que hoy no existen: ¿se contemplan? *(Propuesta: no, mientras no haya mensaje aprobado — regla 6.)*

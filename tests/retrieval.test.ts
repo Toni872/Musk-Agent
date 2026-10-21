@@ -28,7 +28,7 @@ const DIGIT = /\d/;
 // web" list of the source document.
 const FORBIDDEN_TOPICS: { id: string; pattern: RegExp }[] = [
   { id: 'price', pattern: /\b(precio|precios|cuesta|cuestan|coste|costos|euros?|tarifas?|importes?|caro|barato|dinero|gratis|gratuita)\b|€/i },
-  { id: 'financing', pattern: /\b(financia\w*|cuotas?|mensualidades?|becas?|subvenci\w*|descuentos?|promocion\w*|sin intereses)\b/i },
+  { id: 'financing', pattern: /\b(financia\w*|cuotas?|mensualidades?|becas?|subvenci\w*|descuentos?|promocion\w*|condiciones? de pago|forma de pago|intereses?|sin intereses)\b/i },
   { id: 'start-dates', pattern: /\b(fecha|convocatoria\w*|calendario|dedicaci\w*|duraci\w*|horas|meses|trimestres)\b/i },
   { id: 'refunds', pattern: /\b(devoluci\w*|reembols\w*|devuelve\w*|devuelvo)\b/i },
   { id: 'entry-requirements', pattern: /\b(requisitos|requisitos tecnicos|portatil|ordenador|equipo necesario)\b/i },
@@ -52,7 +52,12 @@ describe('knowledge base: the passages themselves', () => {
       expect(entry.title.trim().length).toBeGreaterThan(0);
       expect(entry.answer.trim().length).toBeGreaterThan(0);
       expect(entry.terms.length).toBeGreaterThan(0);
-      expect(entry.source).toContain('escuela-musk-base-conocimiento.md');
+      if (entry.id === 'kb-obj-no-tiempo') {
+        expect(entry.source).toContain('Nicolás');
+        expect(entry.source).toContain('correo de Miguel');
+      } else {
+        expect(entry.source).toContain('escuela-musk-base-conocimiento.md');
+      }
     }
   });
 
@@ -157,11 +162,38 @@ describe('knowledge base: the retrieval layer', () => {
       '¿hay becas o descuentos?',
       '¿tenéis una oficina física?',
       '¿hay calendario de convocatorias?',
+      '¿cuánto dura el curso?',
+      '¿cuántas horas lectivas son?',
+      '¿cuándo empieza la próxima convocatoria?',
+      '¿qué intereses y cuotas tiene el pago?',
+      '¿qué condiciones de pago tengo para completar la formación?',
       '¿qué requisitos técnicos necesito?',
     ]) {
       const outcome = retrieve(KB_PASSAGES, question);
       expect(outcome.match, `${question} must not be answered`).toBeNull();
       expect(outcome.refusal).toBe('forbidden-topic');
+    }
+  });
+
+  it('the explicitly approved completion window resolves to the time-objection passage', () => {
+    const outcome = retrieve(KB_PASSAGES, '¿Cuánto tiempo tengo para completar la formación?');
+
+    expect(outcome.match?.passage.id).toBe('kb-obj-no-tiempo');
+    expect(outcome.refusal).toBeNull();
+    expect(outcome.match?.passage.answer).toContain('dos años');
+    expect(outcome.match?.passage.answer).not.toMatch(/\d/);
+    expect(guardReply(outcome.match?.passage.answer ?? '').ok).toBe(true);
+  });
+
+  it('does not use the completion-window exception for hours, start dates or payment terms', () => {
+    for (const question of [
+      '¿Cuántas horas lectivas son para completar la formación?',
+      '¿Cuándo empieza el curso para completar la formación?',
+      '¿Qué intereses y cuotas tengo para completar la formación?',
+    ]) {
+      const outcome = retrieve(KB_PASSAGES, question);
+      expect(outcome.match, question).toBeNull();
+      expect(outcome.refusal, question).toBe('forbidden-topic');
     }
   });
 
@@ -182,6 +214,31 @@ describe('knowledge base: the retrieval layer', () => {
 });
 
 describe('knowledge base: the agent end to end', () => {
+  it('answers the approved completion-window question from the time-objection passage', async () => {
+    const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });
+    const result = await agent.runTurn('¿Cuánto tiempo tengo para completar la formación?');
+
+    expect(result.intent).toBe('kb');
+    expect(result.reply).toBe(passage('kb-obj-no-tiempo').answer);
+    expect(result.registeredDoubts).toEqual([]);
+    expect(result.ruleViolations).toEqual([]);
+  });
+
+  it('hours, start-date and payment-term questions still escalate instead of using the KB', async () => {
+    for (const question of [
+      '¿cuántas horas lectivas son?',
+      '¿cuándo empieza la próxima convocatoria?',
+      '¿qué condiciones de pago tengo para completar la formación?',
+    ]) {
+      const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });
+      const result = await agent.runTurn(question);
+
+      expect(result.intent, question).toBe('unknown');
+      expect(result.registeredDoubts, question).toEqual([question]);
+      expect(agent.records.some((record) => record.kind === 'kb' && record.detail.includes('kb ='))).toBe(false);
+    }
+  });
+
   it('answers a knowledge-base question with the passage and registers NO doubt', async () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });
     const result = await agent.runTurn('¿me dan certificado de la UE?');

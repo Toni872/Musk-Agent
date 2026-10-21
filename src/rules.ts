@@ -17,7 +17,7 @@ export interface RuleDefinition {
 export const RULES: RuleDefinition[] = [
   { id: 1, label: 'no-prices', summary: 'Never communicate prices or amounts; reply with the approved response and invite to the call.' },
   { id: 2, label: 'no-detailed-syllabus', summary: 'Never communicate a detailed syllabus; general content, skills and outcomes are allowed.' },
-  { id: 3, label: 'financing-generic', summary: 'Financing: only state that options exist and refer to the call; never give conditions.' },
+  { id: 3, label: 'financing-generic', summary: 'May state that financing options exist and the formation can be completed flexibly over two years; never give prices, amounts, interest, instalment terms or other unapproved payment conditions.' },
   { id: 4, label: 'approved-content-only', summary: 'Reply only with MUSK-approved information; never invent conditions, promotions, guarantees or job promises.' },
   { id: 5, label: 'register-doubt', summary: 'No approved answer: register the doubt and propose human contact.' },
   { id: 6, label: 'no-unapproved-offer', summary: 'No offer for no-compradores without a message previously approved by Nicolas; asking about price never authorizes amounts.' },
@@ -33,7 +33,7 @@ export const RULES: RuleDefinition[] = [
 export const FORBIDDEN_TOPICS = [
   { id: 'price', rules: [1, 6], description: 'Prices, amounts or fees of any kind.' },
   { id: 'detailed_syllabus', rules: [2, 10], description: 'Module-by-module or week-by-week syllabus detail.' },
-  { id: 'financing_conditions', rules: [3], description: 'Financing conditions, percentages or installment figures.' },
+  { id: 'financing_conditions', rules: [3], description: 'Unapproved financing conditions, interest, percentages or installment terms.' },
   { id: 'invented_promises', rules: [4], description: 'Invented promotions, guarantees or job promises.' },
 ] as const;
 

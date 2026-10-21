@@ -4,8 +4,9 @@ Anexo de `docs/pedido-nicolas.md`. El pedido original cierra **qué se dice** (m
 inicial, preguntas, presentación). Este documento cierra **cómo se comporta** la
 conversación: seguimiento, llamada, aviso y datos del lote.
 
-Estado: **propuesta, no enviada**. Nada de lo que hay aquí está acordado y nada
-se aplica al contenido aprobado sin tu visto bueno.
+Estado: propuesta operativa con decisiones parciales confirmadas en las respuestas
+inline de Nicolás al correo de Miguel (fecha no indicada en el material compartido).
+El resto sigue pendiente; la confirmación no autoriza envíos reales ni integración.
 
 Fecha: 19 de octubre de 2026.
 
@@ -42,7 +43,9 @@ de respuesta.
 
 ## 2. Cómo se ofrece la llamada
 
-**Qué necesitamos:** elegir una de estas tres formas.
+En la propuesta inicial se compararon estas tres formas; la respuesta posterior
+de Nicolás confirmó que el objetivo es conducir directamente a la entrevista o
+llamada:
 
 | Opción | Cómo suena | Ventaja | Coste |
 | --- | --- | --- | --- |
@@ -50,11 +53,13 @@ de respuesta.
 | b) Acordar día y hora | "¿Qué día y a qué hora te viene mejor?" | Llamada más probable | Necesita cobertura real en esa franja |
 | c) Pedir una franja | "¿Te va mejor por la mañana o por la tarde?" | Equilibrio entre las dos | Algo menos concreto |
 
-**Situación actual:** la muestra hace (b) y además acepta un teléfono si el lead
-lo escribe. Es una decisión tomada por defecto: hay que confirmarla o cambiarla.
+**Decisión confirmada:** el flujo debe ir directamente a la entrevista o llamada,
+con preguntas breves que conduzcan a esa conversación humana. La muestra pide un
+día y una hora convenientes, en una llamada sin presión. La disponibilidad real del
+equipo antes de prometer cualquier plazo sigue pendiente.
 
-**Propuesta:** (c) para la primera prueba, y pasar a (b) cuando haya cobertura
-confirmada en el apartado 4.
+**Estado:** el texto del perfil DEMO pregunta qué día y a qué hora viene bien. Es
+copy configurable; no supone una agenda automática ni confirma cobertura.
 
 ---
 
@@ -62,9 +67,11 @@ confirmada en el apartado 4.
 
 **Qué necesitamos:** qué señales bastan para proponerla.
 
-**Propuesta:** se ofrece cuando el lead ha respondido las dos preguntas de
-cualificación y no ha dicho que no. No se excluye a nadie: las respuestas se
-registran, no puntúan (la especificación lo prohíbe expresamente).
+**Decisión confirmada:** objetivo de llamada directa, sin cuestionario extenso. El
+perfil DEMO usa una pregunta breve sobre qué quiere conseguir el lead para orientar
+la llamada. Es una conversación, no un examen ni un filtro; no se puntúa ni se
+excluye a nadie. El texto se conserva configurable. Los marcadores del perfil
+aprobado siguen pendientes y no se han sustituido.
 
 Nada impide que el lead pida la llamada antes: en ese caso se ofrece en el acto.
 
@@ -72,15 +79,16 @@ Nada impide que el lead pida la llamada antes: en ese caso se ofrece en el acto.
 
 ## 4. Quién recibe el aviso y con cuánta cobertura
 
-**Qué necesitamos:** persona o grupo que recibe el aviso, horario en el que se
-atiende, y qué compromiso podemos escribirle al lead.
+**Decisión confirmada:** Laura recibe el aviso y decide a quién asignarlo. En este
+repositorio, Laura es solo el destino configurado de una notificación simulada: no
+se envía un WhatsApp real ni se integra el CRM.
 
-**Propuesta:** un grupo de WhatsApp comercial con la persona responsable, de
-lunes a viernes de 9:00 a 19:00. Al lead se le dice "el equipo se pone en
-contacto contigo", sin prometer un plazo (regla 8). Si se quiere prometer algo,
-tiene que ser un plazo que se cumpla siempre.
+**Pendiente:** confirmar la cobertura de Laura y el compromiso que puede asumir el
+equipo. Al lead no se le promete atención inmediata ni un plazo sin validar (regla
+8).
 
-**Qué desbloquea:** el aviso con contacto ya está construido; falta el destino.
+El aviso simulado incluye contacto y bolsa de origen para facilitar el enrutado
+manual.
 
 ---
 
@@ -125,17 +133,19 @@ mencionar algo, hace falta un mensaje aprobado por escrito antes de enviarlo.
 
 ## 8. Frases que conviene validar tal cual
 
-Estas ya están en el código y son las que el lead puede leer. Solo necesitan un
-"vale" o una corrección:
+Las respuestas de precio y financiación están confirmadas por Nicolás en su
+respuesta inline y el texto se conserva configurable en los perfiles. El resto de
+la redacción que sigue pendiente no se considera firmada:
 
-- **Precio:** "No puedo compartir el precio ni los importes por aquí. Lo
-  conversamos con detalle en una llamada con el equipo y te resolvemos todas las
-  dudas. ¿Me dejas tu contacto o un momento en el que te venga bien que te
-  llamen?"
+- **Precio:** "No puedo compartir precios por aquí. Sí hay opciones de financiación
+  y tienes dos años para completar la formación con flexibilidad. El equipo te lo
+  explica en una llamada."
 - **Temario:** respuesta que remite a la llamada y explica que el detalle se ve
   con una persona, sin listar módulos.
-- **Financiación:** se indica que existen opciones y se remite a la llamada, sin
-  condiciones.
+- **Financiación y tiempo:** "Sí, hay opciones de
+  financiación. Tienes dos años para completar la formación con flexibilidad. El
+  equipo puede explicarte las opciones en una llamada." No incluye precio, importe,
+  intereses, condiciones de cuotas ni otras condiciones de pago.
 
 Los ajustes de redacción ya propuestos están en el apartado 5 y 7 del pedido
 original; no se repiten aquí.

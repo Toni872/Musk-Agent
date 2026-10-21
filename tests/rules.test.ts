@@ -59,8 +59,10 @@ describe('mandatory rule tests', () => {
     const result = await agent.runTurn('¿hay financiación?');
 
     expect(result.intent).toBe('financiacion');
+    expect(result.reply).toBe(APPROVED_CONTENT.financingReply);
     expect(result.reply).toMatch(/opciones/i);
-    expect(result.reply).toMatch(/llamada|persona|equipo/i);
+    expect(result.reply).toMatch(/dos años.*flexibilidad/i);
+    expect(result.reply).toMatch(/llamada/i);
     expect(result.reply).not.toMatch(/\d|%|€/i); // no amounts, no percentages
     expect(result.reply).not.toMatch(/sin intereses|inter[eé]s cero|cuotas fijas|garantiz/i); // no conditions, no promises
     expect(result.ruleViolations).toHaveLength(0);
@@ -274,11 +276,50 @@ describe('mandatory rule tests', () => {
   });
 });
 
+describe('respuestas de precio y financiación configuradas por perfil', () => {
+  it('usa el copy autorizado y protegido en ambos perfiles, incluido el precio y la objeción «es caro»', async () => {
+    expect(APPROVED_CONTENT.priceReply).toBe(DEMO_CONTENT.priceReply);
+    expect(APPROVED_CONTENT.financingReply).toBe(DEMO_CONTENT.financingReply);
+
+    for (const content of [APPROVED_CONTENT, DEMO_CONTENT]) {
+      const priceAgent = new MuskAgent({ content, provider: null, lead });
+      for (const message of ['¿cuánto cuesta?', 'es caro']) {
+        const price = await priceAgent.runTurn(message);
+        expect(price.intent).toBe('price');
+        expect(price.reply).toBe(content.priceReply);
+        expect(price.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
+        expect(guardReply(price.reply).ok).toBe(true);
+        expect(price.ruleViolations).toEqual([]);
+      }
+
+      const financingAgent = new MuskAgent({ content, provider: null, lead });
+      const financing = await financingAgent.runTurn('¿hay financiación?');
+      expect(financing.intent).toBe('financiacion');
+      expect(financing.reply).toBe(content.financingReply);
+      expect(financing.reply).toContain('dos años');
+      expect(financing.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
+      expect(guardReply(financing.reply).ok).toBe(true);
+      expect(financing.ruleViolations).toEqual([]);
+    }
+  });
+
+  it('conserva las plantillas anteriores como fallback de un perfil sin copy específico', async () => {
+    const content = { ...APPROVED_CONTENT, priceReply: undefined, financingReply: undefined };
+    const agent = new MuskAgent({ content, provider: null, lead });
+
+    expect((await agent.runTurn('¿cuánto cuesta?')).reply).toBe(buildReply('price'));
+    expect((await agent.runTurn('¿hay financiación?')).reply).toBe(buildReply('financing'));
+  });
+});
+
 describe('structural guards', () => {
   // Content schema: no price/amount fields, no syllabus field, no money text.
   it('content.ts schema has no price/temario fields nor money text', () => {
     const keys = Object.keys(APPROVED_CONTENT);
-    expect(keys.some((key) => /price|precio|amount|importe|cost|fee|budget|temario|syllabus|curriculum|financ/i.test(key))).toBe(
+    expect(keys.some((key) =>
+      /price|precio|amount|importe|cost|fee|budget|temario|syllabus|curriculum|financ/i.test(key) &&
+      !['priceReply', 'financingReply'].includes(key),
+    )).toBe(
       false,
     );
     const json = JSON.stringify(APPROVED_CONTENT);
@@ -343,6 +384,21 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     expect(agent.pendingDecisions).toHaveLength(0);
   });
 
+  it('la pregunta y el cierre de DEMO son breves, configurables y plantean una pregunta cada vez', () => {
+    const question = DEMO_CONTENT.qualificationQuestions[0]?.text ?? '';
+    const closing = DEMO_CONTENT.closingInvitation ?? '';
+
+    expect(DEMO_CONTENT.qualificationQuestions).toHaveLength(1);
+    expect(DEMO_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
+    expect(question).toBe('¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.');
+    expect(closing).toBe('El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien?');
+    expect(closing.length).toBeLessThanOrEqual(200);
+    expect((question.match(/\?/g) ?? [])).toHaveLength(1);
+    expect((closing.match(/\?/g) ?? [])).toHaveLength(1);
+    expect(guardReply(question).ok).toBe(true);
+    expect(guardReply(closing).ok).toBe(true);
+  });
+
   // Rule 4: a TODO(decisión) placeholder is not lead-facing content. While the
   // initial message is still open with MUSK, nothing is sent and the item stays
   // visible as a pending decision instead of being invented.
@@ -372,20 +428,20 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   it('cualificación (DEMO): una pregunta cada vez, en orden y sin excluir', async () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
 
-    expect(agent.nextQualificationQuestion()?.id).toBe('starting-experience');
+    expect(agent.nextQualificationQuestion()?.id).toBe('goal');
     // Una cada vez: con un ask armado no se pregunta otra cosa, porque la
     // respuesta del lead acabaría archivada contra la pregunta equivocada.
     expect(agent.nextQualificationQuestion()).toBeNull();
 
-    await agent.runTurn('parto de cero');
-    expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
-    expect(agent.nextQualificationQuestion()).toBeNull();
-
-    await agent.runTurn('lo antes posible');
+    const goal = await agent.runTurn('Quiero cambiar de sector');
+    expect(goal.capturedAnswer?.questionId).toBe('goal');
+    expect(goal.reply).toBe(
+      `Entiendo: buscas prepararte para cambiar de sector. ${DEMO_CONTENT.closingInvitation}`,
+    );
     // Sin preguntas aprobadas pendientes: el flujo pasa a la llamada.
     expect(agent.nextQualificationQuestion()).toBeNull();
 
-    expect(agent.records.filter((record) => record.kind === 'question')).toHaveLength(2);
+    expect(agent.records.filter((record) => record.kind === 'question')).toHaveLength(1);
     expect(agent.isStopped).toBe(false);
   });
 
@@ -426,7 +482,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
       await demo.runTurn('sí');
       question = demo.nextQualificationQuestion();
     }
-    expect(asked).toBe(2);
+    expect(asked).toBe(1);
 
     // The approved profile keeps both items open: nothing is invented.
     const approved = new MuskAgent({ content: APPROVED_CONTENT, lead });

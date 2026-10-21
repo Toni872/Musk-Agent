@@ -61,7 +61,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 189 tests, informe del bucle de evaluación y empaquetado de la interfaz. |
+| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 209 tests, informe del bucle de evaluación y empaquetado de la interfaz. |
 | Traza de tokens, latencia y coste | Parcial | Hoy el modo por defecto es determinista (0 tokens). Si se enciende la reformulación con LLM, cada turno debe registrar tokens, latencia y coste. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
@@ -92,10 +92,11 @@ irreversibles o con coste.
 
 ## 8. Aprobaciones de MUSK (no son técnicas)
 
-1. Los cuatro `TODO(decisión)` de contenido: mensaje inicial, presentación de MUSK y
-   las dos preguntas de cualificación (`docs/pedido-nicolas.md`).
-2. Decisiones de operación: receptor y cobertura del aviso, mecanismo de llamada,
-   cadencia y reglas de parada, datos del lote, resultado de la llamada
+1. Los cuatro `TODO(decisión)` del perfil aprobado: mensaje inicial, presentación
+   de MUSK y las dos preguntas aún pendientes (`docs/pedido-nicolas.md`). La DEMO
+   usa una pregunta de objetivo orientada a la llamada.
+2. Decisiones de operación aún abiertas: cobertura de Laura, cadencia y reglas de
+   parada, datos del lote y resultado de la llamada
    (`docs/decisiones-operativas-nicolas.md`).
 3. Base legal, privacidad y transparencia del lote real; tamaño de muestra y fecha de
    lanzamiento.

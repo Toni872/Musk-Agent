@@ -1,7 +1,9 @@
 # Pedido de contenido a Nicolás (Escuela Musk)
 
-Estado: **propuesta enviada — pendiente de respuesta de Nicolás**. Nada de lo que
-hay aquí está acordado.
+Estado: propuesta enviada con respuestas parciales de Nicolás recibidas inline en
+el correo de Miguel (fecha no indicada en el material compartido). Las secciones
+que siguen marcadas como propuestas continúan pendientes; las confirmaciones se
+registran en el apartado 10 y no implican que el contenido completo esté firmado.
 
 Fecha: 17 de octubre de 2026. Revisión de dialecto y registro: 18 de octubre de
 2026 (apartados 5 a 7).
@@ -34,9 +36,13 @@ Es lo primero que recibe el lead por WhatsApp. Propuesta:
 
 Pendiente en el código: `initialMessage` de `src/content.ts`.
 
-## 2. Preguntas de cualificación
+## 2. Preguntas de cualificación (propuesta original, sustituida en la DEMO)
 
-Serán solo dos, para no cansar al lead. Ninguna puntúa ni excluye a nadie.
+La propuesta original planteaba dos preguntas; la respuesta posterior de Nicolás
+priorizó ir directamente a la entrevista o llamada, no hacer una cualificación
+extensa. La DEMO usa ahora una única pregunta breve sobre el objetivo del lead,
+como conversación para orientar la llamada. No es un examen ni un filtro. El
+contenido aprobado conserva sus marcadores `TODO(decisión)` y no se ha modificado.
 
 - ¿Has estudiado o trabajado algo relacionado con programación, o empezarías
   desde cero?
@@ -185,7 +191,7 @@ el contenido aprobado (`src/content.ts`) no recibe copy nuevo sin firmar.
    leads reales, aunque no cambie una sola palabra del texto aprobado: por eso
    conviene confirmarlo.
 
-## 9. Copy de la base de conocimiento (35 pasajes, pendiente de aprobación)
+## 9. Copy de la base de conocimiento (pendiente de aprobación, salvo excepción indicada)
 
 La Fase 0 añade una **capa de base de conocimiento**: `src/kb.ts` guarda como
 datos 35 pasajes de `escuela-musk-base-conocimiento.md` (qué es la escuela, el
@@ -196,22 +202,24 @@ determinista (BM25 + cobertura de términos, **sin LLM, sin embeddings y sin
 dependencias**). Cada pasaje lleva su **propia** respuesta breve para el lead:
 el documento de origen es una fuente, nunca se envía entero (regla 10).
 
-**Los 35 textos de respuesta son copy nuevo de cara al lead y, como todo el
-contenido de este repositorio, van como propuesta: no están firmados.** Por
+Los textos de respuesta son copy de cara al lead y, como todo el contenido de
+este repositorio, van como propuesta: no están firmados, **salvo el pasaje sobre
+el plazo flexible de finalización**, cuyo dato concreto sí confirmó Nicolás en
+su respuesta inline. Esa confirmación no firma el resto de la base. Por
 eso viven **solo en el perfil de ejemplo** (`src/content.demo.ts`); el
 contenido aprobado (`src/content.ts`) no lleva la base de conocimiento y, sin
 ella, el agente se comporta exactamente como hasta ahora (reglas 4 y 11).
 
 Lo que sí se puede afirmar de este copy, y lo que comprueban los tests:
 
-- **No contiene ninguna cifra**: ni precios, ni importes, ni salarios, ni
-  porcentajes, ni horas, ni duraciones. Un test recorre los 35 pasajes y falla
-  si encuentra un solo dígito en una respuesta.
+- **No contiene cifras numéricas**: ni precios, importes, salarios, porcentajes u
+  horas. El plazo confirmado de dos años se escribe con palabras, sin dígitos.
 - **No contiene el temario detallado**: sí el contenido general, las
   habilidades (el stack de cada formación) y las salidas profesionales, que es
   lo que permite la regla 2. Ni un módulo a módulo.
-- **No contiene ningún tema prohibido**: precio, condiciones de financiación,
-  fechas de inicio, calendario, dedicación semanal, devoluciones, becas o
+- **No contiene temas de pago no autorizados**: precio, importes, intereses,
+  cuotas u otras condiciones. Las fechas de inicio, calendario, dedicación
+  semanal, devoluciones, becas o
   bonificaciones, requisitos técnicos de acceso, condiciones del convenio de
   prácticas ni ubicación física de la escuela. Esos temas **escalan siempre** a
   una persona (regla 5), y la capa lo garantiza con una lista explícita de
@@ -226,8 +234,9 @@ Lo que sí se puede afirmar de este copy, y lo que comprueban los tests:
 
 Lo que necesita Nicolás:
 
-1. **Validar o corregir los 35 textos de respuesta** (son propuesta, no
-   acuerdo). Los que más conviene revisar: la descripción de la escuela, el
+1. **Validar o corregir los textos de respuesta pendientes** (son propuesta, no
+   acuerdo). El plazo flexible de finalización es la excepción ya confirmada. Los
+   que más conviene revisar: la descripción de la escuela, el
    método, la certificación ARP y las tres certificaciones específicas, las
    cinco formaciones con su stack y sus salidas, y las cinco objeciones
    ("no tengo tiempo", "no me fío de las academias", "la IA me va a quitar el
@@ -237,8 +246,8 @@ Lo que necesita Nicolás:
    salarios, las horas, las fechas, los precios y las inconsistencias internas
    de la web (apartado 9 del documento de origen). Si Nicolás quiere alguno de
    esos datos, **no** se añaden aquí: el producto no comunica cifras (regla 1).
-3. **Confirmar el encaje con las cuatro decisiones abiertas** (formación
-   elegida, mensaje inicial, cualificación, presentación de MUSK): la base de
+3. **Confirmar el encaje con las decisiones de contenido que siguen abiertas**
+   (mensaje inicial, cualificación del perfil aprobado, presentación de MUSK): la base de
    conocimiento amplía lo que el agente sabe, pero no cierra ninguna de las
    cuatro.
 
@@ -247,10 +256,14 @@ Lo que necesita Nicolás:
 - Sin precios ni importes (regla 1).
 - Sin temario detallado; sí contenido general, habilidades y salidas (regla 2).
 - Sin promesas de empleo ni condiciones inventadas (regla 4).
+- Nicolás confirmó que existen opciones de financiación y que la formación se
+  puede completar en dos años con flexibilidad. Precio, importes, intereses,
+  cuotas y otras condiciones de pago siguen fuera del contenido aprobado.
 - Las preguntas de cualificación no llevan examen, puntuación ni exclusión
   automática.
-- La base de conocimiento (apartado 9) no comunica ninguna cifra y deja fuera
-  los temas que deben escalar a una persona.
+- La base de conocimiento no contiene dígitos; el pasaje de tiempo confirmado
+  puede expresar «dos años» con palabras. Los demás temas que deben escalar siguen
+  bloqueados.
 
 ## Qué ocurre cuando estos puntos estén cerrados
 
@@ -268,3 +281,24 @@ Lo que necesita Nicolás:
    `KB_PASSAGES` a `ApprovedContent.kb` en `src/content.ts` y se retiran de
    `src/content.demo.ts`. Hasta entonces, el contenido aprobado se comporta
    como siempre.
+
+## 10. Respuestas confirmadas por Nicolás (correo de Miguel)
+
+Estas decisiones se implementan como datos editables en los perfiles de contenido;
+no se han codificado como textos rígidos de la máquina de estados:
+
+- **Formaciones:** se puede empezar con las cinco a nivel de presentación general.
+  No hace falta preparar ahora el catálogo detallado completo.
+- **Objetivo de conversación:** llevar al lead directamente a la entrevista o
+  llamada. Las preguntas deben conducir a esa conversación, no convertirse en un
+  cuestionario extenso.
+- **Financiación y tiempo:** se puede decir que hay opciones de financiación y que
+  la formación se puede completar en dos años con flexibilidad. No se autorizan
+  precios, importes, intereses, condiciones de cuotas ni otras condiciones de pago.
+- **Aviso:** Laura es la destinataria y decide a quién asignarlo. En este repositorio
+  el destino es solo simulado; no se envía un WhatsApp real ni se integra el CRM.
+
+La pregunta y el cierre del perfil DEMO son copy configurable; otros contenidos de
+la DEMO y la base de conocimiento siguen pendientes de firma. Estas confirmaciones
+no cierran la cobertura real de Laura, el canal, la privacidad ni las demás
+decisiones previas al piloto.

@@ -7,12 +7,11 @@
 //
 // Two independent gates, in this order:
 //
-//  1. FORBIDDEN_TOPIC_PATTERNS — the topics that must ALWAYS escalate to a
-//     human (price, financing, start dates, refunds, scholarships, physical
-//     location, entry requirements, the conditions of the internship
-//     agreement). A query that matches one of them is refused OUTRIGHT,
-//     whatever it scores. The list is closed, small and auditable: it is the
-//     same list the source document marks as "no consta en la web" (§8).
+//  1. FORBIDDEN_TOPIC_PATTERNS — topics that must ALWAYS escalate to a human
+//     (price, financing, hours, start dates, refunds, scholarships, physical
+//     location, entry requirements and internship conditions). The only narrow
+//     duration exception is a question explicitly about time to complete the
+//     formation, approved by Nicolás as two years with flexibility.
 //
 //  2. The score thresholds — a passage is a match only when it clears BOTH
 //     the BM25 score AND the term coverage. Below them the behaviour is
@@ -104,10 +103,9 @@ export const STOPWORDS: ReadonlySet<string> = new Set([
 
 // Topics that must ALWAYS escalate to a human, whatever the score. The list
 // mirrors the "no consta en la web" section of the source document (§8) and
-// the exclusions of the MVP scope: price, financing conditions, start dates
-// and calendar, weekly dedication, detailed syllabus, entry requirements,
-// refunds, scholarships, the conditions of the internship agreement and the
-// physical location of the school.
+// the exclusions of the MVP scope. Completion-window queries are admitted only
+// when they explicitly ask how long the lead has to complete/finish the course;
+// hours, schedules, start dates and payment terms remain forbidden.
 //
 // The patterns are tested against the FOLDED text (lowercase, accents
 // stripped), so they are written without accented characters.
@@ -120,12 +118,21 @@ export const FORBIDDEN_TOPIC_PATTERNS: { id: string; pattern: RegExp }[] = [
   {
     id: 'financing',
     pattern:
-      /\b(financia\w*|cuotas?|mensualidades?|a plazos|pago a plazos|becas?|subvencion\w*|descuentos?|promocion\w*|sin intereses|interes cero|plan de pago)\b/,
+      /\b(financia\w*|cuotas?|mensualidades?|a plazos|pago a plazos|pago|pagar|condiciones? de pago|forma de pago|intereses?|aplaz\w*|becas?|subvencion\w*|descuentos?|promocion\w*|sin intereses|interes cero|plan de pago)\b/,
+  },
+  {
+    id: 'course-duration',
+    pattern:
+      /\b(cuanto dura|cuanto duran|cuanto tiempo|duracion|cuantos meses|cuantas semanas|meses|semanas)\b/,
+  },
+  {
+    id: 'course-hours',
+    pattern: /\b(?:cuantas horas|cuantos horas|horas lectivas|horas)\b/,
   },
   {
     id: 'start-dates-and-schedule',
     pattern:
-      /\b(cuanto dura|cuanto duran|duracion|cuantas horas|cuantos meses|horas|cuando empieza|cuando comienza|cuando hay|fecha de inicio|fecha de comienzo|convocatorias?|calendario|dedicacion|empezar el|empieza el|empieza la|empezar la|arranque)\b/,
+      /\b(cuando empieza|cuando comienza|cuando hay|fecha de inicio|fecha de comienzo|convocatorias?|calendario|dedicacion|empezar el|empieza el|empieza la|empezar la|arranque)\b/,
   },
   {
     id: 'refunds',
@@ -304,7 +311,14 @@ export function retrieve(passages: KbPassage[], query: string): RetrievalOutcome
   // Gate 1: the topics that must always escalate. Checked on the folded text
   // (not on the stemmed tokens) so it does not depend on the stopword list.
   const folded = normalizeEs(query);
-  const forbidden = FORBIDDEN_TOPIC_PATTERNS.find((entry) => entry.pattern.test(folded));
+  const asksApprovedCompletionWindow =
+    /\b(completar|terminar|finalizar|acabar)\b/.test(folded) &&
+    /\b(cuanto|cuantos|cuantas|tiempo|plazo|duracion|ano|anos|meses|semanas)\b/.test(folded);
+  const forbidden = FORBIDDEN_TOPIC_PATTERNS.find(
+    (entry) =>
+      entry.pattern.test(folded) &&
+      !(entry.id === 'course-duration' && asksApprovedCompletionWindow),
+  );
 
   if (documents.length === 0 || queryTerms.length === 0) {
     return {

@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **189 passed**, todo está correcto y ya puedes arrancar el simulador.
+    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **209 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -36,7 +36,7 @@ npm run sim
 
 Al arrancar verás primero una nota técnica: el bloque `--- opening ---` con el mensaje de apertura (o el aviso de que ese texto sigue pendiente de que lo cerréis con nosotros) y la lista `pending` de lo que todavía falta por aprobar. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
 
-Si además quieres ver el flujo **completo** (mensaje de apertura + las dos preguntas de cualificación), ejecuta `npm run sim:demo`. Ese modo usa un contenido de **ejemplo que no está aprobado por MUSK**: sirve solo para ver la forma del flujo hasta que cerréis esos textos con nosotros.
+Si además quieres ver el flujo **completo** (mensaje de apertura + pregunta breve sobre el objetivo + propuesta de llamada), ejecuta `npm run sim:demo`. Ese modo usa contenido de **ejemplo**: la orientación directa a la llamada y las respuestas de financiación están confirmadas; los demás textos de muestra siguen pendientes de validación.
 
 Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor con una interfaz de chat (y un desplegable para alternar entre el contenido real y el de ejemplo). Para cerrarlo, pulsa `Ctrl+C` en la terminal.
 
@@ -47,7 +47,7 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 | 1 | `Hola` | El asistente saluda |
 | 2 | `¿es online o presencial?` | Explica que es online, con clases en directo |
 | 3 | `¿cuánto cuesta?` | **NO da precios**; dice que se habla en una llamada |
-| 4 | `¿hay financiación?` | Dice que existen opciones; no da condiciones |
+| 4 | `¿hay financiación?` | Indica que hay opciones y que puedes completar la formación en dos años con flexibilidad; no da precios ni condiciones de pago |
 | 5 | `¿me pasáis el temario?` | **NO da el temario detallado**; ofrece el contenido general |
 | 6 | `¿cuánto dura el curso?` | No hay respuesta aprobada: lo registra como duda y propone que os contacten |
 | 7 | `me parece muy caro` | Sin importes, invita a la llamada |
@@ -59,12 +59,12 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 
 1. **Nunca** comunica precios ni importes (ni €, ni "euros", ni cifras).
 2. **Nunca** comunica el temario detallado.
-3. Financiación: solo dice que existen opciones y remite a la llamada.
+3. Financiación: indica las opciones y el plazo flexible de dos años; nunca da precios, importes, intereses, cuotas ni otras condiciones de pago.
 4. Ante algo sin respuesta aprobada: registra la duda y propone contacto humano, sin inventar.
 5. "no me interesa" → trato amable y sin presión; no se confunde con una parada.
 6. "no me escribáis más" → respeta el rechazo y detiene el seguimiento.
 7. El flujo completo termina en una llamada humana (nunca vende por WhatsApp).
-8. Cuando respondéis a una de sus preguntas de cualificación (por ejemplo `parto de cero`), el asistente **anota la respuesta y sigue con la pregunta siguiente**, sin mandaros un mensaje de acuse aparte. Y cuando ya no le queda ninguna pregunta por hacer, **cierra proponiendo la llamada**: «¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?». Esa frase no es nueva — es la misma con la que responde cuando preguntáis el precio —, así que no hay nada que redactar; decidnos si os encaja **ese momento**.
+8. La DEMO pregunta una vez qué quiere conseguir el lead, guarda su respuesta y propone directamente la llamada. Es una pregunta de conversación, no un examen ni un filtro. El cierre pide un día y una hora convenientes; el texto se puede cambiar en el perfil.
 
 Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumno real); todas deben caer en alguno de los comportamientos anteriores.
 
@@ -77,6 +77,6 @@ Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumn
 ## 7. Notas
 
 - Todo es **local y simulado**: no hay canal real, no hay leads reales, no se sube nada a internet.
-- El contenido es el del **piloto (Curso de Desarrollo Full Stack)** trabajado desde el dossier; la redacción final está pendiente de vuestra validación.
+- La presentación general puede incluir las cinco formaciones; no hace falta ahora un catálogo detallado. La DEMO conserva otros textos de muestra, que siguen pendientes de validación.
 - Si algo falla o aparece un error, **copiad el mensaje de error** y enviádselo a Script9 tal cual.
 - Si ves un error `EPERM` o una ruta que empieza por `C:\WINDOWS\system32`, es que la terminal se abrió fuera de la carpeta del proyecto (habitualmente porque se abrió como administrador). Cierra esa ventana y repite el paso 2.

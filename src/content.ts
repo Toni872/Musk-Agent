@@ -1,4 +1,4 @@
-// Approved-content model for the ONE formation under validation.
+// Approved-content model for MUSK's conversational lead-capture flow.
 //
 // Pilot formation: "Curso de Desarrollo Full Stack" (chosen with NIC/MUSK as the
 // most in-demand profile). Curated from MUSK's own official FullStack dossier:
@@ -6,8 +6,9 @@
 // and the detailed syllabus (hard rules 1, 2 and 10). Final wording sign-off with
 // MUSK is still pending for the items marked TODO(decisión).
 //
-// Schema guard: this model intentionally has NO price/amount fields and NO
-// syllabus/temario field (hard rules 1, 2 and 10). Do not add them.
+// Schema guard: this model has no numeric price/amount data and NO
+// syllabus/temario field (hard rules 1, 2 and 10). Approved response copy may
+// explain the no-price policy and financing options without payment terms.
 //
 // Hard-rule guard: every lead-facing string here must pass rules.guardReply
 // (no currency, no percentages, no "módulo N", no promotions, no job promises).
@@ -60,6 +61,13 @@ export interface ApprovedContent {
   // (REPLY_TEMPLATES.callProposal), so a profile can sharpen the close without
   // inventing copy at runtime (rule 11).
   closingInvitation?: string;
+  // Operator-approved, profile-configurable copy for guarded commercial intents.
+  // These are complete responses, not amounts or payment-condition data; every
+  // emitted value is still checked by guardReply (rules 1, 3, 4 and 11).
+  priceReply?: string;
+  financingReply?: string;
+  // Simulation target for the handoff notice. This does not send a real message.
+  handoffRecipient?: string;
   // Profile-specific second acknowledgement of a rule-5 doubt, used when the
   // same doubt reply would be sent twice in a row. It is NEVER sent unless the
   // profile provides it: a profile without it falls back to the bare approved
@@ -113,6 +121,11 @@ export const APPROVED_CONTENT: ApprovedContent = {
     'Método práctico y gamificado (aprender haciendo): retos, quizzes y puzzles de lógica, acompañamiento continuo del equipo docente con, como mínimo, una tutoría semanal, clases en directo y workshops, comunidad de desarrollo y orientación para la empleabilidad, con prácticas en empresas colaboradoras.',
   companyPresentation:
     'TODO(decisión): presentación de MUSK (qué es la empresa, su equipo y su propuesta) — pendiente de Nicolas; la spec §3.6 la exige como contenido mínimo y §8.1 la lista como información a aportar',
+  priceReply:
+    'No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada.',
+  financingReply:
+    'Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada.',
+  handoffRecipient: 'Laura',
   // FAQ = routing table from a lead message to ALREADY-APPROVED content.
   //
   // Order is significant: findApprovedAnswer() returns the FIRST entry whose

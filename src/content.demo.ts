@@ -5,12 +5,12 @@
 // purpose (src/content.ts). This profile is loaded ONLY with `--demo` and is
 // clearly labelled as a sample at runtime.
 //
-// It is NOT a decision taken with Nicolas: every value here is a proposal and
-// must be replaced by APPROVED_CONTENT once MUSK decides formation, FAQ, initial
-// message and qualification questions (AGENTS.md "decisiones abiertas").
+// It is not a complete sign-off of this profile: only the call-first approach,
+// approved financing statement and notification routing are confirmed. Other
+// demo copy remains a proposal and must not be treated as approved for live use.
 //
-// Schema guard kept: no price/amount fields and no syllabus/temario field, and
-// no money text (hard rules 1, 2, 10).
+// Schema guard kept: no numeric price/amount data and no syllabus/temario field
+// (hard rules 1, 2, 10).
 
 import type { ApprovedContent } from './content';
 import { KB_PASSAGES } from './kb';
@@ -35,6 +35,12 @@ export const DEMO_CONTENT: ApprovedContent = {
   // because MUSK has not provided its own company presentation yet.
   companyPresentation:
     'MUSK es la escuela de formación tecnológica que imparte esta formación (muestra de demo, pendiente de aprobación de MUSK).',
+  priceReply:
+    'No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada.',
+  financingReply:
+    'Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada.',
+  // Simulated notification destination only; no WhatsApp message is sent.
+  handoffRecipient: 'Laura',
   // Same specific-to-general order as APPROVED_CONTENT: findApprovedAnswer()
   // returns the FIRST keyword match, so the broad 'informacion' entry is last.
   faq: [
@@ -99,7 +105,9 @@ export const DEMO_CONTENT: ApprovedContent = {
     },
     {
       id: 'duracion',
-      keywords: ['cuanto dura', 'duracion', 'cuanto tiempo', 'cuantos meses', 'cuantas semanas'],
+      // A broad "cuánto tiempo" match would steal the specifically approved
+      // completion-window question from the deterministic knowledge base.
+      keywords: ['cuanto dura', 'duracion', 'cuantos meses', 'cuantas semanas'],
       answer:
         'Es un programa pensado para compaginarlo con tu día a día: clases en directo y trabajo por proyectos a tu ritmo entre sesiones.',
     },
@@ -120,6 +128,8 @@ export const DEMO_CONTENT: ApprovedContent = {
         'que ensenais',
         'cursos hay',
         'formaciones hay',
+        'cuentame sobre los cursos',
+        'hablame de los cursos',
       ],
       // Short on purpose: this is a lead-capture agent, not a brochure. The
       // full program detail lives in the knowledge base (kb-catalogo-*), which
@@ -135,6 +145,8 @@ export const DEMO_CONTENT: ApprovedContent = {
         'dame informacion',
         'de que va',
         'en que consiste',
+        'explicame la formacion',
+        'que es la formacion',
         'cuentame mas',
         'cuentame',
         'mas sobre',
@@ -142,47 +154,33 @@ export const DEMO_CONTENT: ApprovedContent = {
         'dime mas',
       ],
       answer:
-        'Claro. Es una formación práctica y acompañada para dar el salto profesional en el sector tecnológico, trabajando por proyectos reales desde el primer día. Si quieres, te cuento más o lo vemos con detalle con el equipo.',
+        'Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo.',
     },
   ],
   qualificationQuestions: [
     {
-      id: 'starting-experience',
-      text: 'Para no hacerte perder tiempo: ¿partes de cero o ya has tocado algo de programación?',
-      purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
-      // Answer-specific, so two different leads never read the same line.
+      id: 'goal',
+      text: '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.',
+      purpose: 'A brief conversation prompt to understand the lead’s goal and move toward a call; not an exam or screening.',
       reactions: [
         {
-          keywords: ['de cero', 'de 0', 'parto de 0', 'cero', 'nada', 'no tengo experiencia', 'poca', 'ninguna'],
-          say: 'Perfecto, entonces lo enfocamos desde los fundamentos.',
+          keywords: ['optar a una plaza', 'plaza'],
+          say: 'Entiendo: quieres ampliar conocimientos para optar a una plaza.',
         },
         {
-          keywords: ['algo', 'algun', 'he tocado', 'un poco', 'se algo', 'programado', 'trabajo', 'experiencia'],
-          say: 'Bien, entonces partimos de lo que ya sabes.',
-        },
-      ],
-    },
-    {
-      id: 'time-interest',
-      text: '¿Y cuándo te encajaría empezar: lo antes posible o más adelante?',
-      purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
-      reactions: [
-        {
-          keywords: ['lo antes posible', 'cuanto antes', 'cuando antes', 'pronto', 'este mes', 'inmediato', 'ya'],
-          say: 'Genial, mejor no dejarlo para más adelante.',
+          keywords: ['cambiar de sector', 'cambiar de trabajo'],
+          say: 'Entiendo: buscas prepararte para cambiar de sector.',
         },
         {
-          keywords: ['meses', 'mas adelante', 'despues', 'ano que viene', 'verano', 'tranquil', 'no tengo prisa'],
-          say: 'Sin problema, así lo tienes claro para cuando te decidas.',
+          keywords: ['conocimientos', 'aprender'],
+          say: 'Entiendo: quieres ampliar tus conocimientos en el área tecnológica.',
         },
       ],
     },
   ],
-  // Sharper close than the generic sentence: names what the call gives and asks
-  // for a concrete day and time instead of an open "when suits you" (rule 8:
-  // no pressure, no promise of immediate attention).
+  // Short call-first wording, stored in the profile so it remains easy to revise.
   closingInvitation:
-    'Con lo que me cuentas, lo más útil es que lo veas con una persona del equipo: te explican el programa con detalle, resuelven tus dudas y no te compromete a nada. ¿Qué día y a qué hora te viene mejor que te llamemos?',
+    'El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien?',
   // Profile-specific second acknowledgement of a rule-5 doubt (see
   // MuskAgent.neverRepeat). It lives HERE and not in the shared templates
   // because it is not approved by MUSK yet (rules 4 and 11): a profile without

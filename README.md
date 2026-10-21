@@ -1,6 +1,6 @@
 # MUSK — Arnés de simulación conversacional (MVP)
 
-Arnés independiente en Node/TypeScript para simular el agente de WhatsApp del primer MVP de Escuela Musk: reactivar leads antiguos de una formación, responder solo con contenido aprobado y derivar siempre al equipo comercial antes de cualquier cierre. El agente nunca vende por WhatsApp.
+Arnés independiente en Node/TypeScript para simular el agente de WhatsApp del primer MVP de Escuela Musk: reactivar leads antiguos, presentar las cinco formaciones a nivel general y conducir la conversación a una llamada humana. No hace falta preparar ahora el catálogo detallado. El agente nunca vende por WhatsApp.
 
 No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único componente de red opcional es un proveedor LLM compatible con OpenAI, usado únicamente para reformular respuestas ya aprobadas en modo interactivo.
 
@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 199 tests en 6 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, fundamentación, UI y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 209 tests en 6 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, fundamentación, UI y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 43 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 30 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
@@ -24,11 +24,12 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
 | LLM | Opcional; solo para **reformular** la respuesta aprobada de la FAQ casada (usando también el contexto aprobado del perfil). La salida pasa el guard de salida y la comprobación de fundamentación contra exactamente lo que se le mostró al modelo; si falla cualquiera, el lead recibe el texto aprobado |
 | Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
-| Contenido de la formación | Curado del dossier MUSK (piloto FullStack) con FAQ aprobadas; quedan `TODO(decisión)` (presentación de MUSK, mensaje inicial, cualificación); perfil DEMO adicional con `--demo` |
+| Contenido de la formación | Las cinco formaciones pueden presentarse a nivel general; el perfil aprobado mantiene `TODO(decisión)` para el mensaje inicial, la presentación de MUSK y las dos preguntas aún sin cerrar; el perfil DEMO usa una pregunta de objetivo orientada a la llamada |
 | Cobertura de dudas del lead | Las FAQ actúan como tabla de enrutado (palabra clave → contenido aprobado), de lo específico a lo general: información general, qué se aprende, salidas, metodología, modalidad, acompañamiento, requisitos y duración. Encima de ellas, la **capa de base de conocimiento** (recuperación determinista, sin LLM) responde lo que la base de conocimiento cubre; lo que no está aprobado cae en la regla 5 |
-| Base de conocimiento | 35 pasajes de la base de conocimiento de la escuela, con recuperación determinista (BM25 + cobertura) y umbrales con nombre en el código. **Solo en el perfil DEMO**: el copy está pendiente de firma de MUSK. Sin cifras, sin temas prohibidos, y la FAQ escrita a mano siempre tiene prioridad |
-| Apertura y cualificación | El agente abre con el mensaje inicial (§3.2) y hace las preguntas de cualificación de una en una, sin examen ni puntuación (§4). Si el texto es un `TODO(decisión)`, no se envía ni se pregunta: se informa como decisión abierta de MUSK. Flujo completo en el perfil DEMO (`npm run sim:demo`) |
-| Recepción de respuestas | Mientras hay una pregunta pendiente, el mensaje del lead se recibe **como respuesta** (se registra y se acusa con cortesía), nunca como duda. Sigue mandando el resto de reglas: una pregunta real (regla 5), un tema protegido (precio/temario/financiación), una parada (regla 7) o una aceptación de llamada (regla 9) no se capturan, y la pregunta sigue pendiente |
+| Base de conocimiento | 35 pasajes con recuperación determinista (BM25 + cobertura) y umbrales con nombre. **Solo en el perfil DEMO**: el copy sigue pendiente de firma salvo el plazo confirmado de dos años, escrito con palabras. Horas, fechas de inicio y condiciones de pago siguen escalando; la FAQ escrita a mano conserva prioridad |
+| Apertura y cualificación | El agente abre con el mensaje inicial y hace una pregunta breve sobre el objetivo para conducir a la llamada. No es examen ni filtro. Si un texto del perfil aprobado es `TODO(decisión)`, no se envía ni se pregunta. Flujo completo de muestra en `npm run sim:demo` |
+| Aviso al equipo | La destinataria configurada es Laura, que decide a quién asignarlo. El aviso es simulado: no envía WhatsApp ni integra CRM; muestra el contacto y la bolsa de origen |
+| Recepción de respuestas | Mientras hay una pregunta pendiente, la respuesta del lead se registra bajo su id, sin acuse de relleno. Una pregunta real, tema protegido, parada o aceptación de llamada conserva prioridad según las reglas 1–9 |
 
 ## Estructura
 
@@ -210,7 +211,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 199 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 209 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe del bucle de evaluación (43 casos de la FAQ + 30 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
@@ -218,7 +219,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 199 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 209 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

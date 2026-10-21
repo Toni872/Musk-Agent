@@ -17,6 +17,7 @@ import {
   OPENING_PLACEHOLDER,
   STOPPED_REPLY_PLACEHOLDER,
   createChat,
+  formatHandoff,
 } from '../ui/chat';
 import { at, first, last } from './helpers';
 
@@ -90,7 +91,11 @@ describe('ui/chat view-model', () => {
     const state = await chat.send('Sí, llámame cuando queráis');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
-    expect(diagnostics.some((message) => message.text.startsWith('handoff = '))).toBe(true);
+    const handoffLine = diagnostics.find((message) => message.text.startsWith('aviso simulado = '));
+    expect(handoffLine).toBeDefined();
+    expect(handoffLine?.text).toContain('destinataria=Laura');
+    expect(handoffLine?.text).toContain('contact=');
+    expect(handoffLine?.text).toContain('bucket=ilocalizables');
     // Spec §3.3: the operator must see the commercial summary, not only the
     // routing line. It is a diagnostic, so no agent bubble is added.
     const summaryLine = diagnostics.find((message) =>
@@ -107,9 +112,7 @@ describe('ui/chat view-model', () => {
     // Rule 9: once handed off, no further qualification question is asked.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(last(agentMessages).role).toBe('agent');
-    expect(last(agentMessages).text).not.toBe(
-      at(DEMO_CONTENT.qualificationQuestions, 1).text,
-    );
+    expect(agentMessages.some((message) => message.text === first(DEMO_CONTENT.qualificationQuestions).text)).toBe(false);
   });
 
   // D5: the agreed moment usually arrives AFTER the handoff ("mañana" and then
@@ -135,7 +138,26 @@ describe('ui/chat view-model', () => {
     expect(updated.text).toContain('9:00');
     expect(updated.text).toContain('mañana a las 9:00');
     // The handoff line is rendered again for the corrected notice.
-    expect(diagnostics.filter((message) => message.text.startsWith('handoff = '))).toHaveLength(2);
+    expect(diagnostics.filter((message) => message.text.startsWith('aviso simulado = '))).toHaveLength(2);
+  });
+
+  it('omite de forma limpia la destinataria si la configuración no la incluye', () => {
+    const line = formatHandoff({
+      reason: 'human_requested',
+      leadId: 'test-lead',
+      contact: '+3460000000',
+      bucket: 'no_comprador',
+      lastMessage: 'quiero hablar con una persona',
+      summary: 'summary',
+      formation: 'formation',
+      qualification: [],
+      doubts: [],
+    });
+
+    expect(line).toContain('aviso simulado =');
+    expect(line).toContain('contact=+3460000000');
+    expect(line).toContain('bucket=no compradores');
+    expect(line).not.toContain('destinataria=');
   });
 
   // Rule 5 path through the UI. Uses the 'real' profile because the DEMO opening

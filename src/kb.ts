@@ -12,8 +12,9 @@
 //
 // Two invariants are enforced by tests (tests/retrieval.test.ts):
 //  1. no lead-facing answer contains a single digit (no prices, no amounts,
-//     no salaries, no percentages, no hour counts, no durations);
-//  2. no answer mentions a forbidden topic (price, financing, start dates,
+//     no salaries, no percentages or hour counts); the sole approved duration
+//     statement is the two-year completion window, written out in words;
+//  2. no answer mentions a forbidden topic (price, payment terms, start dates,
 //     refunds, scholarships, entry requirements, physical location, ...).
 //
 // The `terms` array is NOT lead-facing: it holds the extra retrieval
@@ -585,7 +586,7 @@ export const KB_PASSAGES: KbPassage[] = [
     id: 'kb-obj-no-tiempo',
     title: 'Objeción: no tengo tiempo',
     answer:
-      'Ahora no es el momento no pasa nada: al no haber horarios fijos, el ritmo lo marcas tú y se compagina con tu situación. Una persona del equipo lo revisa contigo, sin compromiso.',
+      'Si ahora no es el momento, no pasa nada: puedes completar la formación en dos años con flexibilidad. El equipo puede orientarte en una llamada.',
     terms: [
       'no tengo tiempo',
       'ahora no es el momento',
@@ -595,8 +596,12 @@ export const KB_PASSAGES: KbPassage[] = [
       'no me da la vida',
       'falta tiempo',
       'lo dejo para luego',
+      'cuanto tiempo para completar la formacion',
+      'plazo para completar la formacion',
+      'dos anos para terminar',
+      'completar la formacion en dos anos',
     ],
-    source: 'escuela-musk-base-conocimiento.md §7',
+    source: 'Nicolás, respuesta inline al correo de Miguel (financiación y plazo de finalización)',
   },
   {
     id: 'kb-obj-desconfio',

@@ -9,9 +9,10 @@
 // MUSK). Without --demo the real approved content for the pilot formation is
 // used (Curso de Desarrollo Full Stack, curated from MUSK's dossier).
 //
-// Standalone by design: no WhatsApp, no real leads, no CRM. The only optional
-// network dependency is the LLM provider used for 'general' FAQ replies; the
-// smoke run and all guarded intents are deterministic.
+// Standalone by design: no WhatsApp, no real leads, no CRM. The handoff target
+// (Laura in the configured profiles) is simulated only; no notification is sent.
+// The only optional network dependency is the LLM provider used for 'general'
+// FAQ replies; the smoke run and all guarded intents are deterministic.
 
 import { createInterface } from 'node:readline/promises';
 
@@ -87,8 +88,12 @@ function printTurn(result: TurnResult): void {
     );
   }
   if (result.handoff) {
+    const recipient = result.handoff.recipient
+      ? ` destinataria=${result.handoff.recipient}`
+      : '';
+    const bucket = result.handoff.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores';
     console.log(
-      `handoff = reason=${result.handoff.reason} lead=${result.handoff.leadId} contact=${result.handoff.contact} bucket=${result.handoff.bucket}`,
+      `aviso simulado = reason=${result.handoff.reason} lead=${result.handoff.leadId} contact=${result.handoff.contact} bucket=${bucket}${recipient}`,
     );
   }
   if (result.ruleViolations.length > 0) {

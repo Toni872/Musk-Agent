@@ -48,6 +48,9 @@ export interface HandoffContext {
   leadId: string;
   contact: string;
   bucket: LeadBucket;
+  // Configured routing hint for the simulated notice only; no external message
+  // is sent by this repository.
+  recipient?: string;
   lastMessage: string;
   summary: string;
   // Approved formation name of the conversation (content.formationName).
@@ -442,8 +445,8 @@ export class MuskAgent {
         break;
       }
       case 'price': {
-        // Rule 1: approved reply + call invitation, never an amount.
-        reply = buildReply('price');
+        // Rule 1: profile-approved response when configured, never an amount.
+        reply = this.content.priceReply ?? buildReply('price');
         answersLead = true;
         break;
       }
@@ -454,8 +457,8 @@ export class MuskAgent {
         break;
       }
       case 'financiacion': {
-        // Rule 3: options exist, refer to the call, no conditions.
-        reply = buildReply('financing');
+        // Rule 3: approved financing options and completion window only.
+        reply = this.content.financingReply ?? buildReply('financing');
         answersLead = true;
         break;
       }
@@ -1182,6 +1185,9 @@ export class MuskAgent {
       })),
       doubts: [...this.doubtMessages],
     };
+    if (this.content.handoffRecipient?.trim()) {
+      handoff.recipient = this.content.handoffRecipient.trim();
+    }
     if (this.lead.lossReason !== undefined) handoff.lossReason = this.lead.lossReason;
     return handoff;
   }
@@ -1195,6 +1201,9 @@ export class MuskAgent {
     const reasonText =
       reason === 'human_requested' ? 'pidió hablar con una persona' : 'aceptó la llamada';
     const parts = [`${this.content.formationName}: el lead ${reasonText}.`];
+
+    const bucketLabel = this.lead.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores';
+    parts.push(`Bolsa de origen: ${bucketLabel}.`);
 
     // Why the lead was lost in the original campaign (spec §8.2: the lot carries
     // the loss reason). It is MUSK's own recorded data, not new copy, and it is
@@ -1269,7 +1278,7 @@ export class MuskAgent {
     const spanishRules = [
       '1. Nunca comuniques precios ni importes: solo la respuesta aprobada y la invitación a la llamada.',
       '2. Nunca comuniques el detallado del temario: sí contenido general, habilidades y salidas.',
-      '3. Financiación: solo indica que existen opciones y remite a la llamada; no des condiciones.',
+      '3. Financiación: puedes indicar que hay opciones y que la formación se completa en dos años con flexibilidad; nunca des precios, importes, intereses, condiciones de cuotas ni otras condiciones de pago no aprobadas.',
       '4. Responde solo con información aprobada por MUSK; no inventes condiciones, promociones, garantías ni promesas de empleo.',
       '5. Si no hay respuesta aprobada: registra la duda y propón contacto humano.',
       '6. Ninguna oferta para no compradores salvo mensaje aprobado por Nicolas; pedir precio no autoriza a dar importes.',

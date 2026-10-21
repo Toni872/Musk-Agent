@@ -101,9 +101,11 @@ export function formatDiagnostic(diagnostic: TurnDiagnostic): string {
 }
 
 export function formatHandoff(handoff: HandoffContext): string {
+  const recipient = handoff.recipient ? ` destinataria=${handoff.recipient}` : '';
+  const bucket = handoff.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores';
   return (
-    `handoff = reason=${handoff.reason} lead=${handoff.leadId}` +
-    ` contact=${handoff.contact} bucket=${handoff.bucket}`
+    `aviso simulado = reason=${handoff.reason} lead=${handoff.leadId}` +
+    ` contact=${handoff.contact} bucket=${bucket}${recipient}`
   );
 }
 

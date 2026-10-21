@@ -559,7 +559,7 @@ export const EVAL_KB_CASES: KbEvalCase[] = [
     question: 'ahora no es el momento, no tengo tiempo',
     expectedPassageId: 'kb-obj-no-tiempo',
     expectedIntent: 'kb',
-    note: 'The "no time right now" objection: the KB answers with the flexible rhythm, without pressure (rule 8).',
+    note: 'The "no time right now" objection: the KB includes Nicolás’s confirmed two-year flexible completion window and redirects to a call without pressure (rule 8).',
   },
   {
     id: 'K19',

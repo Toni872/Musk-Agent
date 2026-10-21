@@ -5,23 +5,27 @@ fichero es la fuente de verdad del alcance **en este repositorio**. El detalle
 completo está en `docs/musk-mvp-spec.md`; léelo antes de tocar flujo, prompts del
 agente, estados o métricas.
 
-Fuente: reunión del 28/09/2026 (prevalece) + contexto de la reunión del 18/09/2026.
+Fuente: reunión del 28/09/2026 (prevalece), contexto del 18/09/2026 y respuestas
+inline de Nicolás al correo de Miguel (fecha no indicada en el material compartido).
 
 ## Objetivo
 
-Comprobar si WhatsApp reactiva leads antiguos de UNA formación y los convierte en
+Comprobar si WhatsApp reactiva leads antiguos y los convierte en entrevistas o
 llamadas humanas útiles, respetando los límites de información y la cercanía de
-MUSK. No se busca "vender más": se busca contacto, confianza y encaje del alumno. El
-cierre de la venta es siempre humano.
+MUSK. El flujo busca llegar directamente a la conversación humana; no se busca
+"vender más" ni hacer una cualificación extensa. El cierre de la venta es siempre
+humano.
 
 ## Alcance del MVP (dentro)
 
-- Una sola formación (aún por elegir) y dos bolsas de leads antiguos:
-  **ilocalizables** y **personas que no compraron**.
+- Las cinco formaciones pueden aparecer en una presentación general; no hace falta
+  preparar ahora un catálogo completo ni detalle de cada curso. Se mantienen dos
+  bolsas de leads antiguos: **ilocalizables** y **personas que no compraron**.
 - Primer contacto por WhatsApp → dudas y preguntas breves → propuesta de llamada →
   aviso al comercial con identificación del contacto → registro del resultado.
-- Pocas preguntas de cualificación (propuestas: experiencia de partida y tiempo de
-  interés). Sin examen, sin puntuación, sin exclusión automática.
+- Preguntas de conversación breves para entender qué busca el lead y conducirlo a la
+  entrevista o llamada; no son un examen ni un filtro. Sin puntuación ni exclusión
+  automática.
 - Registro simple de conversaciones y resultados + vista de supervisión básica.
 - Primero simulaciones sin datos reales con Nicolás; después muestra controlada con
   leads reales.
@@ -40,8 +44,10 @@ externa de llamadas, integración con el CRM propio de MUSK (en desarrollo).
    aprobada + invitación a la llamada.
 2. **Nunca comunicar temario detallado.** El contenido general, habilidades y
    salidas sí se pueden explicar.
-3. **Financiación:** solo indicar que existen opciones y remitir a la llamada. No
-   desarrollar condiciones.
+3. **Financiación y tiempo:** se puede indicar que existen opciones de financiación
+   y que la formación puede completarse en dos años con flexibilidad. Nunca comunicar
+   precios, importes, intereses, condiciones de cuotas ni otras condiciones de pago
+   no aprobadas.
 4. Responder SOLO con información aprobada por MUSK. No inventar condiciones,
    promociones, garantías ni promesas de empleo.
 5. Si no hay respuesta aprobada: registrar la duda y proponer contacto humano.
@@ -64,11 +70,10 @@ Las once están codificadas como datos en `src/rules.ts`, con guardián de salid
 
 ## Decisiones abiertas (no asumir; dejar configurable y marcar `TODO(decisión)`)
 
-Formación elegida · tamaño de muestra y fecha de lanzamiento · cadencia de
-seguimiento y reglas de parada · texto del mensaje inicial · lista final de preguntas
-de cualificación · nombres definitivos de las etiquetas conversacionales · receptor
-de los avisos y su cobertura · mecanismo de llamada (solicitar contacto vs acordar
-momento) · configuración del canal WhatsApp · base legal / privacidad / transparencia
+Tamaño de muestra y fecha de lanzamiento · cadencia de seguimiento y reglas de
+parada · texto del mensaje inicial · copy de cualificación del perfil aprobado ·
+nombres definitivos de las etiquetas conversacionales · cobertura de Laura para los
+avisos · configuración del canal WhatsApp · base legal / privacidad / transparencia
 del lote real · umbrales de éxito.
 
 Ahora mismo hay cuatro `TODO(decisión)` vivos en `src/content.ts`: mensaje inicial,
@@ -89,8 +94,10 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   ni dependencias). Reglas de la capa: la base de conocimiento decide si una
   pregunta puede responderse y con qué pasaje; **el umbral vive en el código,
   como constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`), nunca en
-  un prompt; los temas prohibidos (precio, financiación, fechas, devoluciones,
-  becas, ubicación, requisitos) se rechazan siempre y escalan (regla 5). El
+  un prompt; los temas prohibidos (precio, condiciones de pago, horas, fechas de
+  inicio, devoluciones, becas, ubicación, requisitos) se rechazan siempre y
+  escalan (regla 5), con la excepción expresa del plazo aprobado de dos años para
+  completar la formación con flexibilidad. El
   contenido es **copy pendiente de firma de MUSK** (reglas 4 y 11): vive solo
   en el perfil DEMO (`src/content.demo.ts`); el perfil aprobado
   (`src/content.ts`) no lo lleva y, sin base de conocimiento, se comporta
@@ -118,8 +125,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - Las etiquetas conversacionales del asistente son distintas de los estados del CRM
   (nuevo, pendiente, beca, perdido…). No las mezcles ni las mapees por API en esta
   fase.
-- El aviso al comercial por WhatsApp debe incluir contacto o teléfono para que lo
-  localice en el CRM.
+- Laura es la destinataria configurada del aviso simulado y decide a quién asignarlo.
+  La línea del simulador no envía un WhatsApp real ni integra el CRM; debe incluir
+  contacto y bolsa de origen para facilitar el enrutado manual.
 - El lote de prueba debe estar aislado de otras campañas y de la empresa externa de
   llamadas (evitar impactos simultáneos).
 - Antes de cualquier envío real: comprobar canal, mensaje inicial, seguimiento,
@@ -134,7 +142,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (199 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (209 tests) y `npm run eval`
   (43 casos etiquetados del bucle de evaluación de la FAQ + 30 de la base de
   conocimiento + 22 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
@@ -144,8 +152,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - Si falta una decisión de las listadas arriba, propón una opción por defecto
   configurable y márcala `TODO(decisión)`; no la presentes como acordada.
 - Mantén simple: registro básico y supervisión básica antes que automatización.
-- El arnés no está conectado a WhatsApp, ni a leads reales, ni a ningún CRM. El LLM
-  es opcional y solo reformula respuestas ya aprobadas.
+- El arnés no está conectado a WhatsApp, ni a leads reales, ni a ningún CRM. Laura
+  aparece únicamente como destinataria simulada. El LLM es opcional y solo
+  reformula respuestas ya aprobadas.
 - El deploy a Vercel es **manual** (`vercel deploy --prod`): el repositorio no
   despliega solo.
 

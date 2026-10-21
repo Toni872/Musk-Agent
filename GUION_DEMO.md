@@ -1,8 +1,8 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-20, 130/130 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-21, 209/209 tests.
 
-> **Apertura y cualificación (14-10)**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el contenido del piloto ambos siguen a `TODO(decisión)`, así que **no se envían**: al arrancar se informa de lo que está abierto con Nicolás. La lista `pending` incluye además `companyPresentation` (la **presentación de MUSK**: la spec §3.6 la exige y §8.1 la deja como información a aportar por Nicolás — no se inventa). El flujo **completo** (apertura + 2 preguntas) se ve con el perfil DEMO: `npm run sim:demo`.
+> **Apertura y cualificación**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el perfil aprobado, los marcadores `TODO(decisión)` siguen sin enviarse. El flujo DEMO tiene una pregunta de objetivo, orientada a la llamada. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
 ## Preparación (una vez)
 
@@ -30,8 +30,8 @@ Al arrancar muestra: `Content: Curso de Desarrollo Full Stack (curated from MUSK
 |---|---|---|---|
 | 1 | `Hola` | ¡Hola! Soy el asistente de MUSK. ¿En qué puedo ayudarte? Si prefieres, puedes hablar con una persona del equipo cuando quieras. | Saludo |
 | 2 | `¿es online o presencial?` | La formación es online, con clases en directo y workshops, además de recursos y una comunidad de desarrollo. Los detalles de horarios y disponibilidad los concretamos contigo en una llamada. | FAQ modalidad (contenido curado) |
-| 3 | `¿cuánto cuesta?` | No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo... | Regla 1 (precio) |
-| 4 | `¿hay financiación?` | Sí, existen opciones de financiación. No puedo darte condiciones ni importes por aquí... | Regla 3 (financiación) |
+| 3 | `¿cuánto cuesta?` | No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada. | Regla 1 (precio; sin importes) |
+| 4 | `¿hay financiación?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3 (financiación y tiempo) |
 | 5 | `¿me pasáis el temario?` | No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general... | Regla 2 (temario) |
 | 6 | `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda... ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda) — PIVOTE** |
 | 7 | `¿necesito experiencia previa?` | No necesitas conocimientos previos: la metodología es progresiva y práctica, pensada para empezar desde la base. | FAQ requisitos |
@@ -64,24 +64,18 @@ Cada frase de abajo se comprobó contra el agente real (`provider=null`). Todas 
 
 Estado final observado de la conversación 2: `stopped=true records=2`.
 
-## Conversación 3 — perfil DEMO: recepción de respuestas (16-10)
+## Conversación 3 — transcripción DEMO: información, objetivo y llamada
 
-La incoherencia que apareció al probar en el navegador estaba en el **motor**, no en la interfaz: el agente preguntaba y después trataba la respuesta del lead como una consulta sin respuesta aprobada («Buena pregunta…»), porque no recordaba qué había preguntado. Corregido y **verificado en crudo** contra `MuskAgent` con `DEMO_CONTENT`: **cero dudas**.
-
-Con el perfil DEMO (apertura + dos preguntas), los tres primeros mensajes del lead:
+Este flujo reproduce la pregunta sobre en qué consisten las formaciones y reconoce el objetivo expresado antes de invitar a la llamada. La respuesta exacta del lead se conserva bajo `goal`.
 
 | # | Escribe el lead | El agente responde (observado) | Mecanismo |
 |---|---|---|---|
-| 1 | `Si` | *(sin mensaje propio: sigue la 1ª pregunta)* | Respuesta a la **apertura** (ya no re-saluda) |
-| 2 | `parto de 0` | *(sin mensaje propio: sigue la 2ª pregunta)* | Respuesta a `starting-experience` (no es duda) |
-| 3 | `lo antes posible` | ¿Me dejas tu contacto o un momento en el que te venga bien que te llamen? | Respuesta a `time-interest` + **propuesta de llamada** (no es texto nuevo: es la misma frase que ya cierra la respuesta de precio) |
-| 4 | `bueno, me va bien una llamada` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | Regla 9: handoff `call_accepted` — **el objetivo del flujo** |
+| 1 | `Cuéntame en qué consiste` | Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo. | FAQ `informacion` |
+| 2 | — | ¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada. | Pregunta de conversación `goal` |
+| 3 | `Obtener conocimientos para optar a una plaza` | Entiendo: quieres ampliar conocimientos para optar a una plaza. El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien? | Respuesta capturada bajo `goal` + reacción + cierre configurable |
+| 4 | `mañana a las nueve` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | Regla 9: handoff `call_accepted` |
 
-Línea de operador observada: `intent=general/unknown action=none suppressed=false doubts=0` más `received = answer to <id> (no doubt registered)`. Total de dudas del flujo: **0**. Registro final observado: `stopped=false records=8`.
-
-> **Cambiado el 16-10 (al probarlo en el navegador):** el agente acusaba recibo de cada respuesta con la misma línea —«Gracias, lo apunto.»— enviada como mensaje aparte. Repetida tres veces seguidas, y hablando de nuestro propio registro, delataba al bot. **Ese mensaje ya no existe**: la respuesta se anota y la conversación sigue con la pregunta siguiente.
->
-> Y al agotar las preguntas el agente **sí** cierra proponiendo la llamada, que era el único paso del flujo sin mensaje. Lo hace con una frase **ya aprobada**: la misma invitación con la que termina la respuesta de precio. `REPLY_TEMPLATES.callProposal` la reutiliza desde una única constante (`CALL_INVITATION`), así que las dos copias no pueden desviarse. **No hay texto nuevo que firmar** (regla 11); aun así, que Nicolás vea dónde aparece.
+Resumen simulado para el equipo: destinataria `Laura`, contacto y bolsa `ilocalizables`, respuesta `goal: Obtener conocimientos para optar a una plaza` y último mensaje `mañana a las nueve`. No se envía un WhatsApp real ni se integra el CRM.
 
 Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/reception.test.ts`:
 
@@ -127,22 +121,17 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 
 ## Decisiones a cerrar con Nicolás
 
-(A) **Contenido** (piloto FullStack ya curado; solo quedan):
- 1. **Presentación de MUSK** (`companyPresentation`): la spec §3.6 la exige como contenido mínimo y §8.1 la deja como información a aportar por Nicolás. Hoy "sobre MUSK" responde con identidad + formación + humano, y el ítem queda visible como pendiente.
- 2. Texto del mensaje inicial (`initialMessage`).
- 3. Preguntas de cualificación finales (propuestas: experiencia de partida, tiempo de interés).
- 4. Duración del curso: no hay respuesta aprobada con datos; hoy se responde sin cifras y se deriva a la llamada.
- 5. Redacción final de "prácticas garantizadas" si se confirma.
-  6. Plantilla de rechazo amable (IMPLEMENTADA el 12-10): un "no me interesa" seco → `decline` con copy dedicado ("Entendido, lo respeto…"), registra duda y NO para la conversación. Revisar wording con Nicolás.
-  7. **Frase de cierre de la cualificación** (16-10, IMPLEMENTADO): al agotar las preguntas el agente **sí** cierra — propone la llamada, que era el único paso del flujo sin mensaje. **No hay copy nueva**: reutiliza palabra por palabra la invitación ya aprobada con la que termina la respuesta de precio (`REPLY_TEMPLATES.callProposal`, que comparte la constante `CALL_INVITATION`), así que la regla 11 no introduce texto por aprobar. Mostrarle a Nicolás **dónde** aparece (hoy solo se ve con el perfil DEMO: el real espera `initialMessage`).
+(A) **Contenido** (el contenido aprobado mantiene sus marcadores abiertos):
+ 1. **Presentación de MUSK** (`companyPresentation`), mensaje inicial (`initialMessage`) y las dos preguntas del perfil aprobado (`qualificationQuestions`).
+ 2. Los demás textos de la DEMO y los pasajes de la base de conocimiento siguen pendientes de firma, salvo el plazo de dos años con flexibilidad confirmado por Nicolás.
+ 3. Los detalles de horas, fechas de inicio y condiciones de pago siguen sin aprobarse y deben escalar.
 
 (B) **Operación/producto** (no bloquean la demo):
- 1. Receptor de los avisos (handoff) y su cobertura.
- 2. Mecanismo de llamada (solicitar contacto vs acordar momento).
- 3. Cadencia de seguimiento + reglas de parada.
- 4. Etiquetas conversacionales definitivas.
- 5. Configuración del canal WhatsApp + base legal/privacidad/transparencia del lote real.
- 6. Tamaño de muestra y fecha de lanzamiento.
+  1. La destinataria del aviso es Laura y ella decide la asignación; falta confirmar su cobertura.
+  2. Cadencia de seguimiento + reglas de parada.
+  3. Etiquetas conversacionales definitivas.
+  4. Configuración del canal WhatsApp + base legal/privacidad/transparencia del lote real.
+  5. Tamaño de muestra y fecha de lanzamiento.
 
 (C) **NO reabrir:** las cifras del 18/09 (6 intentos, ~3 %, >300 €, 12-15/35) son contexto histórico sin denominador; nunca entran como constantes.
 
@@ -150,8 +139,8 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 
 ```powershell
 npm run typecheck   # cero errores
-npm test            # 138 tests, sin red
-npm run eval        # bucle de evaluación: 43 casos etiquetados, informe de recall/precisión sobre el enrutado real
+npm test            # 209 tests, sin red
+npm run eval        # 43 casos de FAQ + 30 de KB + 22 de fundamentación
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador
 npm run ui          # sirve el simulador en http://localhost:4173

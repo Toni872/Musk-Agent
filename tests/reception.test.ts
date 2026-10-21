@@ -13,10 +13,11 @@ import { describe, expect, it } from 'vitest';
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import { findApprovedAnswer, normalizeEs } from '../src/intent';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { MockProvider } from '../src/llm';
-import { buildReply, REPLY_TEMPLATES } from '../src/rules';
-import { at, first, last } from './helpers';
+import { buildReply, guardReply, REPLY_TEMPLATES } from '../src/rules';
+import { first, last } from './helpers';
 
 const lead: LeadContact = {
   id: 'lead-reception-001',
@@ -37,14 +38,14 @@ function armQualification(agent: MuskAgent): string {
 
 // The close this profile ships (a profile without one falls back to the
 // approved sentence in REPLY_TEMPLATES).
-function demoClosing(): string {
-  return DEMO_CONTENT.closingInvitation ?? buildReply('callProposal');
-}
-
-// The reaction this profile ships for a given answer of a given question.
-function demoReaction(questionId: string, index: number): string {
-  const question = DEMO_CONTENT.qualificationQuestions.find((item) => item.id === questionId);
-  return question?.reactions?.[index]?.say ?? '';
+function demoGoalReply(answerText = 'Quiero cambiar de sector'): string {
+  const question = DEMO_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
+  const foldedAnswer = normalizeEs(answerText);
+  const reaction = question?.reactions?.find((entry) =>
+    entry.keywords.some((keyword) => foldedAnswer.includes(normalizeEs(keyword))),
+  )?.say;
+  const closing = DEMO_CONTENT.closingInvitation ?? buildReply('callProposal');
+  return reaction ? `${reaction} ${closing}` : closing;
 }
 
 // The approved answer of a knowledge-base passage, looked up by id (never
@@ -56,6 +57,94 @@ function passageAnswer(id: string): string {
 }
 
 describe('recepción de respuestas (answer reception)', () => {
+  it.each([
+    ['Explícame la formación', 'informacion'],
+    ['¿Qué es la formación?', 'informacion'],
+    ['Cuéntame sobre los cursos', 'catalogo-formaciones'],
+    ['Háblame de los cursos', 'catalogo-formaciones'],
+    ['Cuéntame en qué consiste', 'informacion'],
+  ])('routes "%s" to FAQ %s without consuming the qualification ask', async (message, expectedFaqId) => {
+    const agent = makeDemoAgent();
+    const expectedFaq = DEMO_CONTENT.faq.find((entry) => entry.id === expectedFaqId);
+    expect(expectedFaq).toBeDefined();
+
+    const result = await agent.runTurn(message);
+
+    expect(result.intent).toBe('general');
+    expect(findApprovedAnswer(DEMO_CONTENT, message)?.id).toBe(expectedFaqId);
+    expect(result.reply).toBe(expectedFaq!.answer);
+    expect(result.registeredDoubts).toEqual([]);
+    expect(agent.nextQualificationQuestion()?.id).toBe('goal');
+
+    if (message === 'Explícame la formación') {
+      expect(result.reply).not.toBe(passageAnswer('kb-presencial-online'));
+    }
+    if (expectedFaqId === 'catalogo-formaciones') {
+      for (const program of ['Python', 'Front End', 'Back End', 'Full Stack', 'máster de videojuegos']) {
+        expect(result.reply).toContain(program);
+      }
+    }
+  });
+
+  it('flujo demo: responde qué es la formación, reconoce el objetivo y propone la llamada', async () => {
+    const agent = makeDemoAgent();
+    const infoAnswer = DEMO_CONTENT.faq.find((entry) => entry.id === 'informacion')!.answer;
+
+    const info = await agent.runTurn('Cuéntame en qué consiste');
+
+    expect(info.intent).toBe('general');
+    expect(info.reply).toBe(infoAnswer);
+    expect(info.reply).not.toContain('te cuento más o lo vemos con detalle');
+
+    expect(agent.nextQualificationQuestion()).toMatchObject({ id: 'goal' });
+    const goalText = 'Obtener conocimientos para optar a una plaza';
+    const goal = await agent.runTurn(goalText);
+    const acknowledgement =
+      'Entiendo: quieres ampliar conocimientos para optar a una plaza.';
+    const availabilityQuestion = '¿Qué día y a qué hora te viene bien?';
+
+    expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: goalText });
+    expect(goal.reply.startsWith(acknowledgement)).toBe(true);
+    expect(goal.reply).toContain(DEMO_CONTENT.closingInvitation);
+    expect(goal.reply).toBe(`${acknowledgement} ${DEMO_CONTENT.closingInvitation}`);
+    expect(goal.reply.match(/\?/g)).toHaveLength(1);
+    expect(goal.reply).toContain(availabilityQuestion);
+    expect(goal.reply.length).toBeLessThan(240);
+    expect(guardReply(goal.reply).ok).toBe(true);
+    expect(goal.ruleViolations).toHaveLength(0);
+  });
+
+  it('las reacciones del objetivo priorizan frases específicas y pasan el guard', async () => {
+    const goalQuestion = DEMO_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
+    const reactions = goalQuestion?.reactions ?? [];
+    expect(reactions).toHaveLength(3);
+    for (const reaction of reactions) {
+      expect(guardReply(reaction.say).ok).toBe(true);
+    }
+
+    const cases: Array<[string, string]> = [
+      [
+        'Quiero cambiar de sector y aprender conocimientos',
+        'Entiendo: buscas prepararte para cambiar de sector.',
+      ],
+      ['Quiero cambiar de trabajo', 'Entiendo: buscas prepararte para cambiar de sector.'],
+      [
+        'Quiero aprender',
+        'Entiendo: quieres ampliar tus conocimientos en el área tecnológica.',
+      ],
+    ];
+    for (const [answer, expectedAcknowledgement] of cases) {
+      const agent = makeDemoAgent();
+      expect(agent.nextQualificationQuestion()?.id).toBe('goal');
+      const result = await agent.runTurn(answer);
+
+      expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
+      expect(result.reply.startsWith(expectedAcknowledgement)).toBe(true);
+      expect(result.reply).toContain(DEMO_CONTENT.closingInvitation);
+      expect(guardReply(result.reply).ok).toBe(true);
+    }
+  });
+
   // 1. Opening armed: a bare affirmative first message is received as the
   //    answer to the opening (not as a fresh query) and questionId is null for
   //    the opening. The turn sends no message of its own.
@@ -70,18 +159,17 @@ describe('recepción de respuestas (answer reception)', () => {
   });
 
   // 2. A qualification ask arms the reception: the next non-query message is
-  //    captured as its answer (registered, never as a doubt) and the turn
-  //    answers with the reaction matched to THAT answer (content.reactions).
-  it('tras una pregunta de cualificación, la respuesta se captura y no es duda', async () => {
+  //    captured under the goal id, never registered as a doubt.
+  it('tras la pregunta sobre el objetivo, la respuesta se captura y no es duda', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
 
-    const result = await agent.runTurn('parto de cero');
+    const result = await agent.runTurn('Quiero cambiar de sector');
 
-    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
-    expect(result.reply).toBe(demoReaction('starting-experience', 0));
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
+    expect(result.reply).toBe(demoGoalReply());
     expect(result.registeredDoubts).toHaveLength(0);
-    expect(agent.qualificationAnswers).toEqual([{ id, text: 'parto de cero' }]);
+    expect(agent.qualificationAnswers).toEqual([{ id, text: 'Quiero cambiar de sector' }]);
     expect(agent.records.some((record) => record.kind === 'answer')).toBe(true);
     expect(agent.records.some((record) => record.kind === 'doubt')).toBe(false);
   });
@@ -95,14 +183,14 @@ describe('recepción de respuestas (answer reception)', () => {
 
     const price = await agent.runTurn('¿cuánto cuesta?');
     expect(price.intent).toBe('price');
-    expect(price.reply).toBe(buildReply('price'));
+    expect(price.reply).toBe(DEMO_CONTENT.priceReply);
     expect(price.capturedAnswer).toBeUndefined();
     expect(price.registeredDoubts).toHaveLength(0);
     expect(agent.qualificationAnswers).toHaveLength(0);
 
     // The ask stayed pending: the next non-query IS captured as its answer.
-    const answer = await agent.runTurn('lo antes posible');
-    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'lo antes posible' });
+    const answer = await agent.runTurn('Quiero cambiar de sector');
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
   });
 
   // 4. While a qualification ask is pending, a message matching an approved FAQ
@@ -119,8 +207,8 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(faq.reply).toMatch(/junior|portafolio|equipo/i);
     expect(agent.qualificationAnswers).toHaveLength(0);
 
-    const answer = await agent.runTurn('lo antes posible');
-    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'lo antes posible' });
+    const answer = await agent.runTurn('Quiero cambiar de sector');
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
   });
 
   // 5. While a qualification ask is pending, a call-acceptance message (rule 9)
@@ -150,26 +238,63 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(agent.isStopped).toBe(true);
   });
 
-  // 7. Full demo flow: the three scripted lead messages produce ZERO doubts and
-  //    capture both qualification answers with the expected ids.
-  it('flujo demo completo: cero dudas y ambas respuestas de cualificación capturadas', async () => {
+  // 7. The call-first DEMO asks one goal question, captures it under its stable
+  //    id, and closes directly on the call proposal without reactions.
+  it('flujo demo: captura el objetivo y propone directamente la llamada', async () => {
     const agent = makeDemoAgent();
-    const script = ['Si', 'parto de 0', 'lo antes posible'];
-    const doubts: string[] = [];
+    expect(armQualification(agent)).toBe('goal');
+    const result = await agent.runTurn('Quiero cambiar de sector');
 
-    for (const message of script) {
-      const result = await agent.runTurn(message);
-      doubts.push(...result.registeredDoubts);
-      agent.nextQualificationQuestion();
-    }
-
-    expect(doubts).toHaveLength(0);
-    expect(agent.qualificationAnswers).toEqual([
-      { id: 'starting-experience', text: 'parto de 0' },
-      { id: 'time-interest', text: 'lo antes posible' },
-    ]);
-    expect(agent.records.filter((record) => record.kind === 'answer')).toHaveLength(3);
+    expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: 'Quiero cambiar de sector' });
+    expect(result.reply).toBe(demoGoalReply());
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.qualificationAnswers).toEqual([{ id: 'goal', text: 'Quiero cambiar de sector' }]);
+    expect(agent.records.filter((record) => record.kind === 'answer')).toHaveLength(1);
     expect(agent.records.some((record) => record.kind === 'doubt')).toBe(false);
+  });
+
+  it('transcripción real: pregunta de ubicación, objetivo capturado y llamada con momento registrado', async () => {
+    const agent = makeDemoAgent();
+    const modality = await agent.runTurn('¿Dónde está la academia?');
+
+    expect(modality.intent).toBe('general');
+    expect(modality.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'modalidad')?.answer);
+
+    const goalQuestion = agent.nextQualificationQuestion();
+    expect(goalQuestion).toMatchObject({
+      id: 'goal',
+      text: '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.',
+    });
+    const goal = await agent.runTurn('Quiero cambiar de sector');
+    expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: 'Quiero cambiar de sector' });
+    expect(goal.reply).toBe(demoGoalReply());
+
+    const call = await agent.runTurn('mañana a las nueve');
+    expect(call.action).toBe('handoff');
+    expect(call.capturedAnswer).toEqual({ questionId: 'call-proposal', text: 'mañana a las nueve' });
+    expect(call.handoff?.lastMessage).toBe('mañana a las nueve');
+    expect(call.handoff?.recipient).toBe('Laura');
+    expect(call.handoff?.qualification).toEqual([
+      { question: goalQuestion?.text, answer: 'Quiero cambiar de sector' },
+    ]);
+    expect(call.handoff?.summary).toContain(
+      '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada. → Quiero cambiar de sector',
+    );
+    expect(call.handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
+    expect(call.handoff?.summary).toContain('Último mensaje del lead: mañana a las nueve');
+  });
+
+  it('el resumen distingue la bolsa de no compradores y admite una destinataria sin configurar', async () => {
+    const agent = new MuskAgent({
+      content: { ...DEMO_CONTENT, handoffRecipient: undefined },
+      provider: null,
+      lead: { ...lead, bucket: 'no_comprador' },
+    });
+    const result = await agent.runTurn('quiero hablar con una persona');
+
+    expect(result.handoff?.recipient).toBeUndefined();
+    expect(result.handoff?.summary).toContain('Bolsa de origen: no compradores.');
+    expect(result.handoff?.summary).toContain('Último mensaje del lead: quiero hablar con una persona');
   });
 
   // 8. Rule 5 FIRST: a question the engine cannot answer, asked while a
@@ -188,15 +313,15 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(agent.records.some((record) => record.kind === 'doubt')).toBe(true);
 
     // The ask stayed pending: the next non-query IS captured as its answer.
-    const answer = await agent.runTurn('parto de cero');
-    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
+    const answer = await agent.runTurn('Quiero cambiar de sector');
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
   });
 
   // 9. reset() clears the captured answers and re-arms the opening ask.
   it('reset limpia las respuestas y vuelve a armar la apertura', async () => {
     const agent = makeDemoAgent();
     armQualification(agent);
-    await agent.runTurn('parto de cero');
+    await agent.runTurn('Quiero cambiar de sector');
     expect(agent.qualificationAnswers).toHaveLength(1);
 
     agent.reset();
@@ -206,57 +331,38 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(result.capturedAnswer).toEqual({ questionId: null, text: 'Si' });
   });
 
-  // 10. The reception turn reacts to what the lead actually said, and the
-  //     reaction is specific to THAT answer: a different answer gets a different
-  //     line. This is what replaced the old silence — a single fixed courtesy
-  //     message ("Gracias, lo apunto.") repeated on every answer is the robot
-  //     tell, so the reaction is content-driven instead (rule 11: MUSK copy).
-  //     The next qualification question still travels as its own message.
-  it('el turno de recepción reacciona a lo que dijo el lead y sigue con la pregunta', async () => {
+  // 10. Goal answers are recorded verbatim; the one-question profile has no
+  //     reaction or follow-up question before its call-oriented close.
+  it('el turno de recepción captura el objetivo y cierra sin reacción de relleno', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
 
-    const result = await agent.runTurn('parto de cero');
+    const answerText = 'Quiero cambiar de sector';
+    const result = await agent.runTurn(answerText);
 
-    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'parto de cero' });
-    expect(result.reply).toBe(demoReaction('starting-experience', 0));
-    expect(agent.records.filter((record) => record.kind === 'reply')).toHaveLength(1);
-
-    // The other answer to the same question gets a DIFFERENT line.
-    const other = makeDemoAgent();
-    armQualification(other);
-    const withExperience = await other.runTurn('he tocado algo de programación');
-    expect(withExperience.reply).toBe(demoReaction('starting-experience', 1));
-    expect(withExperience.reply).not.toBe(result.reply);
-
-    // The ask is cleared, so the next question can still be asked.
-    expect(agent.nextQualificationQuestion()?.id).toBe('time-interest');
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: answerText });
+    expect(result.reply).toBe(demoGoalReply());
+    expect(agent.qualificationAnswers).toEqual([{ id, text: answerText }]);
+    expect(agent.nextQualificationQuestion()).toBeNull();
   });
 
-  // 11. When the answered question was the LAST one, there is nothing left to
-  //     ask and the agent proposes the call — the objective of the flow. The
-  //     reaction to that last answer opens the message and the profile's own
-  //     close follows it (content.closingInvitation). A profile without its own
-  //     close falls back to the sentence already approved for that moment, so no
-  //     lead-facing copy is invented at runtime (rule 11).
-  it('al agotar las preguntas propone la llamada con la reacción y el cierre del perfil', async () => {
+  // 11. The one goal answer immediately produces the profile's editable call
+  //     invitation. A profile without one falls back to the approved template.
+  it('al responder el objetivo propone la llamada con el cierre del perfil', async () => {
     const agent = makeDemoAgent();
-    expect(armQualification(agent)).toBe('starting-experience');
-    await agent.runTurn('parto de cero');
-    expect(armQualification(agent)).toBe('time-interest');
+    expect(armQualification(agent)).toBe('goal');
 
-    const result = await agent.runTurn('lo antes posible');
+    const result = await agent.runTurn('Quiero cambiar de sector');
 
     expect(result.capturedAnswer).toEqual({
-      questionId: 'time-interest',
-      text: 'lo antes posible',
+      questionId: 'goal',
+      text: 'Quiero cambiar de sector',
     });
-    expect(result.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+    expect(result.reply).toBe(demoGoalReply());
     // The fallback sentence is still the tail the price answer already ships.
     expect(buildReply('price').endsWith(buildReply('callProposal'))).toBe(true);
     const replies = agent.records.filter((record) => record.kind === 'reply');
-    // The last outbound message is the closing; the earlier one was the reaction
-    // to the first answer.
+    // The last outbound message is the call-oriented closing.
     expect(last(replies).detail).toBe(result.reply);
     expect(agent.nextQualificationQuestion()).toBeNull();
   });
@@ -268,11 +374,9 @@ describe('recepción de respuestas (answer reception)', () => {
   //     already sent.
   it('tras proponer la llamada, un "sI" se recibe como acuerdo y deriva (regla 9)', async () => {
     const agent = makeDemoAgent();
-    expect(armQualification(agent)).toBe('starting-experience');
-    await agent.runTurn('parto de cero');
-    expect(armQualification(agent)).toBe('time-interest');
-    const proposal = await agent.runTurn('lo antes posible');
-    expect(proposal.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+    expect(armQualification(agent)).toBe('goal');
+    const proposal = await agent.runTurn('Quiero cambiar de sector');
+    expect(proposal.reply).toBe(demoGoalReply());
 
     const answer = await agent.runTurn('sI');
 
@@ -288,11 +392,9 @@ describe('recepción de respuestas (answer reception)', () => {
   //     (rule 8) and never a rule 7 stop acknowledgement.
   it('un "no" a la propuesta de llamada no deriva y no presiona', async () => {
     const agent = makeDemoAgent();
-    expect(armQualification(agent)).toBe('starting-experience');
-    await agent.runTurn('parto de cero');
-    expect(armQualification(agent)).toBe('time-interest');
-    const closing = await agent.runTurn('lo antes posible');
-    expect(closing.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+    expect(armQualification(agent)).toBe('goal');
+    const closing = await agent.runTurn('Quiero cambiar de sector');
+    expect(closing.reply).toBe(demoGoalReply());
 
     const refusal = await agent.runTurn('no gracias');
 
@@ -333,9 +435,7 @@ describe('recepción de respuestas (answer reception)', () => {
   it('tras la derivación por pedir humano, el teléfono que llega se registra sin responder', async () => {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    await agent.runTurn('Quiero cambiar de sector');
     const handoff = await agent.runTurn('quiero hablar con una persona');
     expect(handoff.action).toBe('handoff');
     expect(handoff.handoff?.reason).toBe('human_requested');
@@ -361,10 +461,8 @@ describe('recepción de respuestas (answer reception)', () => {
   //     a bot. The silence is deliberately marked (suppressed), never a lost turn.
   it('tras la derivación el agente deja de escribir', async () => {
     const agent = makeDemoAgent();
-    expect(armQualification(agent)).toBe('starting-experience');
-    await agent.runTurn('parto de cero');
-    expect(armQualification(agent)).toBe('time-interest');
-    await agent.runTurn('lo antes posible');
+    expect(armQualification(agent)).toBe('goal');
+    await agent.runTurn('Quiero cambiar de sector');
     const accepted = await agent.runTurn('sI');
     expect(accepted.action).toBe('handoff');
     const recordsAfterHandoff = agent.records.length;
@@ -388,18 +486,12 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   async function armCallProposal(): Promise<MuskAgent> {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    await agent.runTurn('Quiero cambiar de sector');
     return agent;
   }
 
   it('por las tardes → handoff call_accepted', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('por las tardes');
     expect(result.action).toBe('handoff');
     expect(result.handoff?.reason).toBe('call_accepted');
@@ -407,11 +499,7 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   });
 
   it('sí, sobre las seis → handoff call_accepted', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('sí, sobre las seis');
     expect(result.action).toBe('handoff');
     expect(result.handoff?.reason).toBe('call_accepted');
@@ -419,11 +507,7 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   });
 
   it('te dejo mi número, 612 345 678 → handoff call_accepted', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('te dejo mi número, 612 345 678');
     expect(result.action).toBe('handoff');
     expect(result.handoff?.reason).toBe('call_accepted');
@@ -431,11 +515,7 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   });
 
   it('no puedo por la tarde → NOT handoff, doubt', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('no puedo por la tarde');
     expect(result.action).not.toBe('handoff');
     expect(result.action).toBe('none');
@@ -443,42 +523,26 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   });
 
   it('buenas tardes (answer) → NOT handoff', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('buenas tardes');
     expect(result.action).not.toBe('handoff');
   });
 
   it('lo antes posible (answer) → NOT handoff', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('lo antes posible');
     expect(result.action).not.toBe('handoff');
   });
 
   it('quiero hablar con una persona (answer) → human handoff', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('quiero hablar con una persona');
     expect(result.action).toBe('handoff');
     expect(result.handoff?.reason).toBe('human_requested');
   });
 
   it('me viene bien (answer) → handoff call_accepted', async () => {
-    const agent = makeDemoAgent();
-    agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    const agent = await armCallProposal();
     const result = await agent.runTurn('me viene bien');
     expect(result.action).toBe('handoff');
     expect(result.handoff?.reason).toBe('call_accepted');
@@ -651,19 +715,17 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
     expect(handoff).toBeDefined();
     expect(handoff?.formation).toBe(DEMO_CONTENT.formationName);
     expect(handoff?.qualification).toEqual([
-      { question: first(DEMO_CONTENT.qualificationQuestions).text, answer: 'parto de cero' },
-      { question: at(DEMO_CONTENT.qualificationQuestions, 1).text, answer: 'lo antes posible' },
+      { question: first(DEMO_CONTENT.qualificationQuestions).text, answer: 'Quiero cambiar de sector' },
     ]);
     expect(handoff?.doubts).toEqual([]);
     expect(handoff?.lastMessage).toBe(lastMessage);
     expect(handoff?.summary.startsWith(DEMO_CONTENT.formationName)).toBe(true);
     expect(handoff?.summary).toContain('aceptó la llamada');
     expect(handoff?.summary).toContain(
-      `${first(DEMO_CONTENT.qualificationQuestions).text} → parto de cero`,
+      `${first(DEMO_CONTENT.qualificationQuestions).text} → Quiero cambiar de sector`,
     );
-    expect(handoff?.summary).toContain(
-      `${at(DEMO_CONTENT.qualificationQuestions, 1).text} → lo antes posible`,
-    );
+    expect(handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
+    expect(handoff?.recipient).toBe('Laura');
     expect(handoff?.summary).toContain('Dudas registradas: ninguna');
     expect(handoff?.summary.endsWith(lastMessage)).toBe(true);
   });
@@ -748,20 +810,14 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
   });
 });
 
-// A question that arrives WITHOUT an interrogative sign used to be swallowed as
-// the answer to the pending ask: the lead asked something and the agent took it
-// as a reply to its own question. Reported against the demo profile with this
-// exact message while the first qualification question was pending:
-//   "de cero, cuentame mas sobre escuela musk"
-// It fell to 'unknown' (no keyword matched "sobre escuela musk") and was
-// captured as the answer to `starting-experience`, so the lead never got an
-// answer. Rule 5 also depends on this: a question with no approved answer must
-// register the doubt instead of being swallowed.
+// A separate reception regression: a compound message without "?" can still
+// contain a recognized question, so it must receive the FAQ answer instead of
+// being captured as the goal response. This is not the partner's demonstrated
+// transcript; that flow has its own end-to-end test above.
 describe('preguntas sin signo de interrogación (questions without "?")', () => {
   const sobreMuskAnswer = DEMO_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')!.answer;
 
-  // The reported case, end to end.
-  it('el caso reportado: "de cero, cuentame mas sobre escuela musk" se responde y NO se captura', async () => {
+  it('una pregunta compuesta sin signo se responde y NO se captura como objetivo', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
 
@@ -774,8 +830,8 @@ describe('preguntas sin signo de interrogación (questions without "?")', () => 
     expect(agent.qualificationAnswers).toHaveLength(0);
 
     // The ask stayed pending: the next plain message IS captured as its answer.
-    const answer = await agent.runTurn('de cero');
-    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'de cero' });
+    const answer = await agent.runTurn('Quiero cambiar de sector');
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
   });
 
   // Rule 5 for a question with no approved answer, and no '?' to reveal it.
@@ -792,8 +848,8 @@ describe('preguntas sin signo de interrogación (questions without "?")', () => 
     expect(result.capturedAnswer).toBeUndefined();
     expect(agent.qualificationAnswers).toHaveLength(0);
 
-    const answer = await agent.runTurn('de cero');
-    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'de cero' });
+    const answer = await agent.runTurn('Quiero cambiar de sector');
+    expect(answer.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
   });
 
   // Keyword coverage: the brand phrase must reach the approved presentation of
@@ -828,14 +884,14 @@ describe('preguntas sin signo de interrogación (questions without "?")', () => 
   it('una respuesta normal sin "?" sigue capturándose (no se confunde con pregunta)', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
-    const text = 'de cero, sin experiencia en el sector';
+    const text = 'Quiero cambiar de sector';
 
     const result = await agent.runTurn(text);
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text });
     expect(result.registeredDoubts).toHaveLength(0);
-    // Still captured (not a question) and answered with the matched reaction.
-    expect(result.reply).toBe(demoReaction('starting-experience', 0));
+    // It is the final qualification answer, so the call invitation follows.
+    expect(result.reply).toBe(demoGoalReply());
   });
 });
 
@@ -857,9 +913,7 @@ describe('contacto entregado sin pregunta armada (fresh path)', () => {
   async function armCallProposalThenLeaveNoAsk(): Promise<MuskAgent> {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    await agent.runTurn('Quiero cambiar de sector');
     await agent.runTurn('depende');
     const declined = await agent.runTurn('no');
     expect(declined.reply).toBe(buildReply('decline'));
@@ -918,7 +972,7 @@ describe('contacto entregado sin pregunta armada (fresh path)', () => {
 
     expect(result.action).toBe('none');
     expect(result.handoff).toBeUndefined();
-    expect(result.reply).toBe(buildReply('price'));
+    expect(result.reply).toBe(DEMO_CONTENT.priceReply);
   });
 
   // Rule 7 outranks the contact: a lead who asks to stop is not called.
@@ -940,14 +994,12 @@ describe('contacto entregado sin pregunta armada (fresh path)', () => {
 // and then armed nothing, so the lead's "si" was classified as a brand-new
 // message and got the social greeting. The agent asked and stopped listening.
 describe('la pregunta que el agente hace se queda escuchando (ask invariante)', () => {
-  // Both qualification answers given and the call proposal sent: the next lead
+  // The goal answer is given and the call proposal sent: the next lead
   // message is received as its answer (pendingAsk = callProposal).
   async function armCallProposal(): Promise<MuskAgent> {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
-    agent.nextQualificationQuestion();
-    await agent.runTurn('lo antes posible');
+    await agent.runTurn('Quiero cambiar de sector');
     return agent;
   }
 
@@ -1005,7 +1057,7 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
     await agent.runTurn('depende');
 
     const price = await agent.runTurn('cuánto cuesta?');
-    expect(price.reply).toBe(buildReply('price'));
+    expect(price.reply).toBe(DEMO_CONTENT.priceReply);
     expect(price.action).toBe('none');
 
     const accepted = await agent.runTurn('me viene bien');
@@ -1020,13 +1072,13 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
   it('una respuesta aprobada repetida se repite: no la sustituye la invitación', async () => {
     const agent = makeDemoAgent();
     agent.nextQualificationQuestion();
-    await agent.runTurn('parto de cero');
+    await agent.runTurn('Quiero cambiar de sector');
 
     const first = await agent.runTurn('cuánto cuesta?');
     const second = await agent.runTurn('cuánto cuesta?');
 
-    expect(first.reply).toBe(buildReply('price'));
-    expect(second.reply).toBe(buildReply('price'));
+    expect(first.reply).toBe(DEMO_CONTENT.priceReply);
+    expect(second.reply).toBe(DEMO_CONTENT.priceReply);
     expect(second.reply).not.toBe(buildReply('callProposal'));
   });
 });
@@ -1087,7 +1139,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
     const result = await agent.runTurn('¿Los cursos pueden financiarse?');
 
     expect(result.intent).toBe('financiacion');
-    expect(result.reply).toBe(buildReply('financing'));
+    expect(result.reply).toBe(DEMO_CONTENT.financingReply);
     expect(result.capturedAnswer).toBeUndefined();
     expect(result.registeredDoubts).toHaveLength(0);
   });
@@ -1259,10 +1311,10 @@ describe('el momento acordado que llega tras la derivación no se pierde (D5)', 
   it('el mensaje posterior a la derivación se registra y actualiza el aviso', async () => {
     const agent = makeDemoAgent();
 
-    // Full demo flow: the lead answers, the agent proposes the call, and the
-    // lead answers with a moment ("mañana"), which closes the handoff.
-    await agent.runTurn('de cero');
-    await agent.runTurn('lo antes posible');
+    // Full demo flow: the goal answer triggers the call proposal, then the lead
+    // accepts with a moment ("mañana"), which closes the handoff.
+    agent.nextQualificationQuestion();
+    await agent.runTurn('Quiero cambiar de sector');
     const handoff = await agent.runTurn('mañana');
 
     expect(handoff.action).toBe('handoff');
@@ -1286,8 +1338,8 @@ describe('el momento acordado que llega tras la derivación no se pierde (D5)', 
   it('el teléfono posterior a la derivación se sigue registrando como contacto', async () => {
     const agent = makeDemoAgent();
 
-    await agent.runTurn('de cero');
-    await agent.runTurn('lo antes posible');
+    agent.nextQualificationQuestion();
+    await agent.runTurn('Quiero cambiar de sector');
     await agent.runTurn('mañana');
 
     const after = await agent.runTurn('mi móvil es 687723287');
@@ -1337,25 +1389,22 @@ describe('la base de conocimiento no se traga ni la pregunta ni la respuesta', (
     expect(result.reply).toBe(passageAnswer('kb-certificacion-arp'));
     // The ask was NOT stolen by the answer: it is still pending, so the lead's
     // next message is still received as the answer to THAT question.
-    const answer = await agent.runTurn('no tengo experiencia');
+    const answer = await agent.runTurn('Quiero cambiar de sector');
     expect(answer.capturedAnswer?.questionId).toBe(id);
   });
 
-  it('la respuesta del lead a la pregunta pendiente NO se la queda la base de conocimiento', async () => {
+  it('la respuesta libre a la pregunta pendiente queda asociada al objetivo', async () => {
     const agent = makeDemoAgent();
     const id = armQualification(agent);
-    expect(id).toBe('starting-experience');
+    expect(id).toBe('goal');
 
-    // This message matches the passage 'kb-sin-experiencia' (intent 'kb')
-    // AND is the answer to the pending question.
-    const result = await agent.runTurn('no tengo experiencia');
+    const result = await agent.runTurn('Quiero cambiar de sector');
 
-    expect(result.capturedAnswer?.questionId).toBe('starting-experience');
-    expect(result.capturedAnswer?.text).toBe('no tengo experiencia');
-    // The approved reaction is sent, NOT the passage answer.
-    expect(result.reply).toBe(demoReaction('starting-experience', 0));
-    expect(result.reply).not.toBe(passageAnswer('kb-sin-experiencia'));
+    expect(result.capturedAnswer?.questionId).toBe('goal');
+    expect(result.capturedAnswer?.text).toBe('Quiero cambiar de sector');
+    expect(result.reply).toBe(demoGoalReply());
     expect(result.registeredDoubts).toEqual([]);
+    expect(agent.records.some((record) => record.kind === 'kb')).toBe(false);
   });
 
   it('"paso" no activa el pasaje del método: sigue siendo un rechazo', async () => {
@@ -1372,11 +1421,9 @@ describe('la base de conocimiento no se traga ni la pregunta ni la respuesta', (
 
   it('"paso" como respuesta a la propuesta de llamada es un rechazo (regla 5)', async () => {
     const agent = makeDemoAgent();
-    expect(armQualification(agent)).toBe('starting-experience');
-    await agent.runTurn('parto de cero');
-    expect(armQualification(agent)).toBe('time-interest');
-    const closing = await agent.runTurn('lo antes posible');
-    expect(closing.reply).toBe(`${demoReaction('time-interest', 0)} ${demoClosing()}`);
+    expect(armQualification(agent)).toBe('goal');
+    const closing = await agent.runTurn('Quiero cambiar de sector');
+    expect(closing.reply).toBe(demoGoalReply());
 
     const refusal = await agent.runTurn('paso');
 
