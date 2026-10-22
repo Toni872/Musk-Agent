@@ -281,6 +281,39 @@ describe('knowledge base: the retrieval layer', () => {
   });
 });
 
+describe('knowledge base: protected compensation questions', () => {
+  const compensationQuestions = [
+    '¿Cuánto cobran en las prácticas?',
+    '¿Las prácticas son remuneradas?',
+    '¿Cuánto se cobra en las prácticas?',
+    '¿Cuánto pagan las prácticas?',
+  ];
+
+  it.each(compensationQuestions)(
+    'escalates "%s" on both profiles instead of answering approved content',
+    (question) => {
+      expect(classify(question, DEMO_CONTENT)).toBe('unknown');
+      expect(classify(question, APPROVED_CONTENT)).toBe('unknown');
+    },
+  );
+
+  it('the knowledge base refuses a compensation question', () => {
+    const outcome = retrieve(KB_PASSAGES, '¿Cuánto cobran en las prácticas?');
+
+    expect(outcome.match).toBeNull();
+    expect(outcome.refusal).toBe('forbidden-topic');
+  });
+
+  it('does not over-block plain internship or requirements questions', () => {
+    expect(classify('¿Hacéis prácticas?', DEMO_CONTENT)).toBe('kb');
+    expect(classify('¿me contáis los requisitos?', APPROVED_CONTENT)).toBe('general');
+  });
+
+  it('price keeps its own approved routing before the compensation gate', () => {
+    expect(classify('¿Cuánto cuesta el curso?', APPROVED_CONTENT)).toBe('price');
+  });
+});
+
 describe('knowledge base: the agent end to end', () => {
   it('answers the approved completion-window question from the time-objection passage', async () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });

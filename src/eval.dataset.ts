@@ -653,13 +653,20 @@ export const EVAL_KB_CASES: KbEvalCase[] = [
     expectedIntent: 'unknown',
     note: 'The exact conditions of the internship agreement: not in the source, so they escalate (rule 5).',
   },
+  {
+    id: 'K31',
+    question: '¿Cuánto cobran en las prácticas?',
+    expectedPassageId: null,
+    expectedIntent: 'unknown',
+    note: 'Pay of any kind, including the internship stipend, has no approved answer: rule 5 registers the doubt and proposes a human instead of answering the internship passage.',
+  },
 ];
 
 // Group membership of the knowledge-base dataset. Same shape as the FAQ
 // groups: an explicit id list, so a group can hold non-adjacent ids.
 export const KB_EVAL_GROUPS: EvalGroup[] = [
   { group: 'F', label: 'answered by the knowledge base', ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22] },
-  { group: 'G', label: 'must escalate (knowledge base silent)', ids: [23, 24, 25, 26, 27, 28, 29, 30] },
+  { group: 'G', label: 'must escalate (knowledge base silent)', ids: [23, 24, 25, 26, 27, 28, 29, 30, 31] },
 ];
 
 export interface KbDatasetDescription {

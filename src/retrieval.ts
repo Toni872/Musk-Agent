@@ -122,6 +122,15 @@ export const FORBIDDEN_TOPIC_PATTERNS: { id: string; pattern: RegExp }[] = [
       /\b(cuesta|cuestan|coste|costos|precio|precios|importe|importes|euros?|tarifas?|valor de|pagar|pago|caro|barato|carisimo|gratis|gratuita|gratuito|presupuesto|mas barato|dinero)\b/,
   },
   {
+    id: 'compensation',
+    // Pay of any kind, including the internship stipend. The price entry above
+    // covers "cuánto cuesta" and the internship-conditions entry covers the
+    // agreement; this one closes the verb/noun family of being paid (cobrar,
+    // pagar, remuneración, retribución, sueldo, salario, nómina) so the
+    // question never reaches an approved passage. Folded text: no accents.
+    pattern: /\b(cobr\w*|pagan|pagas|pagar|pago|remunera\w*|retribu\w*|sueldo|nominas?|salario\w*)\b/,
+  },
+  {
     id: 'financing',
     // Narrow alias for the observed transposition typo "finanaciar" /
     // "finanaciarse"; this is not a fuzzy classifier.

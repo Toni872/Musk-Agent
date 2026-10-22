@@ -10,7 +10,7 @@ import {
   matchesWholeMessage,
   STOP_TRIGGER,
 } from './rules';
-import { retrieve, type RetrievalMode } from './retrieval';
+import { FORBIDDEN_TOPIC_PATTERNS, retrieve, type RetrievalMode } from './retrieval';
 import { normalizeEs } from './text';
 
 // The normalizer lives in its own leaf module (src/text.ts) so that the
@@ -115,6 +115,21 @@ export function isWholeMessageAnswer(folded: string): boolean {
   );
 }
 
+// Forbidden-topic ids from the retrieval layer that must intercept BEFORE the
+// hand-written FAQ, so the gate applies to every profile, with or without a
+// knowledge base. Only "compensation" is gated here: no profile has an
+// approved answer for what the lead is paid, so rule 5 must register the doubt
+// and propose a human instead of replying with the nearest approved content.
+// Internship agreement conditions ("condiciones del convenio") and technical
+// requirements are separate topics and stay out of this gate.
+export const PROTECTED_TOPIC_IDS: readonly string[] = ['compensation'];
+
+function asksProtectedTopic(folded: string): boolean {
+  return FORBIDDEN_TOPIC_PATTERNS.some(
+    (entry) => PROTECTED_TOPIC_IDS.includes(entry.id) && entry.pattern.test(folded),
+  );
+}
+
 // Classification order matters: stop beats everything (rule 7), then the
 // confirmed human-handoff request (rule 9), then the forbidden topics, then
 // call acceptance (rule 9 — a CONFIRMED one: acceptanceConfirmed rejects a
@@ -137,6 +152,12 @@ export function classify(
   if (INPUT_PATTERNS.temario.test(folded)) return 'temario';
   if (INPUT_PATTERNS.financiacion.test(folded)) return 'financiacion';
   if (acceptanceConfirmed(folded)) return 'general';
+  // Runs before the FAQ on purpose: a profile WITHOUT a knowledge base would
+  // otherwise let an unrelated FAQ keyword answer the question (for example
+  // "¿cuánto cobran en las prácticas?" matching the methodology entry).
+  // 'unknown' is the existing rule 5 path (register the doubt, propose a
+  // human), so no new intent is introduced.
+  if (asksProtectedTopic(folded)) return 'unknown';
   if (findApprovedAnswer(content, folded)) return 'general';
   if (INPUT_PATTERNS.decline.test(folded)) return 'decline';
   if (SOCIAL_GREETING.test(folded) || SOCIAL_ACK.test(folded)) return 'general';
