@@ -11,14 +11,30 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { EVAL_CASES, EVAL_KB_CASES, groupOf, type EvalCase, type KbEvalCase } from './eval.dataset';
+import {
+  EVAL_CASES,
+  EVAL_KB_CASES,
+  KB_PARAPHRASE_DEV_CASES,
+  KB_PARAPHRASE_TEST_CASES,
+  groupOf,
+  type EvalCase,
+  type KbEvalCase,
+  type KbParaphraseCase,
+} from './eval.dataset';
 import { MuskAgent } from './agent';
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT } from './content';
 import { DEMO_CONTENT } from './content.demo';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
 import { MockProvider } from './llm';
-import { retrieve } from './retrieval';
+import { KB_PASSAGES } from './kb';
+import {
+  MIN_BM25_SCORE,
+  MIN_TERM_COVERAGE,
+  PRODUCTION_RETRIEVAL_MODE,
+  retrieve,
+  type RetrievalMode,
+} from './retrieval';
 import { acceptanceConfirmed, guardReply } from './rules';
 
 export type RetrievalOutcome = 'hit' | 'wrong-answer' | 'miss' | 'false-positive' | 'correct-null';
@@ -232,6 +248,7 @@ export interface KbEvalMetrics {
 }
 
 export interface KbEvalReport {
+  mode: RetrievalMode;
   results: KbCaseResult[];
   metrics: KbEvalMetrics;
 }
@@ -254,13 +271,17 @@ function resolveKbOutcome(expected: string | null, actual: string | null): KbRet
 // Pure and deterministic: no agent instance, no state, no LLM. The knowledge
 // base is measured exactly as the runtime uses it: the same retrieve() call,
 // and the same classify() the agent performs.
-export function runKbEval(content: ApprovedContent, cases: KbEvalCase[]): KbEvalReport {
+export function runKbEval(
+  content: ApprovedContent,
+  cases: KbEvalCase[],
+  mode: RetrievalMode = PRODUCTION_RETRIEVAL_MODE,
+): KbEvalReport {
   const results: KbCaseResult[] = [];
 
   for (const evalCase of cases) {
-    const outcome = retrieve(content.kb ?? [], evalCase.question);
+    const outcome = retrieve(content.kb ?? [], evalCase.question, mode);
     const actualPassageId = outcome.match?.passage.id ?? null;
-    const actualIntent = classify(evalCase.question, content);
+    const actualIntent = classify(evalCase.question, content, mode);
     const resultOutcome = resolveKbOutcome(evalCase.expectedPassageId, actualPassageId);
     const guard = outcome.match ? guardReply(outcome.match.passage.answer) : { ok: true, violations: [] };
     const parts: string[] = [];
@@ -319,7 +340,210 @@ export function runKbEval(content: ApprovedContent, cases: KbEvalCase[]): KbEval
     guardViolations,
   };
 
-  return { results, metrics };
+  return { mode, results, metrics };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 lexical ablation: same BM25, same coverage, same gates and thresholds;
+// only candidate mode adds the passage's indexed synthetic development prompts.
+// Protected intents are classified first and are measured in their own lane.
+// ---------------------------------------------------------------------------
+
+export interface KbParaphraseResult {
+  id: string;
+  question: string;
+  category: KbParaphraseCase['category'];
+  expectedPassageId: string | null;
+  actualPassageId: string | null;
+  actualIntent: Intent | null;
+  score: number;
+  coverage: number;
+  correct: boolean;
+}
+
+export interface KbParaphraseMetrics {
+  total: number;
+  answerable: number;
+  mustEscalate: number;
+  ambiguous: number;
+  protected: number;
+  hits: number;
+  misses: number;
+  wrongTopPassage: number;
+  falsePositives: number;
+  recall: number;
+  protectedIntercepted: number;
+}
+
+export interface KbParaphraseReport {
+  mode: RetrievalMode;
+  results: KbParaphraseResult[];
+  metrics: KbParaphraseMetrics;
+}
+
+export function runKbParaphraseEval(
+  content: ApprovedContent,
+  cases: KbParaphraseCase[],
+  mode: RetrievalMode,
+): KbParaphraseReport {
+  const results: KbParaphraseResult[] = cases.map((evalCase) => {
+    if (evalCase.category === 'protected') {
+      const actualIntent = classify(evalCase.question, content, mode);
+      const correct = actualIntent === evalCase.expectedIntent && actualIntent !== 'kb';
+      return {
+        id: evalCase.id,
+        question: evalCase.question,
+        category: evalCase.category,
+        expectedPassageId: null,
+        actualPassageId: null,
+        actualIntent,
+        score: 0,
+        coverage: 0,
+        correct,
+      };
+    }
+
+    const outcome = retrieve(content.kb ?? [], evalCase.question, mode);
+    const actualPassageId = outcome.match?.passage.id ?? null;
+    const correct = evalCase.category === 'answerable'
+      ? actualPassageId === evalCase.expectedPassageId
+      : actualPassageId === null;
+    return {
+      id: evalCase.id,
+      question: evalCase.question,
+      category: evalCase.category,
+      expectedPassageId: evalCase.expectedPassageId,
+      actualPassageId,
+      actualIntent: null,
+      score: outcome.match?.score ?? outcome.best?.score ?? 0,
+      coverage: outcome.match?.coverage ?? outcome.best?.coverage ?? 0,
+      correct,
+    };
+  });
+
+  const answerable = results.filter((result) => result.category === 'answerable');
+  const mustEscalate = results.filter((result) => result.category === 'must-escalate');
+  const ambiguous = results.filter((result) => result.category === 'ambiguous');
+  const protectedCases = results.filter((result) => result.category === 'protected');
+  const hits = answerable.filter((result) => result.actualPassageId === result.expectedPassageId).length;
+  const wrongTopPassage = answerable.filter(
+    (result) => result.actualPassageId !== null && result.actualPassageId !== result.expectedPassageId,
+  ).length;
+  const falsePositives = [...mustEscalate, ...ambiguous].filter(
+    (result) => result.actualPassageId !== null,
+  ).length;
+
+  return {
+    mode,
+    results,
+    metrics: {
+      total: results.length,
+      answerable: answerable.length,
+      mustEscalate: mustEscalate.length,
+      ambiguous: ambiguous.length,
+      protected: protectedCases.length,
+      hits,
+      misses: answerable.length - hits - wrongTopPassage,
+      wrongTopPassage,
+      falsePositives,
+      recall: answerable.length > 0 ? hits / answerable.length : 0,
+      protectedIntercepted: protectedCases.filter((result) => result.correct).length,
+    },
+  };
+}
+
+function formatKbParaphraseRow(label: string, report: KbParaphraseReport): string {
+  const { metrics } = report;
+  return [
+    `  ${label.padEnd(10)} ${String(metrics.total).padStart(3)} cases ` +
+      `(answerable ${metrics.answerable}, must-escalate ${metrics.mustEscalate}, ambiguous ${metrics.ambiguous}, protected ${metrics.protected})`,
+    `             recall ${metrics.hits}/${metrics.answerable} (${fixed(metrics.recall, 3)}); ` +
+      `false positives ${metrics.falsePositives}; wrong top passage ${metrics.wrongTopPassage}; ` +
+      `protected intercepted ${metrics.protectedIntercepted}/${metrics.protected}`,
+  ].join('\n');
+}
+
+export function formatKbParaphraseDevReport(
+  baseline: KbParaphraseReport,
+  candidate: KbParaphraseReport,
+): string {
+  const failures = candidate.results.filter((result) => !result.correct);
+  const lines = [
+    'MUSK Phase 2 lexical ablation — DEVELOPMENT ONLY (synthetic prompts, not observed lead traffic)',
+    `  indexed examples   ${KB_PARAPHRASE_DEV_CASES.filter((entry) => entry.category === 'answerable').length} total; 7 per passage`,
+    `  thresholds         BM25 >= ${MIN_BM25_SCORE}; term coverage >= ${MIN_TERM_COVERAGE} (unchanged)`,
+    formatKbParaphraseRow('Baseline', baseline),
+    formatKbParaphraseRow('Candidate', candidate),
+    `  runtime mode       ${PRODUCTION_RETRIEVAL_MODE}`,
+  ];
+
+  if (failures.length === 0) {
+    lines.push('  dev failures       none');
+  } else {
+    lines.push('  candidate dev failures');
+    for (const failure of failures) {
+      lines.push(
+        `    ${failure.id} ${failure.category}: expected ${failure.expectedPassageId ?? 'no passage'}, ` +
+          `got ${failure.actualPassageId ?? failure.actualIntent ?? 'no match'} ` +
+          `(score ${failure.score.toFixed(2)}, coverage ${failure.coverage.toFixed(2)}) — ${failure.question}`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+export function formatKbParaphraseTestReport(
+  baseline: KbParaphraseReport,
+  candidate: KbParaphraseReport,
+  legacyCandidate: KbEvalReport,
+  devCandidate: KbParaphraseReport,
+): string {
+  const dev = devCandidate.metrics;
+  const test = candidate.metrics;
+  const legacy = legacyCandidate.metrics;
+  const devClean =
+    dev.misses === 0 &&
+    dev.wrongTopPassage === 0 &&
+    dev.falsePositives === 0 &&
+    dev.protectedIntercepted === dev.protected;
+  const legacyClean =
+    legacy.misses === 0 &&
+    legacy.wrongAnswers === 0 &&
+    legacy.falsePositives === 0;
+  const testPasses =
+    test.recall > baseline.metrics.recall &&
+    test.falsePositives === 0 &&
+    test.wrongTopPassage === 0 &&
+    test.protectedIntercepted === test.protected;
+  const accepted = devClean && legacyClean && testPasses;
+  const lines = [
+    'MUSK Phase 2 lexical ablation — FINAL HELD-OUT TEST (synthetic prompts; do not tune on this set)',
+    `  held-out examples  ${KB_PARAPHRASE_TEST_CASES.filter((entry) => entry.category === 'answerable').length} total; 3 per passage; none indexed`,
+    `  Baseline            ${formatKbParaphraseMetrics(baseline.metrics)}`,
+    `  Candidate           ${formatKbParaphraseMetrics(candidate.metrics)}`,
+    `  acceptance          ${accepted ? 'PASS' : 'BLOCKED'}`,
+    `  runtime mode        ${PRODUCTION_RETRIEVAL_MODE}`,
+    `  phrase inventory    ${KB_PASSAGES.length} passages; each has 7 indexed development + 3 held-out = 10 synthetic prompts`,
+    ...KB_PASSAGES.map(
+      (passage) => `    ${passage.id}: indexed ${(passage.exampleQueries ?? []).length}; held-out ${KB_PARAPHRASE_TEST_CASES.filter((entry) => entry.category === 'answerable' && entry.expectedPassageId === passage.id).length}`,
+    ),
+    `  decision            ${accepted ? 'candidate is eligible for production runtime' : 'keep candidate benchmark-only; production remains on baseline'}`,
+  ];
+  if (!devClean) lines.push('  blocker             candidate did not clear the development quality gate');
+  if (!legacyClean) lines.push('  blocker             candidate changed one or more legacy/core KB outcomes');
+  if (test.falsePositives !== 0) lines.push('  blocker             hold-out false positives must remain exactly zero');
+  if (test.recall <= baseline.metrics.recall) lines.push('  blocker             held-out recall did not improve over baseline');
+  if (test.wrongTopPassage !== 0) lines.push('  blocker             hold-out contains a wrong top passage');
+  if (test.protectedIntercepted !== test.protected) lines.push('  blocker             one or more protected intents were not intercepted');
+  return lines.join('\n');
+}
+
+function formatKbParaphraseMetrics(metrics: KbParaphraseMetrics): string {
+  return `${metrics.hits}/${metrics.answerable} recall (${fixed(metrics.recall, 3)}); ` +
+    `false positives ${metrics.falsePositives}; wrong top passage ${metrics.wrongTopPassage}; ` +
+    `protected intercepted ${metrics.protectedIntercepted}/${metrics.protected} ` +
+    `(total ${metrics.total}: answerable ${metrics.answerable}, negatives ${metrics.mustEscalate}, ` +
+    `ambiguous ${metrics.ambiguous}, protected ${metrics.protected})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -492,7 +716,7 @@ export function formatReport(
 export function formatKbReport(report: KbEvalReport, options?: { verbose?: boolean }): string {
   const { metrics, results } = report;
   const lines: string[] = [];
-  lines.push('MUSK knowledge-base evaluation (deterministic retrieval)');
+  lines.push(`MUSK knowledge-base evaluation (deterministic retrieval — ${report.mode})`);
   lines.push(
     `  cases            ${String(metrics.total).padStart(3)}   (answerable ${metrics.answerable} / must escalate ${metrics.unanswerable})`,
   );
@@ -580,22 +804,56 @@ export function formatGroundingReport(
 async function main(argv: string[]): Promise<void> {
   const verbose = argv.includes('--verbose');
   const asJson = argv.includes('--json');
+  const devOnly = argv.includes('--dev-only');
+  const devBaseline = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_DEV_CASES, 'baseline');
+  const devCandidate = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_DEV_CASES, 'candidate');
+  const legacyBaseline = runKbEval(DEMO_CONTENT, EVAL_KB_CASES, 'baseline');
+  const legacyCandidate = runKbEval(DEMO_CONTENT, EVAL_KB_CASES, 'candidate');
+  if (devOnly) {
+    process.stdout.write(
+      `${formatKbParaphraseDevReport(devBaseline, devCandidate)}\n\n` +
+        `${formatKbReport(legacyBaseline)}\n\n${formatKbReport(legacyCandidate)}\n`,
+    );
+    return;
+  }
+  const testBaseline = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_TEST_CASES, 'baseline');
+  const testCandidate = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_TEST_CASES, 'candidate');
+  const holdoutReport = formatKbParaphraseTestReport(
+    testBaseline,
+    testCandidate,
+    legacyCandidate,
+    devCandidate,
+  );
   const report = runRetrievalEval(APPROVED_CONTENT, EVAL_CASES);
   // The knowledge base lives only in the DEMO profile (pending MUSK sign-off),
   // so that is the profile the knowledge-base layer is measured on.
-  const kbReport = runKbEval(DEMO_CONTENT, EVAL_KB_CASES);
+  const kbReport = legacyBaseline;
   // The grounding layer is measured on the approved profile: the LLM rephrase
   // is checked against the approved answer of the matched FAQ entry.
   const groundingReport = await runGroundingEval(APPROVED_CONTENT, EVAL_CASES);
 
   if (asJson) {
     process.stdout.write(
-      `${JSON.stringify({ faq: report, kb: kbReport, grounding: groundingReport }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          faq: report,
+          kb: kbReport,
+          kbCandidateLegacy: legacyCandidate,
+          kbParaphraseDev: { baseline: devBaseline, candidate: devCandidate },
+          kbParaphraseTest: { baseline: testBaseline, candidate: testCandidate },
+          grounding: groundingReport,
+        },
+        null,
+        2,
+      )}\n`,
     );
     return;
   }
   process.stdout.write(
-    `${formatReport(report, { verbose, kb: kbReport, grounding: groundingReport })}\n`,
+      `${formatReport(report, { verbose, kb: kbReport, grounding: groundingReport })}\n\n` +
+      `${formatKbReport(legacyCandidate)}\n\n` +
+      `${formatKbParaphraseDevReport(devBaseline, devCandidate)}\n\n` +
+      `${holdoutReport}\n`,
   );
 }
 

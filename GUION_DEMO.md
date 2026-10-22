@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-21, 209/209 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-22, 227/243 tests.
 
 > **Apertura y cualificación**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el perfil aprobado, los marcadores `TODO(decisión)` siguen sin enviarse. El flujo DEMO tiene una pregunta de objetivo, orientada a la llamada. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
@@ -64,18 +64,19 @@ Cada frase de abajo se comprobó contra el agente real (`provider=null`). Todas 
 
 Estado final observado de la conversación 2: `stopped=true records=2`.
 
-## Conversación 3 — transcripción DEMO: información, objetivo y llamada
+## Conversación 3 — traza de demo: catálogo, elección de formación y llamada
 
-Este flujo reproduce la pregunta sobre en qué consisten las formaciones y reconoce el objetivo expresado antes de invitar a la llamada. La respuesta exacta del lead se conserva bajo `goal`.
+Esta traza reproduce el texto compartido para la demo. La pregunta `goal` admite tanto un objetivo como una formación elegida; la respuesta exacta del lead se conserva bajo `goal` y conduce directamente a acordar la llamada.
 
 | # | Escribe el lead | El agente responde (observado) | Mecanismo |
 |---|---|---|---|
-| 1 | `Cuéntame en qué consiste` | Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo. | FAQ `informacion` |
-| 2 | — | ¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada. | Pregunta de conversación `goal` |
-| 3 | `Obtener conocimientos para optar a una plaza` | Entiendo: quieres ampliar conocimientos para optar a una plaza. El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien? | Respuesta capturada bajo `goal` + reacción + cierre configurable |
-| 4 | `mañana a las nueve` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | Regla 9: handoff `call_accepted` |
+| 1 | `Si, me interesa. Dame informacion sobre los cursos` | Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos. ¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada. | FAQ `catalogo-formaciones` + pregunta `goal` **en el mismo mensaje** (un único mensaje saliente por turno) |
+| 2 | `el curso de full stack` | Entiendo, te interesa Full Stack. El equipo puede orientarte sobre ese programa en una llamada. ¿Qué día y a qué hora te viene bien que el equipo te llame? | Elección capturada bajo `goal` + reacción específica + cierre configurable |
+| 3 | `los cursos pueden finanaciarse?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3: alias estrecho del error tipográfico; usa la respuesta de financiación del perfil |
 
-Resumen simulado para el equipo: destinataria `Laura`, contacto y bolsa `ilocalizables`, respuesta `goal: Obtener conocimientos para optar a una plaza` y último mensaje `mañana a las nueve`. No se envía un WhatsApp real ni se integra el CRM.
+La respuesta de catálogo ya no termina con «Dime qué te atrae y te oriento.»: esa invitación pedía lo mismo que la pregunta `goal` que sale a continuación, y desde el 22-10 ambos textos viajan en un solo mensaje (`src/outbound.ts`). Cuando la respuesta ya es una pregunta, la pregunta de cualificación NO se apila: una sola pregunta por mensaje.
+
+La respuesta de financiación sigue siendo la configurada en el perfil y no genera un registro de KB. No se envía un WhatsApp real ni se integra el CRM. Las pruebas de regresión son sintéticas: no se presentan como tráfico observado adicional.
 
 Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/reception.test.ts`:
 
@@ -139,13 +140,13 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 
 ```powershell
 npm run typecheck   # cero errores
-npm test            # 209 tests, sin red
+npm test             # 243 tests, sin red
 npm run eval        # 43 casos de FAQ + 30 de KB + 22 de fundamentación
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador
 npm run ui          # sirve el simulador en http://localhost:4173
 ```
 
-El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 43 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard: las paráfrasis sin palabra clave que fallaban (C19-C22, C34-C35) se cerraron ampliando el ruteo, sin tocar ningún texto de cara al lead.
+El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 43 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard. La comparación léxica de Fase 2 sigue siendo un benchmark sintético, bloqueado para producción; el modo de runtime permanece en `baseline`.
 
 Para reproducir el guion completo de forma no interactiva se usa un driver temporal `.mts` que importa `MuskAgent` (mismo código del agente, sin la limitación del REPL).

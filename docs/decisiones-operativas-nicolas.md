@@ -68,10 +68,11 @@ copy configurable; no supone una agenda automática ni confirma cobertura.
 **Qué necesitamos:** qué señales bastan para proponerla.
 
 **Decisión confirmada:** objetivo de llamada directa, sin cuestionario extenso. El
-perfil DEMO usa una pregunta breve sobre qué quiere conseguir el lead para orientar
-la llamada. Es una conversación, no un examen ni un filtro; no se puntúa ni se
-excluye a nadie. El texto se conserva configurable. Los marcadores del perfil
-aprobado siguen pendientes y no se han sustituido.
+perfil DEMO usa una única pregunta configurable que acepta tanto la formación que
+interesa al lead como lo que quiere conseguir, y después propone acordar la llamada.
+Es una conversación, no un examen ni un filtro; no se puntúa ni se excluye a nadie.
+Los marcadores de preguntas del perfil aprobado siguen pendientes y no se han
+sustituido.
 
 Nada impide que el lead pida la llamada antes: en ese caso se ofrece en el acto.
 

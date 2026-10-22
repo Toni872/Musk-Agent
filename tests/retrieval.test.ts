@@ -16,10 +16,13 @@ import { describe, expect, it } from 'vitest';
 
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
+import { KB_PARAPHRASE_DEV_CASES, KB_PARAPHRASE_TEST_CASES } from '../src/eval.dataset';
+import { classify } from '../src/intent';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { retrieve, MIN_BM25_SCORE, MIN_TERM_COVERAGE } from '../src/retrieval';
 import { MuskAgent } from '../src/agent';
 import { guardReply } from '../src/rules';
+import { normalizeEs } from '../src/text';
 
 const DIGIT = /\d/;
 
@@ -59,6 +62,60 @@ describe('knowledge base: the passages themselves', () => {
         expect(entry.source).toContain('escuela-musk-base-conocimiento.md');
       }
     }
+  });
+
+  it('has seven indexed synthetic development prompts for every passage', () => {
+    for (const entry of KB_PASSAGES) {
+      expect(entry.exampleQueries, `${entry.id} example query count`).toHaveLength(7);
+      expect(new Set(entry.exampleQueries?.map(normalizeEs).values()).size, `${entry.id} unique prompts`).toBe(7);
+    }
+    expect(KB_PARAPHRASE_DEV_CASES.filter((entry) => entry.category === 'answerable')).toHaveLength(35 * 7);
+  });
+
+  it('keeps exactly three distinct held-out prompts per passage outside all indexed evidence', () => {
+    const heldOut = KB_PARAPHRASE_TEST_CASES.filter((entry) => entry.category === 'answerable');
+    expect(heldOut).toHaveLength(35 * 3);
+
+    const heldOutByPassage = new Map<string, number>();
+    for (const entry of heldOut) {
+      const passageId = entry.expectedPassageId;
+      expect(passageId).not.toBeNull();
+      heldOutByPassage.set(passageId!, (heldOutByPassage.get(passageId!) ?? 0) + 1);
+    }
+    for (const entry of KB_PASSAGES) {
+      expect(heldOutByPassage.get(entry.id), `${entry.id} held-out count`).toBe(3);
+    }
+
+    const indexed = new Set(KB_PASSAGES.flatMap((entry) => entry.exampleQueries ?? []).map(normalizeEs));
+    const normalizedHoldout = heldOut.map((entry) => normalizeEs(entry.question));
+    expect(new Set(normalizedHoldout).size).toBe(normalizedHoldout.length);
+    for (const query of normalizedHoldout) {
+      expect(indexed.has(query), `held-out query was indexed: ${query}`).toBe(false);
+    }
+  });
+
+  it('keeps protected development paraphrases on their hard-rule route before KB retrieval', () => {
+    const protectedCases = KB_PARAPHRASE_DEV_CASES.filter((entry) => entry.category === 'protected');
+    expect(protectedCases).toHaveLength(5);
+    for (const entry of protectedCases) {
+      expect(classify(entry.question, DEMO_CONTENT, 'candidate'), entry.id).toBe(entry.expectedIntent);
+    }
+  });
+
+  it('keeps held-out protected intents on their hard-rule route before KB retrieval', () => {
+    const protectedCases = KB_PARAPHRASE_TEST_CASES.filter((entry) => entry.category === 'protected');
+    expect(protectedCases).toHaveLength(5);
+    for (const entry of protectedCases) {
+      expect(classify(entry.question, DEMO_CONTENT, 'candidate'), entry.id).toBe(entry.expectedIntent);
+    }
+  });
+
+  it('uses only the approved passage answer as candidate retrieval output', () => {
+    const query = passage('kb-metodo-practica').exampleQueries?.[0];
+    expect(query).toBeDefined();
+    const outcome = retrieve(KB_PASSAGES, query!, 'candidate');
+    expect(outcome.match?.passage.id).toBe('kb-metodo-practica');
+    expect(outcome.match?.passage.answer).toBe(passage('kb-metodo-practica').answer);
   });
 
   it('every answer passes the output guard (rules 1-4, 6)', () => {
@@ -174,6 +231,17 @@ describe('knowledge base: the retrieval layer', () => {
       expect(outcome.refusal).toBe('forbidden-topic');
     }
   });
+
+  it.each(['los cursos pueden finanaciarse?', 'los cursos pueden finanaciar?'])(
+    'rejects the observed financing transposition typo "%s" before scoring an answer',
+    (question) => {
+      const outcome = retrieve(KB_PASSAGES, question);
+
+      expect(classify(question, DEMO_CONTENT)).toBe('financiacion');
+      expect(outcome.match).toBeNull();
+      expect(outcome.refusal).toBe('forbidden-topic');
+    },
+  );
 
   it('the explicitly approved completion window resolves to the time-objection passage', () => {
     const outcome = retrieve(KB_PASSAGES, '¿Cuánto tiempo tengo para completar la formación?');

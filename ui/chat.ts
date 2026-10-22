@@ -14,9 +14,14 @@ import {
   type LeadContact,
   type TurnResult,
 } from '../src/agent';
-import { APPROVED_CONTENT, type ApprovedContent } from '../src/content';
+import {
+  APPROVED_CONTENT,
+  type ApprovedContent,
+  type QualificationQuestion,
+} from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
 import type { LLMProvider } from '../src/llm';
+import { composeTurnOutbound } from '../src/outbound';
 
 export type ContentProfile = 'real' | 'demo';
 
@@ -91,13 +96,21 @@ export function contentFor(profile: ContentProfile): ApprovedContent {
   return profile === 'demo' ? DEMO_CONTENT : APPROVED_CONTENT;
 }
 
+// Operator line of one turn. When the message was RECEIVED as the answer to the
+// pending ask, that disposition LEADS the line: the raw classifier label alone
+// is misleading (a course name classifies as 'kb' while no passage was used at
+// all, which made the demo look broken), so it is kept only as a secondary
+// note. Same information and same order as src/simulator.ts printTurn().
 export function formatDiagnostic(diagnostic: TurnDiagnostic): string {
-  const base =
+  const classifier =
     `intent = ${diagnostic.intent} | action = ${diagnostic.action}` +
     ` | suppressed = ${diagnostic.suppressed}` +
     ` | registered doubts = ${diagnostic.registeredDoubts}`;
-  if (!diagnostic.capturedAnswer) return base;
-  return `${base} | received = answer to ${diagnostic.capturedAnswer.questionId ?? 'opening message'}`;
+  if (!diagnostic.capturedAnswer) return classifier;
+  const received =
+    `received = answer to ${diagnostic.capturedAnswer.questionId ?? 'opening message'}` +
+    ` (no doubt registered)`;
+  return `${received} | ${classifier}`;
 }
 
 export function formatHandoff(handoff: HandoffContext): string {
@@ -148,6 +161,11 @@ export class Chat {
 
   // One turn: register the lead message, run the guard, render the reply plus
   // the diagnostics, then ask the next approved qualification question (if any).
+  // The lead receives ONE outbound message: the question asked here travels
+  // inside the reply when both exist (src/outbound.ts, the same helper the CLI
+  // uses). Asking before rendering changes nothing in the agent — the ask is
+  // armed exactly as before, so the lead's next message is still RECEIVED as the
+  // answer to that question.
   async send(text: string): Promise<ChatState> {
     const message = text.trim();
     if (!message) return this.getState();
@@ -155,11 +173,10 @@ export class Chat {
     const recordsBefore = this.agent.records.length;
     const result = await this.agent.runTurn(message);
     this.turnCount += 1;
-    this.pushTurn(result);
+    const question = this.agent.nextQualificationQuestion();
+    this.pushTurn(result, question);
     this.pushKbProvenance(recordsBefore);
     this.pushGrounding(recordsBefore);
-    const question = this.agent.nextQualificationQuestion();
-    if (question) this.messages.push({ role: 'agent', text: question.text });
     return this.getState();
   }
 
@@ -228,12 +245,15 @@ export class Chat {
     }
   }
 
-  private pushTurn(result: TurnResult): void {
-    // A received answer sends no message of its own: for that turn the agent's
-    // message is the NEXT qualification question (pushed by send() right after).
-    // Only a suppressed turn keeps a visible placeholder in its place.
-    if (result.reply) {
-      this.messages.push({ role: 'agent', text: result.reply });
+  private pushTurn(result: TurnResult, question: QualificationQuestion | null): void {
+    // ONE outbound message per turn (src/outbound.ts): the reply and the
+    // qualification question compose into a single bubble, unless the reply
+    // already asks something (one question at a time) — then the question is the
+    // turn's own message, which is also the case when a received answer sends no
+    // reply of its own. Only a suppressed turn keeps a visible placeholder.
+    const outbound = composeTurnOutbound(result.reply, question);
+    if (outbound.text !== '') {
+      this.messages.push({ role: 'agent', text: outbound.text });
     } else if (result.suppressed) {
       this.messages.push({
         role: 'agent',

@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 209 tests en 6 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, fundamentación, UI y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 243 tests en 6 ficheros (obligatorios, estructurales, apertura/cualificación, recepción de respuestas, regresiones de disparadores, cobertura de información, capa de base de conocimiento, fundamentación, UI y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 43 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 30 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
@@ -44,6 +44,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `src/retrieval.ts` | Recuperación determinista sobre la base de conocimiento: tokenización es-ES, BM25, cobertura de términos, temas prohibidos y umbrales con nombre (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`) |
 | `src/llm.ts` | Interfaz `LLMProvider`, `OpenAICompatibleLLM` vía `fetch` sin SDK, `MockProvider` para tests sin red |
 | `src/entailment.ts` | Comprobación de fundamentación de la reformulación del LLM: cada palabra con contenido de la respuesta del modelo debe existir ya en la **fuente** (lo que se le mostró al modelo: la respuesta aprobada de la entrada casada más el contexto del perfil —`generalDescription` y `methodology`—; nunca el nombre de la formación, las listas de habilidades/salidas ni otras entradas). Composición en `composeGroundingSource`. Lista explícita de palabras vacías (`ENTAILMENT_STOPWORDS`), determinista y sin dependencias |
+| `src/outbound.ts` | Composición del **único mensaje saliente por turno** (`composeTurnOutbound`): la respuesta y la pregunta de cualificación viajan juntas en ese orden, salvo que la respuesta ya sea una pregunta (una sola pregunta por mensaje) o que la unión no pase `guardReply`. Único punto de decisión, lo usan `ui/chat.ts` y `src/simulator.ts` para que CLI y navegador muestren el mismo texto. No toca la máquina de estados del agente: la pregunta sigue armada igual |
 | `src/agent.ts` | Núcleo del agente: prompt de sistema (parte estable cacheable + fuente aprobada por llamada), un turno por llamada, guard de reglas, comprobación de fundamentación, flags de acción (`handoff` / `stop` / `none`), apertura (`opening`), cualificación (`nextQualificationQuestion`) y recepción de la respuesta del lead (`pendingAsk` / `receiveAnswer`) |
 | `src/simulator.ts` | CLI: REPL interactivo (`npm run sim`) y modo `--smoke` no interactivo; imprime apertura y decisiones abiertas |
 | `src/eval.dataset.ts` | Dataset etiquetado del bucle de evaluación: 43 casos de la FAQ (pregunta del lead → respuesta aprobada esperada + intent esperado) y 30 casos de la base de conocimiento (22 que debe responder, 8 que deben escalar), con la expectativa derivada de las reglas duras, no del comportamiento actual |
@@ -58,6 +59,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `tests/ui-chat.test.ts` | 14 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil, reinicio y la línea de fundamentación |
 | `tests/eval.test.ts` | 12 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión + la puerta propia de la base de conocimiento (0 falsos positivos en el grupo que debe escalar) + la puerta de fundamentación (0 violaciones) |
 | `tests/retrieval.test.ts` | 20 tests de la capa de base de conocimiento: cada respuesta pasa el guard, ninguna contiene una cifra, ninguna menciona un tema prohibido, resolución de preguntas conocidas, umbral, y el agente de extremo a extremo (responde con el pasaje, registra la procedencia y no registra duda; una pregunta fuera sigue escalando) |
+| `tests/outbound.test.ts` | 8 tests del mensaje saliente único por turno (`src/outbound.ts`): respuesta y pregunta de cualificación unidas en ese orden, una sola interrogación, la pregunta NO se apila si la respuesta ya pregunta, turno sin respuesta propia, composición que rompería el guard no se envía unida, y paridad CLI ↔ UI (mismo `composeTurnOutbound`) |
 
 ## Cómo se mapea cada test obligatorio
 
@@ -211,7 +213,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 209 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 243 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe del bucle de evaluación (43 casos de la FAQ + 30 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
@@ -219,7 +221,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 209 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 243 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

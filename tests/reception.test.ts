@@ -57,6 +57,78 @@ function passageAnswer(id: string): string {
 }
 
 describe('recepción de respuestas (answer reception)', () => {
+  it('routes the specific course-catalog request without broadening the Musk information route', async () => {
+    const catalog = await makeDemoAgent().runTurn('Dame informacion sobre los cursos');
+    const musk = await makeDemoAgent().runTurn('dame informacion sobre musk');
+
+    expect(catalog.intent).toBe('general');
+    expect(findApprovedAnswer(DEMO_CONTENT, 'Dame informacion sobre los cursos')?.id).toBe('catalogo-formaciones');
+    expect(catalog.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
+    expect(findApprovedAnswer(DEMO_CONTENT, 'dame informacion sobre musk')?.id).toBe('sobre-musk');
+    expect(musk.intent).toBe('general');
+    expect(musk.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')?.answer);
+  });
+
+  it('runs the reproduced transcript through the catalog, formation choice, and protected financing route', async () => {
+    const agent = makeDemoAgent();
+    const catalogQuestion = 'Si, me interesa. Dame informacion sobre los cursos';
+    const catalog = await agent.runTurn(catalogQuestion);
+
+    expect(findApprovedAnswer(DEMO_CONTENT, catalogQuestion)?.id).toBe('catalogo-formaciones');
+    expect(catalog.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
+    expect(agent.nextQualificationQuestion()?.text).toBe(
+      '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
+    );
+
+    const choice = await agent.runTurn('el curso de full stack');
+    const fullStackAcknowledgement =
+      'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.';
+    const closingInvitation = DEMO_CONTENT.closingInvitation!;
+    expect(choice.capturedAnswer).toEqual({ questionId: 'goal', text: 'el curso de full stack' });
+    expect(choice.reply).toContain(fullStackAcknowledgement);
+    expect(choice.reply.split(closingInvitation)).toHaveLength(2);
+    expect(choice.reply.match(/\?/g)).toHaveLength(1);
+    expect(choice.reply).toBe(`${fullStackAcknowledgement} ${closingInvitation}`);
+    expect(guardReply(choice.reply).ok).toBe(true);
+    expect(choice.reply).not.toContain('kb-fullstack-salidas');
+    expect(agent.records.some((record) => record.kind === 'kb' && record.detail.includes('kb-fullstack-salidas'))).toBe(false);
+
+    const financingQuestion = 'los cursos pueden finanaciarse?';
+    const financing = await agent.runTurn(financingQuestion);
+    expect(financing.intent).toBe('financiacion');
+    expect(financing.reply).toBe(DEMO_CONTENT.financingReply);
+    expect(agent.records.some((record) => record.kind === 'kb')).toBe(false);
+    for (const reply of [catalog.reply, choice.reply, financing.reply]) {
+      expect(guardReply(reply).ok).toBe(true);
+      expect(reply.length).toBeLessThan(260);
+    }
+  });
+
+  it('does not turn a negated course mention into a positive goal acknowledgement', async () => {
+    for (const message of ['no me interesa Full Stack', 'no busco Full Stack']) {
+      const agent = makeDemoAgent();
+      expect(agent.nextQualificationQuestion()?.id).toBe('goal');
+
+      const result = await agent.runTurn(message);
+
+      expect(result.intent).toBe('decline');
+      expect(result.capturedAnswer).toBeUndefined();
+      expect(result.reply).toBe(buildReply('decline'));
+      expect(result.reply).not.toContain('Entiendo, te interesa Full Stack');
+      expect(result.action).toBe('none');
+    }
+  });
+
+  it('routes the financing transposition typo to the profile-configured rule 3 reply', async () => {
+    const agent = makeDemoAgent();
+    const result = await agent.runTurn('los cursos pueden finanaciarse?');
+
+    expect(result.intent).toBe('financiacion');
+    expect(result.reply).toBe(DEMO_CONTENT.financingReply);
+    expect(result.registeredDoubts).toEqual([]);
+    expect(agent.records.some((record) => record.kind === 'kb')).toBe(false);
+  });
+
   it.each([
     ['Explícame la formación', 'informacion'],
     ['¿Qué es la formación?', 'informacion'],
@@ -101,7 +173,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const goal = await agent.runTurn(goalText);
     const acknowledgement =
       'Entiendo: quieres ampliar conocimientos para optar a una plaza.';
-    const availabilityQuestion = '¿Qué día y a qué hora te viene bien?';
+    const availabilityQuestion = '¿Qué día y a qué hora te viene bien que el equipo te llame?';
 
     expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: goalText });
     expect(goal.reply.startsWith(acknowledgement)).toBe(true);
@@ -117,9 +189,43 @@ describe('recepción de respuestas (answer reception)', () => {
   it('las reacciones del objetivo priorizan frases específicas y pasan el guard', async () => {
     const goalQuestion = DEMO_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
     const reactions = goalQuestion?.reactions ?? [];
-    expect(reactions).toHaveLength(3);
+    expect(reactions).toHaveLength(8);
+expect(reactions.slice(0, 5).map((reaction) => reaction.say)).toEqual([
+      'Entiendo, te interesa Python: programación con aplicaciones en software y análisis de datos.',
+      'Entiendo, te interesa Front End: diseño y desarrollo de interfaces web.',
+      'Entiendo, te interesa Back End: la lógica del servidor, los datos y las APIs.',
+      'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.',
+      'Entiendo, te interesa videojuegos: diseño y programación para crear experiencias interactivas.',
+    ]);
+    for (const reaction of reactions.slice(0, 5)) {
+      expect(reaction.avoidKeywords).toContain('no me interesa');
+    }
     for (const reaction of reactions) {
       expect(guardReply(reaction.say).ok).toBe(true);
+      expect(reaction.say).not.toContain('?');
+      // Rules 1, 2 and 4: a course acknowledgement carries no figure of any kind
+      // (the price guard does not catch every digit on its own).
+      expect(reaction.say).not.toMatch(/\d/);
+    }
+
+    const courseSelections: Array<[string, string]> = [
+      ['Python', reactions[0]!.say],
+      ['Frontend', reactions[1]!.say],
+      ['Backend', reactions[2]!.say],
+      ['Full Stack', reactions[3]!.say],
+      ['quiero crear juegos', reactions[4]!.say],
+    ];
+    for (const [answer, expectedAcknowledgement] of courseSelections) {
+      const agent = makeDemoAgent();
+      expect(agent.nextQualificationQuestion()?.id).toBe('goal');
+      const result = await agent.runTurn(answer);
+
+expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
+      expect(result.reply).toBe(`${expectedAcknowledgement} ${DEMO_CONTENT.closingInvitation}`);
+      expect(result.reply.match(/\?/g)).toHaveLength(1);
+      expect(result.reply.length).toBeLessThan(240);
+      expect(guardReply(result.reply).ok).toBe(true);
+      expect(agent.records.some((record) => record.kind === 'kb' && record.detail.includes('kb-'))).toBe(false);
     }
 
     const cases: Array<[string, string]> = [
@@ -263,7 +369,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const goalQuestion = agent.nextQualificationQuestion();
     expect(goalQuestion).toMatchObject({
       id: 'goal',
-      text: '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.',
+      text: '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
     });
     const goal = await agent.runTurn('Quiero cambiar de sector');
     expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: 'Quiero cambiar de sector' });
@@ -278,7 +384,7 @@ describe('recepción de respuestas (answer reception)', () => {
       { question: goalQuestion?.text, answer: 'Quiero cambiar de sector' },
     ]);
     expect(call.handoff?.summary).toContain(
-      '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada. → Quiero cambiar de sector',
+      '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada. → Quiero cambiar de sector',
     );
     expect(call.handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
     expect(call.handoff?.summary).toContain('Último mensaje del lead: mañana a las nueve');
@@ -1174,6 +1280,37 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
     expect(result.intent).toBe('general');
     expect(result.reply).toBe(expected);
     expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  // The catalog answer used to end with "Dime qué te atrae y te oriento.", which
+  // asked exactly what the `goal` question asks in the SAME turn (the turn now
+  // emits ONE message, so the lead read the ask twice). The answer keeps the
+  // five programmes and the "con IA" differentiator, and stops asking.
+  it('el catálogo ya no repite la invitación que hace la pregunta de cualificación', async () => {
+    const entry = DEMO_CONTENT.faq.find((item) => item.id === 'catalogo-formaciones')!;
+    const question = DEMO_CONTENT.qualificationQuestions.find((item) => item.id === 'goal')!;
+
+    expect(entry.answer).toBe(
+      'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos.' +
+        ' Todos online y desde cero, con IA en los de desarrollo y videojuegos.',
+    );
+    // No invitation duplicated by the question that follows in the same turn.
+    expect(entry.answer).not.toContain('te oriento');
+    expect(entry.answer.endsWith('?')).toBe(false);
+    // Same guarantees as before: no digit, no price, no promise, guard clean.
+    expect(entry.answer).not.toMatch(/\d/);
+    expect(guardReply(entry.answer).ok).toBe(true);
+    expect(entry.answer.length).toBeLessThan(200);
+
+    const agent = makeDemoAgent();
+    const result = await agent.runTurn('Sí, me interesa. Dame informacion sobre los cursos');
+    expect(result.reply).toBe(entry.answer);
+    expect(result.ruleViolations).toHaveLength(0);
+    // Joined with the goal question, the turn still asks ONE thing.
+    const ask = agent.nextQualificationQuestion();
+    expect(ask?.id).toBe('goal');
+    expect(`${result.reply} ${ask!.text}`.match(/\?/g)).toHaveLength(1);
+    expect(`${result.reply} ${ask!.text}`.length).toBeLessThan(300);
   });
 
   // Demo modality/location (KB): "dónde está la academia" reaches the enriched

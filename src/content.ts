@@ -22,6 +22,9 @@ export interface FaqEntry {
 export interface QualificationReaction {
   // What the lead's own words are matched against (normalized, accent-folded).
   keywords: string[];
+  // Optional negations that prevent a keyword mention from being read as a
+  // positive selection (also normalized, accent-folded).
+  avoidKeywords?: string[];
   // Short reply to THAT answer (rule 11: MUSK copy). Its job is to make the next
   // question read as a conversation instead of a form. Every reaction is
   // answer-specific on purpose: one fixed courtesy line repeated on every answer

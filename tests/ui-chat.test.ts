@@ -10,13 +10,15 @@ import { MuskAgent } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
 import { MockProvider } from '../src/llm';
+import { buildReply, guardReply } from '../src/rules';
 import {
   CONTENT_BANNERS,
   DEFAULT_LEAD,
   HANDOFF_REPLY_PLACEHOLDER,
   OPENING_PLACEHOLDER,
   STOPPED_REPLY_PLACEHOLDER,
-  createChat,
+createChat,
+  formatDiagnostic,
   formatHandoff,
 } from '../ui/chat';
 import { at, first, last } from './helpers';
@@ -49,7 +51,7 @@ describe('ui/chat view-model', () => {
     expect(state.pendingDecisions).toHaveLength(0);
   });
 
-  it('a turn produces the reply, the diagnostic line and the qualification question', async () => {
+  it('a turn produces ONE agent message, the diagnostic line and the ask inside that message', async () => {
     const chat = createChat({ profile: 'demo' });
     const state = await chat.send('  ¿cuánto cuesta la formación?  ');
 
@@ -64,13 +66,74 @@ describe('ui/chat view-model', () => {
       'intent = price | action = none | suppressed = false | registered doubts = 0',
     );
 
-    // After the turn the agent asks the first approved qualification question.
+    // The first approved qualification question is asked in the SAME message as
+    // the answer: one outbound message per turn (src/outbound.ts).
+    const question = first(DEMO_CONTENT.qualificationQuestions).text;
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(last(agentMessages).text).toBe(
-      first(DEMO_CONTENT.qualificationQuestions).text,
-    );
+    expect(agentMessages).toHaveLength(2); // opening + this turn
+    expect(last(agentMessages).text).toBe(`${DEMO_CONTENT.priceReply} ${question}`);
     expect(state.stopped).toBe(false);
     expect(state.records.map((record) => record.kind)).toContain('reply');
+  });
+
+  // The reported defect: one lead message produced TWO agent bubbles — the
+  // answer, then immediately the qualification question. The lead read the same
+  // ask twice (the catalog answer used to invite exactly what `goal` asks).
+  it('el turno de catálogo produce UN solo mensaje con la respuesta y la pregunta', async () => {
+    const chat = createChat({ profile: 'demo' });
+    const state = await chat.send('Sí, me interesa. Dame información sobre los cursos.');
+
+    const answer = DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
+    const question = first(DEMO_CONTENT.qualificationQuestions).text;
+
+    // Opening + exactly ONE message for the turn.
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(agentMessages).toHaveLength(2);
+    expect(at(agentMessages, 1).text).toBe(`${answer} ${question}`);
+    // Reply first, then the ask — never the other way round.
+    expect(at(agentMessages, 1).text.indexOf(answer)).toBe(0);
+    expect(at(agentMessages, 1).text.endsWith(question)).toBe(true);
+    // One question at a time, no digit, and it still passes the output guard.
+    expect(at(agentMessages, 1).text.match(/\?/g)).toHaveLength(1);
+    expect(at(agentMessages, 1).text.length).toBeLessThan(300);
+    expect(at(agentMessages, 1).text).not.toMatch(/\d/);
+    expect(guardReply(at(agentMessages, 1).text).ok).toBe(true);
+    // The duplicated invitation is gone: the answer no longer asks what the
+    // question asks.
+    expect(answer).not.toContain('te oriento');
+    expect(answer.endsWith('?')).toBe(false);
+  });
+
+  // The merge is a rendering decision only: the ask stays ARMED, so the lead's
+  // next message is still RECEIVED as the answer to that question.
+  it('tras el mensaje único, la siguiente respuesta del lead se captura igual', async () => {
+    const chat = createChat({ profile: 'demo' });
+    await chat.send('Sí, me interesa. Dame información sobre los cursos.');
+
+    const state = await chat.send('el curso de full stack');
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const turn = diagnostics.find((message) => message.text.includes('answer to goal'));
+    expect(turn?.text).toContain('received = answer to goal (no doubt registered)');
+    expect(turn?.text).toContain('registered doubts = 0');
+    const answers = state.records.filter((record) => record.kind === 'answer');
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.detail).toBe('answer to goal: "el curso de full stack"');
+  });
+
+  // Single-question rule, as the engine already applies it on the rule-5 path:
+  // the doubt reply asks the lead something, so no qualification question is
+  // stacked on top of it (the ask is deferred, never lost). The real profile is
+  // used because its questions are TODO(decisión): nothing else is askable.
+  it('una respuesta que ya pregunta no recibe otra pregunta encima (regla 5)', async () => {
+    const chat = createChat({ profile: 'real' });
+    const state = await chat.send('¿hacéis envíos a Canarias?');
+
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(agentMessages).toHaveLength(2); // opening placeholder + the doubt
+    expect(at(agentMessages, 1).text).toBe(buildReply('doubt'));
+    expect(at(agentMessages, 1).text).not.toContain('¿Tienes ya alguna formación');
+    expect(buildReply('doubt').endsWith('?')).toBe(true);
   });
 
   // The visible half of the reception fix: answering a question sends no message
@@ -237,6 +300,79 @@ describe('ui/chat view-model', () => {
     const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null, lead: DEFAULT_LEAD });
     expect(agent.isStopped).toBe(false);
     expect(agent.records).toHaveLength(0);
+  });
+
+  // The classifier label is not the disposition. A course name classifies as
+  // 'kb' while NO passage is used: the message is RECEIVED as the answer to the
+  // pending goal question. Leading the line with 'intent = kb' made the demo
+  // look broken, so the effective disposition leads and the label follows.
+  it('the diagnostic line leads with the disposition when an answer was received', async () => {
+    const chat = createChat({ profile: 'demo' });
+    // The UI asks the next question AFTER a turn, so the goal question is armed
+    // by the second turn: this is the reproduced demo sequence.
+    await chat.send('Si');
+    const state = await chat.send('el curso de full stack');
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const turn = diagnostics.find((message) => message.text.includes('answer to goal'));
+    expect(turn?.text).toBe(
+      'received = answer to goal (no doubt registered) | intent = kb | action = none' +
+        ' | suppressed = false | registered doubts = 0',
+    );
+    // The classifier label is kept, but only as a secondary note.
+    expect(turn?.text.indexOf('received = ')).toBeLessThan(turn?.text.indexOf('intent = ') ?? -1);
+    // No passage was used, so no knowledge-base provenance line is rendered.
+    expect(diagnostics.some((message) => message.text.startsWith('kb = '))).toBe(false);
+    // The lead sees the approved acknowledgement plus the closing invitation.
+    const agentMessages = state.messages.filter((message) => message.role === 'agent');
+    expect(last(agentMessages).text).toBe(
+      'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.' +
+        ` ${DEMO_CONTENT.closingInvitation}`,
+    );
+  });
+
+  // Same rule for the opening: it is received as the answer to the opening
+  // message (questionId null), which the line must say explicitly.
+  it('an answer to the opening reads as the opening, not as a missing id', async () => {
+    const chat = createChat({ profile: 'demo' });
+    const state = await chat.send('Si');
+
+    const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
+    const turn = diagnostics.find((message) => message.text.includes('received = '));
+    expect(turn?.text).toContain('received = answer to opening message (no doubt registered)');
+    expect(turn?.text).not.toContain('undefined');
+  });
+
+  // A turn with no pending ask keeps the bare classifier line: nothing was
+  // received as an answer, so there is no disposition to report.
+  it('a turn without a received answer keeps the bare classifier line', async () => {
+    const line = formatDiagnostic({
+      intent: 'general',
+      action: 'reply',
+      suppressed: false,
+      registeredDoubts: 0,
+      ruleViolations: [],
+    });
+
+    expect(line).toBe(
+      'intent = general | action = reply | suppressed = false | registered doubts = 0',
+    );
+    expect(line).not.toContain('received');
+  });
+
+  // The call-proposal answer is a disposition too, and it keeps the same shape.
+  it('an accepted call reads as the answer to the call proposal', () => {
+    const line = formatDiagnostic({
+      intent: 'afirmacion',
+      action: 'handoff',
+      suppressed: false,
+      registeredDoubts: 0,
+      ruleViolations: [],
+      capturedAnswer: { questionId: 'call-proposal' },
+    });
+
+    expect(line.startsWith('received = answer to call-proposal (no doubt registered)')).toBe(true);
+    expect(line).toContain('| intent = afirmacion');
   });
 
   // The knowledge-base provenance is operator-facing: the lead sees only the

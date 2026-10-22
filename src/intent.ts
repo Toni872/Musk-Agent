@@ -10,7 +10,7 @@ import {
   matchesWholeMessage,
   STOP_TRIGGER,
 } from './rules';
-import { retrieve } from './retrieval';
+import { retrieve, type RetrievalMode } from './retrieval';
 import { normalizeEs } from './text';
 
 // The normalizer lives in its own leaf module (src/text.ts) so that the
@@ -51,8 +51,10 @@ export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown' | 'kb'
   // The `\bfinancia\w*` stem also covers reflexive/enclitic forms ("financiarse",
   // "financiarlo") that `\bfinanciar\b` missed (regression coverage:
   // tests/reception.test.ts, financing reflexive case).
+  // Narrow typo alias for the observed transposition "finanaciar" /
+  // "finanaciarse"; do not generalize this to fuzzy matching.
   financiacion:
-    /\bfinancia\w*\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bpagar\w* poco a poco\b|\bcuotas?\b|\bmensualidades?\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
+    /\bfinancia\w*\b|\bfinanaciar(?:se)?\b|\bpago (en|a) plazos\b|\bpagar a plazos\b|\bpagar\w* poco a poco\b|\bcuotas?\b|\bmensualidades?\b|\bbecas?\b|\bsubvencion\w*\b|\bprestamos?\b/,
   // Soft decline (rule 5 family): a bare "no me interesa" / "no estoy
   // interesado" is NOT a stop (rule 7) and NOT a confirmed handoff trigger
   // (rule 9). Only the bare/near-bare form is caught, so topic-specific
@@ -123,7 +125,11 @@ export function isWholeMessageAnswer(folded: string): boolean {
 // Anything else is 'unknown' and is handled by rule 5 (register doubt),
 // UNLESS the content profile carries a knowledge base and the deterministic
 // retrieval layer finds a passage that clears its thresholds (intent 'kb').
-export function classify(message: string, content: ApprovedContent): Intent {
+export function classify(
+  message: string,
+  content: ApprovedContent,
+  retrievalMode?: RetrievalMode,
+): Intent {
   const folded = normalizeEs(message);
   if (INPUT_PATTERNS.stop.test(folded)) return 'stop';
   if (INPUT_PATTERNS.human.test(folded)) return 'human';
@@ -147,7 +153,7 @@ export function classify(message: string, content: ApprovedContent): Intent {
   // the lead's ANSWER, not a query, and the knowledge base must not steal it
   // (see isWholeMessageAnswer above).
   if (content.kb !== undefined && content.kb.length > 0 && !isWholeMessageAnswer(folded)) {
-    const outcome = retrieve(content.kb, message);
+    const outcome = retrieve(content.kb, message, retrievalMode);
     if (outcome.match !== null) return 'kb';
   }
   return 'unknown';

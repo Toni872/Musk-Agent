@@ -69,6 +69,12 @@ export const MIN_BM25_SCORE = 3.5;
 // 0.5 is the highest value that keeps the whole answerable group above.
 export const MIN_TERM_COVERAGE = 0.5;
 
+export type RetrievalMode = 'baseline' | 'candidate';
+
+// The candidate remains benchmark-only until it passes the development and
+// held-out acceptance gates. Change this only after the final hold-out report.
+export const PRODUCTION_RETRIEVAL_MODE: RetrievalMode = 'baseline';
+
 // Spanish stopwords: closed class words that carry no topical signal.
 // Explicit and named on purpose — an implicit stopword list would make the
 // scoring unreproducible.
@@ -117,8 +123,10 @@ export const FORBIDDEN_TOPIC_PATTERNS: { id: string; pattern: RegExp }[] = [
   },
   {
     id: 'financing',
+    // Narrow alias for the observed transposition typo "finanaciar" /
+    // "finanaciarse"; this is not a fuzzy classifier.
     pattern:
-      /\b(financia\w*|cuotas?|mensualidades?|a plazos|pago a plazos|pago|pagar|condiciones? de pago|forma de pago|intereses?|aplaz\w*|becas?|subvencion\w*|descuentos?|promocion\w*|sin intereses|interes cero|plan de pago)\b/,
+      /\b(financia\w*|finanaciar(?:se)?|cuotas?|mensualidades?|a plazos|pago a plazos|pago|pagar|condiciones? de pago|forma de pago|intereses?|aplaz\w*|becas?|subvencion\w*|descuentos?|promocion\w*|sin intereses|interes cero|plan de pago)\b/,
   },
   {
     id: 'course-duration',
@@ -241,9 +249,13 @@ interface ScoredPassage {
   length: number;
 }
 
-function prepare(passages: KbPassage[]): ScoredPassage[] {
+function prepare(passages: KbPassage[], mode: RetrievalMode): ScoredPassage[] {
   return passages.map((passage) => {
-    const tokens = contentTokens(`${passage.title} ${passage.answer} ${passage.terms.join(' ')}`);
+    const retrievalText =
+      mode === 'candidate'
+        ? `${passage.title} ${passage.answer} ${passage.terms.join(' ')} ${(passage.exampleQueries ?? []).join(' ')}`
+        : `${passage.title} ${passage.answer} ${passage.terms.join(' ')}`;
+    const tokens = contentTokens(retrievalText);
     return { passage, tokens, tokenSet: tokens, length: tokens.length };
   });
 }
@@ -303,9 +315,13 @@ function bm25(
 }
 
 // The retrieval. Pure and deterministic.
-export function retrieve(passages: KbPassage[], query: string): RetrievalOutcome {
+export function retrieve(
+  passages: KbPassage[],
+  query: string,
+  mode: RetrievalMode = PRODUCTION_RETRIEVAL_MODE,
+): RetrievalOutcome {
   const thresholds = { minScore: MIN_BM25_SCORE, minCoverage: MIN_TERM_COVERAGE };
-  const documents = prepare(passages);
+  const documents = prepare(passages, mode);
   const queryTerms = Array.from(new Set(contentTokens(query)));
 
   // Gate 1: the topics that must always escalate. Checked on the folded text

@@ -390,8 +390,8 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
     expect(DEMO_CONTENT.qualificationQuestions).toHaveLength(1);
     expect(DEMO_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
-    expect(question).toBe('¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.');
-    expect(closing).toBe('El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien?');
+    expect(question).toBe('¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.');
+    expect(closing).toBe('¿Qué día y a qué hora te viene bien que el equipo te llame?');
     expect(closing.length).toBeLessThanOrEqual(200);
     expect((question.match(/\?/g) ?? [])).toHaveLength(1);
     expect((closing.match(/\?/g) ?? [])).toHaveLength(1);

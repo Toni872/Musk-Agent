@@ -17,9 +17,10 @@
 import { createInterface } from 'node:readline/promises';
 
 import { MuskAgent, type LeadContact, type TurnResult } from './agent';
-import { APPROVED_CONTENT, type ApprovedContent } from './content';
+import { APPROVED_CONTENT, type ApprovedContent, type QualificationQuestion } from './content';
 import { DEMO_CONTENT } from './content.demo';
 import { loadLLMConfigFromEnv, OpenAICompatibleLLM, type LLMProvider } from './llm';
+import { composeTurnOutbound } from './outbound';
 
 const args = process.argv.slice(2);
 const useDemoContent = args.includes('--demo');
@@ -49,9 +50,9 @@ function buildProvider(): LLMProvider | null {
   return config ? new OpenAICompatibleLLM(config) : null;
 }
 
-// A turn can legitimately send nothing: a received answer has no message of its
-// own (the conversation continues with the next question) and a turn after a
-// stop is suppressed. Never print an empty line.
+// A turn can legitimately send nothing: a turn after a stop is suppressed, and a
+// received answer whose reaction was empty produces no reply of its own while the
+// next question does the talking. Never print an empty line.
 function noMessageNote(result: TurnResult): string {
   return result.capturedAnswer
     ? '(no message: answer registered, the conversation continues with the next question)'
@@ -77,16 +78,26 @@ function printGrounding(agent: MuskAgent, recordsBefore: number): void {
   for (const record of records) console.log(`grounding = ${record.detail}`);
 }
 
-function printTurn(result: TurnResult): void {
-  console.log(`agent   > ${result.reply || noMessageNote(result)}`);
-  console.log(
-    `intent  = ${result.intent} | action = ${result.action} | suppressed = ${result.suppressed} | registered doubts = ${result.registeredDoubts.length}`,
-  );
+// The lead-facing line of one turn: ONE message, composed from the reply and the
+// qualification question with the same helper the UI uses (src/outbound.ts), so
+// both surfaces show exactly the same text. `question` is null on a scripted run
+// that asks nothing (--smoke).
+function printTurn(result: TurnResult, question: QualificationQuestion | null = null): void {
+  const outbound = composeTurnOutbound(result.reply, question);
+  console.log(`agent   > ${outbound.text || noMessageNote(result)}`);
+  // Disposition first: when the message was RECEIVED as the answer to the
+  // pending ask, that is what happened, whatever the classifier says (a course
+  // name classifies as 'kb' with no passage used). The classifier label follows
+  // as a secondary note. Same order and same wording as ui/chat.ts
+  // formatDiagnostic().
   if (result.capturedAnswer) {
     console.log(
       `received = answer to ${result.capturedAnswer.questionId ?? 'opening message'} (no doubt registered)`,
     );
   }
+  console.log(
+    `intent  = ${result.intent} | action = ${result.action} | suppressed = ${result.suppressed} | registered doubts = ${result.registeredDoubts.length}`,
+  );
   if (result.handoff) {
     const recipient = result.handoff.recipient
       ? ` destinataria=${result.handoff.recipient}`
@@ -169,13 +180,14 @@ async function runRepl(): Promise<void> {
       }
       const recordsBefore = agent.records.length;
       const result = await agent.runTurn(line);
-      printTurn(result);
+      // Brief qualification (MVP spec §4): one approved question per turn,
+      // never an exam. The question is taken before printing and travels INSIDE
+      // the turn's single message when there is a reply to join it to (same
+      // helper as the UI). Nothing is asked once the lead stops or hands off.
+      const ask = agent.nextQualificationQuestion();
+      printTurn(result, ask);
       printKbProvenance(agent, recordsBefore);
       printGrounding(agent, recordsBefore);
-      // Brief qualification (MVP spec §4): one approved question per turn,
-      // never an exam. Nothing is asked once the lead stops or hands off.
-      const ask = agent.nextQualificationQuestion();
-      if (ask) console.log(`agent   > ${ask.text}`);
     }
   } finally {
     rl.close();

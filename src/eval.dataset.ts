@@ -10,6 +10,7 @@
 // Data only: importing this module has no side effects.
 
 import type { Intent } from './intent';
+import { KB_PASSAGES } from './kb';
 
 export interface EvalCase {
   id: string; // 'C01', 'C02', ... stable, in array order
@@ -681,3 +682,460 @@ export function describeKbDataset(cases: KbEvalCase[] = EVAL_KB_CASES): KbDatase
     })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 lexical benchmark. All prompts are synthetic, not observed lead
+// messages and not new client copy. The dev prompts are indexed in each
+// passage's exampleQueries; protected intents are evaluated separately because
+// the hard rules must intercept them before knowledge-base retrieval.
+// ---------------------------------------------------------------------------
+
+export type KbParaphraseCategory =
+  | 'answerable'
+  | 'must-escalate'
+  | 'ambiguous'
+  | 'protected';
+
+export interface KbParaphraseCase {
+  id: string;
+  question: string;
+  category: KbParaphraseCategory;
+  expectedPassageId: string | null;
+  expectedIntent?: Intent;
+  note: string;
+}
+
+const KB_PARAPHRASE_DEV_ANSWERABLE_CASES: KbParaphraseCase[] = KB_PASSAGES.flatMap(
+  (passage) =>
+    (passage.exampleQueries ?? []).map((question, index) => ({
+      id: `KD-${passage.id}-${String(index + 1).padStart(2, '0')}`,
+      question,
+      category: 'answerable' as const,
+      expectedPassageId: passage.id,
+      expectedIntent: 'kb' as const,
+      note: 'Synthetic development paraphrase indexed for this passage; not an observed customer quote.',
+    })),
+);
+
+// These deliberately broad or unsupported prompts should remain silent. The
+// ambiguous examples have too little context to choose one approved passage.
+const KB_PARAPHRASE_DEV_NEGATIVE_CASES: KbParaphraseCase[] = [
+  {
+    id: 'KD-negative-invoice',
+    question: '¿Podéis enviarme una factura?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Invoice details are not covered by an approved passage.',
+  },
+  {
+    id: 'KD-negative-mobile-app',
+    question: '¿Tenéis una aplicación para el móvil?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'A mobile application is not described in the approved knowledge base.',
+  },
+  {
+    id: 'KD-negative-contract',
+    question: '¿Me podéis mandar el contrato de matrícula?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Contract and enrolment terms are not covered by an approved passage.',
+  },
+  {
+    id: 'KD-negative-address',
+    question: '¿Cuál es vuestro domicilio social?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'The legal address is not approved information.',
+  },
+  {
+    id: 'KD-negative-employer-list',
+    question: '¿Me pasáis una lista de empresas que contratan?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'A list of employers is not present in the approved knowledge base.',
+  },
+  {
+    id: 'KD-negative-account',
+    question: '¿Puedo compartir mi cuenta con otra persona?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Account-sharing policy is not stated in an approved passage.',
+  },
+  {
+    id: 'KD-ambiguous-context',
+    question: '¿Y esa parte cómo era?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'Context is missing; the agent must clarify rather than guess a passage.',
+  },
+  {
+    id: 'KD-ambiguous-reference',
+    question: '¿Y eso qué sería?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'The referent is absent, so no single approved passage can safely answer.',
+  },
+  {
+    id: 'KD-ambiguous-ellipsis',
+    question: '¿Y cuál de esas?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'The options are not identified; the correct action is clarification.',
+  },
+];
+
+// Rules 1, 2, 3, 7 and 9 are tested as a separate protected-intent lane. These
+// cases are NEVER counted as answerable KB prompts, even if raw retrieval could
+// find a lexical neighbour.
+const KB_PARAPHRASE_DEV_PROTECTED_CASES: KbParaphraseCase[] = [
+  {
+    id: 'KD-protected-price',
+    question: '¿Me dices cuál sería el importe?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'price',
+    note: 'Rule 1: price intent must be handled before retrieval; no amount may be given.',
+  },
+  {
+    id: 'KD-protected-financing',
+    question: '¿Se puede pagar en mensualidades?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'financiacion',
+    note: 'Rule 3: financing intent must be handled before retrieval; never state payment conditions.',
+  },
+  {
+    id: 'KD-protected-syllabus',
+    question: '¿Qué módulos incluye el programa?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'temario',
+    note: 'Rule 2: detailed-syllabus intent must be handled before retrieval.',
+  },
+  {
+    id: 'KD-protected-stop',
+    question: 'No quiero recibir más mensajes',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'stop',
+    note: 'Rule 7: stop requests must win before retrieval and suppress follow-up.',
+  },
+  {
+    id: 'KD-protected-human',
+    question: 'Quiero que me atienda una persona real',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'human',
+    note: 'Rule 9: a request for a person must trigger handoff before retrieval.',
+  },
+];
+
+export const KB_PARAPHRASE_DEV_CASES: KbParaphraseCase[] = [
+  ...KB_PARAPHRASE_DEV_ANSWERABLE_CASES,
+  ...KB_PARAPHRASE_DEV_NEGATIVE_CASES,
+  ...KB_PARAPHRASE_DEV_PROTECTED_CASES,
+];
+
+// Sealed hold-out: three separately authored synthetic paraphrases per
+// passage. This table is test-only and is never copied into exampleQueries or
+// used as retrieval evidence. Do not tune examples, thresholds or weights from
+// these scores; use it once for the final acceptance decision.
+const KB_PARAPHRASE_HOLDOUT_BY_PASSAGE: Record<string, [string, string, string]> = {
+  'kb-escuela': [
+    '¿Qué servicios ofrece el centro además de enseñar programación?',
+    '¿Cómo es el entorno para estudiar desde cualquier sitio?',
+    '¿Hay una comunidad y tutores acompañando al alumnado?',
+  ],
+  'kb-metodo-practica': [
+    '¿Voy resolviendo retos reales mientras aprendo?',
+    '¿Qué proyectos puedo enseñar al terminar?',
+    '¿Alguien revisa conmigo lo que voy creando?',
+  ],
+  'kb-metodo-gamificacion': [
+    '¿Hay dinámicas para mantener la motivación al estudiar?',
+    '¿Los cuestionarios tienen una clasificación entre alumnos?',
+    'Me gusta aprender jugando, ¿cómo lo planteáis?',
+  ],
+  'kb-metodo-demostracion': [
+    '¿Puedo avanzar de bloque cuando ya manejo el anterior?',
+    '¿Se respeta mi velocidad para asimilar cada parte?',
+    '¿Tengo que demostrar que lo he entendido para seguir?',
+  ],
+  'kb-metodo-acompanamiento': [
+    '¿Hay un mentor disponible cuando necesito orientación?',
+    '¿Puedo consultar a profesionales en activo?',
+    '¿Quién me echa una mano si me atasco?',
+  ],
+  'kb-metodo-ia-copiloto': [
+    '¿Me enseñan a auditar sugerencias de código de la IA?',
+    '¿Cómo evito depender de respuestas automáticas?',
+    '¿Aprendo a optimizar lo que genera la inteligencia artificial?',
+  ],
+  'kb-certificacion-arp': [
+    '¿Qué acredita el sello reconocido en Europa?',
+    '¿La certificación ARP es transversal a todos los itinerarios?',
+    '¿Me explican cómo se consigue ese reconocimiento europeo?',
+  ],
+  'kb-certificacion-pcap': [
+    '¿Qué entidad organiza la acreditación de Python?',
+    '¿La escuela puede examinarme oficialmente de PCAP?',
+    '¿Me preparan para una certificación externa de Python?',
+  ],
+  'kb-certificacion-unity': [
+    '¿Qué certificados de Unity se consiguen en videojuegos?',
+    '¿Hay una acreditación tanto de diseño como de programación?',
+    '¿El máster incluye los sellos UCAGD y UCU-PROG?',
+  ],
+  'kb-python-contenido': [
+    '¿Se toca aprendizaje automático además de desarrollo web?',
+    '¿Qué librerías se utilizan para trabajar con datos?',
+    '¿Puedo aprender a automatizar tareas con Python?',
+  ],
+  'kb-python-salidas': [
+    '¿Qué perfiles junior trabajan con datos o aprendizaje automático?',
+    '¿Hay opciones de backend para alguien que estudia Python?',
+    '¿Qué tipo de puesto podría buscar al acabar ese itinerario?',
+  ],
+  'kb-frontend-contenido': [
+    '¿Se diseña la experiencia de las personas que usan la web?',
+    '¿Qué frameworks se ven para crear interfaces?',
+    '¿Puedo conectar una página a datos de verdad?',
+  ],
+  'kb-frontend-salidas': [
+    '¿Qué puesto se centra en la experiencia de usuario?',
+    '¿Podría trabajar diseñando el producto digital?',
+    '¿Qué roles hay en la parte visual de una web?',
+  ],
+  'kb-backend-contenido': [
+    '¿Se estudian servicios, APIs y bases de datos?',
+    '¿Qué herramientas se usan en el lado del servidor?',
+    '¿Aprendería Java con Spring para construir servicios?',
+  ],
+  'kb-backend-salidas': [
+    '¿Hay perfiles profesionales de arquitectura y cloud?',
+    '¿Qué puesto trabaja diseñando sistemas de datos?',
+    '¿Podría buscar un rol de desarrollo en la nube?',
+  ],
+  'kb-fullstack-contenido': [
+    '¿Qué stack permite construir un producto de punta a punta?',
+    '¿Se mezclan tecnologías de interfaz y servidor?',
+    '¿Se aprende GraphQL junto con herramientas de despliegue?',
+  ],
+  'kb-fullstack-salidas': [
+    '¿Qué puestos combinan desarrollo web en varias capas?',
+    '¿Podría trabajar como ingeniero de calidad de software?',
+    '¿Qué opciones hay para alguien que domina frontend y backend?',
+  ],
+  'kb-videojuegos-contenido': [
+    '¿Se aprende a crear un juego publicable en Steam?',
+    '¿Qué motores gráficos se usan en el itinerario?',
+    '¿Hay contenidos de modelado 3D y realidad virtual?',
+  ],
+  'kb-videojuegos-salidas': [
+    '¿Qué profesiones existen en un estudio de desarrollo de juegos?',
+    '¿Podría dedicarme a probar videojuegos?',
+    '¿Hay trabajo como artista técnico o diseñador de juego?',
+  ],
+  'kb-otros-programas': [
+    '¿Qué másteres tenéis relacionados con inteligencia artificial?',
+    '¿Se puede estudiar redes neuronales y modelado predictivo?',
+    '¿Hay una especialidad de IA Engineering con Python?',
+  ],
+  'kb-guia-recomendacion': [
+    'Me atraen los datos, pero también la programación web; ¿por dónde empiezo?',
+    '¿Qué recorrido encaja si prefiero lo creativo y visual?',
+    '¿Cómo comparo una especialidad amplia con una más concreta?',
+  ],
+  'kb-sin-experiencia': [
+    '¿Me aceptarán si jamás he programado?',
+    '¿Necesito una base de matemáticas para arrancar?',
+    '¿Puedo aprender aunque venga de otro sector?',
+  ],
+  'kb-compaginar-trabajo': [
+    '¿Puedo organizar el estudio alrededor de mi jornada?',
+    '¿Hay sesiones obligatorias a una hora fija?',
+    '¿Se puede compaginar con otras responsabilidades?',
+  ],
+  'kb-presencial-online': [
+    '¿La academia tiene aulas o todo se hace en remoto?',
+    '¿Necesito desplazarme para recibir las clases?',
+    '¿El campus y el acompañamiento son por internet?',
+  ],
+  'kb-atasco': [
+    '¿Qué apoyo tengo cuando no consigo resolver un ejercicio?',
+    '¿Me ayudan a desbloquearme antes de continuar?',
+    '¿Hay profesores disponibles para dudas de código?',
+  ],
+  'kb-practicas': [
+    '¿Se realizan prácticas mediante un acuerdo con una empresa?',
+    '¿El centro coordina la experiencia en una compañía?',
+    '¿Puedo aplicar lo aprendido en una empresa colaboradora?',
+  ],
+  'kb-empleo-ayuda': [
+    '¿Me orientan para preparar el currículum y LinkedIn?',
+    '¿Hay sesiones para practicar entrevistas técnicas?',
+    '¿La escuela conecta con personas que reclutan?',
+  ],
+  'kb-sin-titulo': [
+    '¿Es imprescindible tener una carrera para entrar?',
+    'No fui a la universidad, ¿puedo presentar mi portafolio?',
+    '¿Qué peso tiene la prueba práctica frente a los estudios?',
+  ],
+  'kb-diploma': [
+    '¿Qué certificado me llevo cuando complete el curso?',
+    '¿Hay acreditaciones adicionales según lo que estudie?',
+    '¿Con qué documentos puedo demostrar que terminé?',
+  ],
+  'kb-ia-merece': [
+    '¿Tiene futuro trabajar en tecnología si la IA escribe código?',
+    '¿Qué criterio humano sigue haciendo falta en desarrollo?',
+    '¿La automatización cambia el valor de aprender programación?',
+  ],
+  'kb-diferencia-bootcamps': [
+    '¿Qué rasgos distinguen vuestra metodología de otros centros?',
+    '¿Cómo es la experiencia frente a una academia intensiva?',
+    '¿Qué aporta la comunidad en comparación con otros cursos?',
+  ],
+  'kb-freelance': [
+    '¿Aprendo a trabajar por proyectos para clientes propios?',
+    '¿Puedo publicar y vender un videojuego independiente?',
+    '¿Hay un camino para montar mi actividad como autónomo?',
+  ],
+  'kb-obj-no-tiempo': [
+    '¿Puedo terminar los estudios aunque ahora vaya con poco margen?',
+    '¿Se puede hacer el recorrido a mi ritmo durante más tiempo?',
+    'Ahora mismo no puedo empezar, ¿hay flexibilidad para completarlo?',
+  ],
+  'kb-obj-desconfio': [
+    '¿Cómo puedo comprobar que la formación online es seria?',
+    '¿Hay testimonios de personas que ya hayan estudiado allí?',
+    'Me preocupa quedarme sin apoyo después de apuntarme',
+  ],
+  'kb-obj-ya-deje': [
+    'Ya pedí información hace tiempo y al final lo aparqué',
+    '¿Puedo retomar la conversación aunque entonces no continuara?',
+    'Lo dejé pendiente cuando me lo explicaron por primera vez',
+  ],
+};
+
+const KB_PARAPHRASE_HOLDOUT_ANSWERABLE_CASES: KbParaphraseCase[] = Object.entries(
+  KB_PARAPHRASE_HOLDOUT_BY_PASSAGE,
+).flatMap(([passageId, questions]) =>
+  questions.map((question, index) => ({
+    id: `KT-${passageId}-${String(index + 1).padStart(2, '0')}`,
+    question,
+    category: 'answerable' as const,
+    expectedPassageId: passageId,
+    expectedIntent: 'kb' as const,
+    note: 'Held-out synthetic paraphrase; never indexed as passage evidence.',
+  })),
+);
+
+const KB_PARAPHRASE_HOLDOUT_NEGATIVE_CASES: KbParaphraseCase[] = [
+  {
+    id: 'KT-negative-invoice',
+    question: '¿Podéis emitir una factura a nombre de mi empresa?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Billing details are not stated in an approved passage.',
+  },
+  {
+    id: 'KT-negative-recording',
+    question: '¿Las clases quedan grabadas para verlas después?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Recording availability is not part of the approved knowledge base.',
+  },
+  {
+    id: 'KT-negative-equipment',
+    question: '¿Qué ordenador tendría que comprar para conectarme?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Equipment requirements are a protected topic and must escalate.',
+  },
+  {
+    id: 'KT-negative-reschedule',
+    question: '¿Puedo cambiar de grupo una vez matriculado?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Group-change policy is not approved content.',
+  },
+  {
+    id: 'KT-negative-international',
+    question: '¿La escuela tramita visados para estudiar desde fuera?',
+    category: 'must-escalate',
+    expectedPassageId: null,
+    note: 'Visa support is not covered by the approved knowledge base.',
+  },
+  {
+    id: 'KT-ambiguous-context',
+    question: '¿Y esa opción qué incluye?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'The referenced option is unspecified, so the agent must clarify.',
+  },
+  {
+    id: 'KT-ambiguous-reference',
+    question: '¿Cuál de las dos me conviene?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'Neither option nor user preference is available to choose safely.',
+  },
+  {
+    id: 'KT-ambiguous-ellipsis',
+    question: '¿Y esa certificación?',
+    category: 'ambiguous',
+    expectedPassageId: null,
+    note: 'Several certification passages exist and the requested one is unclear.',
+  },
+];
+
+const KB_PARAPHRASE_HOLDOUT_PROTECTED_CASES: KbParaphraseCase[] = [
+  {
+    id: 'KT-protected-price',
+    question: '¿Qué importe tendría que pagar?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'price',
+    note: 'Rule 1: the price intent must intercept before KB retrieval.',
+  },
+  {
+    id: 'KT-protected-financing',
+    question: '¿Hay opción de financiarlo con cuotas?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'financiacion',
+    note: 'Rule 3: payment terms must intercept before KB retrieval.',
+  },
+  {
+    id: 'KT-protected-syllabus',
+    question: '¿Me mandáis el plan de estudios completo?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'temario',
+    note: 'Rule 2: detailed syllabus must intercept before KB retrieval.',
+  },
+  {
+    id: 'KT-protected-stop',
+    question: 'No quiero que me contactéis más',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'stop',
+    note: 'Rule 7: a stop request must intercept before retrieval.',
+  },
+  {
+    id: 'KT-protected-human',
+    question: '¿Me puede llamar un asesor del equipo?',
+    category: 'protected',
+    expectedPassageId: null,
+    expectedIntent: 'human',
+    note: 'Rule 9: a request for a human must intercept before retrieval.',
+  },
+];
+
+export const KB_PARAPHRASE_TEST_CASES: KbParaphraseCase[] = [
+  ...KB_PARAPHRASE_HOLDOUT_ANSWERABLE_CASES,
+  ...KB_PARAPHRASE_HOLDOUT_NEGATIVE_CASES,
+  ...KB_PARAPHRASE_HOLDOUT_PROTECTED_CASES,
+];

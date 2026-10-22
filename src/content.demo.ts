@@ -130,12 +130,23 @@ export const DEMO_CONTENT: ApprovedContent = {
         'formaciones hay',
         'cuentame sobre los cursos',
         'hablame de los cursos',
+        'dame informacion sobre los cursos',
+        'informacion sobre los cursos',
+        'quiero informacion de los cursos',
+        'quiero saber que cursos teneis',
       ],
       // Short on purpose: this is a lead-capture agent, not a brochure. The
       // full program detail lives in the knowledge base (kb-catalogo-*), which
       // the agent only quotes when the lead asks for one specific programme.
+      //
+      // It used to end with "Dime qué te atrae y te oriento." That invitation
+      // asked exactly what the `goal` qualification question asks in the SAME
+      // turn, and the two now travel as ONE outbound message (src/outbound.ts),
+      // so the lead read the same question twice. The answer now stops at the
+      // information and lets the qualification question do the asking. Wording
+      // pending MUSK sign-off (rules 4 and 11).
       answer:
-        'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, y los de desarrollo y videojuegos llevan IA. Dime qué te atrae y te oriento.',
+        'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.',
     },
     {
       id: 'informacion',
@@ -160,9 +171,40 @@ export const DEMO_CONTENT: ApprovedContent = {
   qualificationQuestions: [
     {
       id: 'goal',
-      text: '¿Qué te gustaría conseguir con la formación? Así el equipo puede orientarte mejor en una llamada.',
+      text: '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
       purpose: 'A brief conversation prompt to understand the lead’s goal and move toward a call; not an exam or screening.',
-      reactions: [
+reactions: [
+        // Course selections add ONE brief clause about what the programme is,
+        // with the wording drafted in docs/matriz-validacion-cursos.md
+        // ("Respuestas breves propuestas para el lead"). No digits, prices,
+        // certificates, internship promises or syllabus detail (rules 1, 2, 4),
+        // so the acknowledgement stays safe under guardReply. Demo-profile copy,
+        // still pending MUSK sign-off (rules 4 and 11).
+        {
+          keywords: ['python'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Python: programación con aplicaciones en software y análisis de datos.',
+        },
+        {
+          keywords: ['front end', 'frontend'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Front End: diseño y desarrollo de interfaces web.',
+        },
+        {
+          keywords: ['back end', 'backend'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Back End: la lógica del servidor, los datos y las APIs.',
+        },
+        {
+          keywords: ['full stack'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.',
+        },
+        {
+          keywords: ['videojuegos', 'videojuego', 'crear juegos', 'crear videojuegos'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa videojuegos: diseño y programación para crear experiencias interactivas.',
+        },
         {
           keywords: ['optar a una plaza', 'plaza'],
           say: 'Entiendo: quieres ampliar conocimientos para optar a una plaza.',
@@ -180,7 +222,7 @@ export const DEMO_CONTENT: ApprovedContent = {
   ],
   // Short call-first wording, stored in the profile so it remains easy to revise.
   closingInvitation:
-    'El equipo puede orientarte sobre qué formación encaja contigo. ¿Qué día y a qué hora te viene bien?',
+    '¿Qué día y a qué hora te viene bien que el equipo te llame?',
   // Profile-specific second acknowledgement of a rule-5 doubt (see
   // MuskAgent.neverRepeat). It lives HERE and not in the shared templates
   // because it is not approved by MUSK yet (rules 4 and 11): a profile without

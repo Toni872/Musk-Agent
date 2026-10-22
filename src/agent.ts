@@ -10,7 +10,7 @@
 // matched entry plus the approved profile context (fallback:
 // approved text, then registered doubt).
 
-import type { ApprovedContent, FaqEntry, QualificationQuestion } from './content';
+import type { ApprovedContent, FaqEntry, QualificationQuestion, QualificationReaction } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import { checkEntailment, composeGroundingSource, groundingProfileContext } from './entailment';
 import type { LLMProvider } from './llm';
@@ -319,7 +319,12 @@ export class MuskAgent {
     const awaitingDoubtAnswer = this.awaitingDoubtAnswer;
     this.awaitingDoubtAnswer = false;
 
-    const intent = classify(message, this.content);
+    const classifiedIntent = classify(message, this.content);
+    const protectedIntents: Intent[] = ['stop', 'human', 'price', 'temario', 'financiacion'];
+    const intent =
+      !protectedIntents.includes(classifiedIntent) && this.negatesPendingReaction(message)
+        ? 'decline'
+        : classifiedIntent;
 
     // Rule 9: after the handoff the lead is with a person, so the agent stops
     // writing. One person talking is the point of the handoff; a second voice
@@ -816,7 +821,7 @@ export class MuskAgent {
     if (ask !== null && ask.kind === 'qualification') {
       const question = this.content.qualificationQuestions.find((item) => item.id === ask.id);
       for (const reaction of question?.reactions ?? []) {
-        if (reaction.keywords.some((keyword) => folded.includes(normalizeEs(keyword)))) return true;
+        if (this.matchesReaction(reaction, folded)) return true;
       }
     }
     return isWholeMessageAnswer(folded);
@@ -921,11 +926,40 @@ export class MuskAgent {
     if (!question?.reactions?.length) return '';
     const folded = normalizeEs(message);
     for (const reaction of question.reactions) {
-      if (reaction.keywords.some((keyword) => folded.includes(normalizeEs(keyword)))) {
+      if (this.matchesReaction(reaction, folded)) {
         return isPendingDecision(reaction.say) ? '' : reaction.say;
       }
     }
     return '';
+  }
+
+  // A course name inside a negation is not a positive selection. Keep this
+  // check shared by answer reception and the emitted acknowledgement so the
+  // two paths cannot disagree.
+  private matchesReaction(
+    reaction: QualificationReaction,
+    foldedMessage: string,
+  ): boolean {
+    if (
+      reaction.avoidKeywords?.some((keyword) => foldedMessage.includes(normalizeEs(keyword)))
+    ) {
+      return false;
+    }
+    return reaction.keywords.some((keyword) => foldedMessage.includes(normalizeEs(keyword)));
+  }
+
+  private negatesPendingReaction(message: string): boolean {
+    const ask = this.pendingAsk;
+    if (ask === null || ask.kind !== 'qualification') return false;
+    const question = this.content.qualificationQuestions.find((item) => item.id === ask.id);
+    const folded = normalizeEs(message);
+    return (question?.reactions ?? []).some((reaction) => {
+      const namesSelection = reaction.keywords.some((keyword) => folded.includes(normalizeEs(keyword)));
+      const negatesSelection = reaction.avoidKeywords?.some((keyword) =>
+        folded.includes(normalizeEs(keyword)),
+      );
+      return namesSelection && negatesSelection === true;
+    });
   }
 
   // The close that asks for the call: the profile's own wording when it has one,

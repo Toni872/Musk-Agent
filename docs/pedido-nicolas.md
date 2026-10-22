@@ -150,12 +150,12 @@ el contenido aprobado (`src/content.ts`) no recibe copy nuevo sin firmar.
    `catalogo-formaciones` de `src/content.demo.ts`), para "¿qué cursos
    tenéis?":
 
-   > Ahora mismo trabajamos cinco programas: Curso de programación en Python,
-   > Diseño web y Desarrollo Front End con IA, Desarrollo Back End con IA,
-   > Desarrollo Full Stack con IA y Máster en Diseño y Desarrollo de Videojuegos
-   > con IA. Todos son online, prácticos y se empieza desde cero. Si me cuentas
-   > qué te atrae más, te oriento, y el detalle de cada programa lo ves con una
-   > persona del equipo.
+   > Cinco programas: Python, Front End, Back End, Full Stack y el máster de
+   > videojuegos. Todos online y desde cero, con IA en los de desarrollo y
+   > videojuegos.
+
+   Se acompaña de la pregunta de objetivo en el mismo mensaje; ya no incluye
+   «Dime qué te atrae y te oriento», porque la pregunta siguiente lo dice.
 
 2. **Respuesta de modalidad enriquecida** (contenido de ejemplo, entrada
    `modalidad` de `src/content.demo.ts`), que ahora también cubre "dónde está la
