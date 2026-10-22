@@ -16,6 +16,12 @@ const distDir = join(uiDir, 'dist');
 await rm(distDir, { recursive: true, force: true });
 await mkdir(distDir, { recursive: true });
 
+// Minified by default: the bundle is served to the browser, so shipping it
+// unminified would expose internal source comments (editorial notes, pending
+// sign-off markers) to anyone opening devtools. Set MUSK_UI_NO_MINIFY=1 to get
+// a readable bundle when debugging in the browser.
+const minify = process.env.MUSK_UI_NO_MINIFY !== '1';
+
 await build({
   entryPoints: [join(uiDir, 'main.ts')],
   outfile: join(distDir, 'app.js'),
@@ -23,6 +29,7 @@ await build({
   format: 'esm',
   platform: 'browser',
   target: ['es2022'],
+  minify,
   legalComments: 'none',
   logLevel: 'info',
 });
