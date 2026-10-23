@@ -228,11 +228,15 @@ export class MuskAgent {
   }
 
   // Opening message of the conversation: the first outbound touch of the flow
-  // (MVP spec §3.2/§3.6). Returns null while MUSK's decision is still open,
-  // because a pending decision is not lead-facing content (rule 4).
+  // (MVP spec �3.2/�3.6). Returns null while MUSK's decision is still open,
+  // because a pending decision is not lead-facing content (rule 4). The opening
+  // is treated as a lead-facing message and passes through the guard (defense in
+  // depth), even though it comes from approved content.
   opening(): string | null {
     const message = this.content.initialMessage;
     if (isPendingDecision(message) || !message.trim()) return null;
+    const guard = guardReply(message);
+    if (!guard.ok) return null;
     return message;
   }
 
@@ -335,6 +339,25 @@ export class MuskAgent {
         ? 'decline'
         : classifiedIntent;
 
+    // Rule 7: if the lead asks to stop after handoff (or in general), we must
+    // register it and stop. `stopped` is checked at the beginning of runTurn,
+    // but classifying as stop here catches cases that might slip through; in
+    // any case, rule 7 requires registering the request.
+    if (intent === ('stop' as Intent)) {
+      if (!this.stopped) {
+        this.stopped = true;
+        this.push({ kind: 'stop', intent, detail: `lead requested stop: "${message}"` });
+      }
+      return {
+        intent: 'stop' as Intent,
+        action: 'stop',
+        reply: buildReply('stop'),
+        suppressed: false,
+        registeredDoubts: [],
+        registeredNoContinuar: true,
+        ruleViolations: [],
+      };
+    }
     // Rule 9: after the handoff the lead is with a person, so the agent stops
     // writing. One person talking is the point of the handoff; a second voice
     // here (a greeting, a doubt acknowledgement) is exactly what reads as a bot.
@@ -724,6 +747,14 @@ export class MuskAgent {
         kind: 'grounding',
         intent,
         detail: `rephrase not produced (empty answer): used the approved text`,
+      });
+      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
+    }
+    if (raw.length <= 4) {
+      this.push({
+        kind: 'grounding',
+        intent,
+        detail: `rephrase not produced (too short/empty-like): used the approved text`,
       });
       return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
     }

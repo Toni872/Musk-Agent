@@ -18,9 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4
         with:
           node-version: 22
           cache: npm
@@ -29,6 +31,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: npm audit
+        run: npm audit --audit-level=high --omit=dev
 
       # The gate. tests/eval.test.ts asserts the retrieval floors (0 false
       # positives, 0 guard violations, exact routing of the forbidden topics,

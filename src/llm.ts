@@ -43,28 +43,44 @@ export class OpenAICompatibleLLM implements LLMProvider {
   constructor(private readonly config: LLMConfig) {}
 
   async complete(request: LLMRequest): Promise<string> {
-    const url = `${this.config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        temperature: this.config.temperature,
-        messages: [{ role: 'system', content: request.system }, ...request.messages],
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`LLM request failed: ${response.status} ${response.statusText}`);
+    const baseUrl = this.config.baseUrl.trim();
+    if (!baseUrl.toLowerCase().startsWith('https://')) {
+      throw new Error('LLM base URL must use https');
     }
-    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') {
-      throw new Error('LLM response missing message content');
+    const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          temperature: this.config.temperature,
+          messages: [{ role: 'system', content: request.system }, ...request.messages],
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`LLM request failed: ${response.status} ${response.statusText}`);
+      }
+      const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      const content = data.choices?.[0]?.message?.content;
+      if (typeof content !== 'string') {
+        throw new Error('LLM response missing message content');
+      }
+      return content;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('LLM request timed out');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
     }
-    return content;
   }
 }
 

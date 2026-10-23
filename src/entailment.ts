@@ -107,6 +107,12 @@ function tokenize(text: string): string[] {
 export function checkEntailment(candidate: string, source: string): EntailmentVerdict {
   const candidateTokens = tokenize(candidate);
   if (candidateTokens.length === 0) return { ok: false, unsupported: [] };
+  // A trivial affirmative/reject token alone ("sí.", "sí", "no", "ok") is not a
+  // rephrase of the approved answer; the caller already rejects very short
+  // strings, but keep the check strict as defense in depth.
+  if (candidateTokens.length === 1 && ENTAILMENT_STOPWORDS.has(candidateTokens[0]!)) {
+    return { ok: false, unsupported: [] };
+  }
 
   const sourceTokens = new Set(tokenize(source));
   const unsupported: string[] = [];

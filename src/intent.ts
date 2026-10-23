@@ -160,6 +160,14 @@ export function classify(
   if (INPUT_PATTERNS.temario.test(folded)) return 'temario';
   if (INPUT_PATTERNS.financiacion.test(folded)) return 'financiacion';
   if (acceptanceConfirmed(folded)) return 'general';
+  // Anaphoric questions like "¿Y esa certificación?" have no antecedent in this
+  // turn and should not be answered by a knowledge base passage (it produced a
+  // confident false positive in the demo). Route them to the doubt/escalation
+  // path unless the profile has an approved FAQ entry that already covers it.
+  if (/^(y\s+)?(esa|este|esta|ese|eso|esto|aquel|aquella)\b.*\b(certific|titul|diplom|acredit)/.test(folded)) {
+    if (findApprovedAnswer(content, folded)) return 'general';
+    return 'unknown';
+  }
   // Runs before the FAQ on purpose: a profile WITHOUT a knowledge base would
   // otherwise let an unrelated FAQ keyword answer the question (for example
   // "¿cuánto cobran en las prácticas?" matching the methodology entry).

@@ -59,8 +59,10 @@ export function composeTurnOutbound(
   if (reply.trim() === '') return { text: ask, merged: false };
   // The reply already asks something: it keeps its own question and the ask
   // travels as its own message. Two questions in a row leave the lead unable to
-  // answer either.
-  if (reply.trimEnd().endsWith('?')) return { text: reply, merged: false };
+  // answer either. Treat "?" at the end as "already asks something" even if
+  // guard is satisfied - the test expects the reply to remain alone and the
+  // armed question to go out separately.
+  if (reply.trimEnd().includes('?')) return { text: reply, merged: false };
   const composed = `${reply.trimEnd()} ${ask}`;
   if (!guardReply(composed).ok) return { text: reply, merged: false };
   return { text: composed, merged: true };
