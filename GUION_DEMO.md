@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-22, 227/266 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-23, 266/266 tests.
 
 > **Apertura y cualificación**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el perfil aprobado, los marcadores `TODO(decisión)` siguen sin enviarse. El flujo DEMO tiene una pregunta de objetivo, orientada a la llamada. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
