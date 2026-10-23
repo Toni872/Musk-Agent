@@ -46,7 +46,7 @@ dos ideas de diseño que lo gobiernan todo:
 | `src/intent.ts` | 159 | Clasificador determinista en español |
 | `src/llm.ts` | 84 | Proveedor de IA opcional (compatible OpenAI) + doble para tests |
 | `src/eval.ts` | 607 | Medición de recuperación y métricas |
-| `src/eval.dataset.ts` | 683 | 43 casos de la FAQ (C01–C43) en 5 grupos + 30 casos de la base de conocimiento en un array aparte (`EVAL_KB_CASES`) |
+| `src/eval.dataset.ts` | 683 | 43 casos de la FAQ (C01–C43) en 5 grupos + 31 casos de la base de conocimiento en un array aparte (`EVAL_KB_CASES`) |
 | `tests/rules.test.ts` | 748 | 49 tests |
 | `tests/reception.test.ts` | 1543 | 91 tests |
 | `tests/ui-chat.test.ts` | 257 | 14 tests |
@@ -337,8 +337,8 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-npm test          # 259 tests
-npm run eval      # 73 casos con métricas (43 de la FAQ + 30 de la base de conocimiento) más 22 de grounding
+npm test          # 266 tests
+npm run eval      # 74 casos con métricas (43 de la FAQ + 31 de la base de conocimiento) más 22 de grounding
 npm run sim:demo  # conversar con el agente (perfil de muestra)
 npm run sim       # conversar con el contenido aprobado (se ve el hueco)
 npm run ui        # interfaz local en http://localhost:4173

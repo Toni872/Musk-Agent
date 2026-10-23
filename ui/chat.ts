@@ -51,6 +51,10 @@ export interface ChatState {
   messages: ChatMessage[];
   stopped: boolean;
   records: ConversationRecord[];
+  // The lead's questions with no approved answer, deduplicated (spec 6). The
+  // operator panel counts them and the records list keeps the wording, which is
+  // what turns "we should measure before adding embeddings" into a number.
+  doubts: string[];
   pendingDecisions: string[];
   turnCount: number;
 }
@@ -154,6 +158,7 @@ export class Chat {
       messages: this.messages.map((message) => ({ ...message })),
       stopped: this.agent.isStopped,
       records: this.agent.records.map((record) => ({ ...record })),
+      doubts: this.agent.doubts,
       pendingDecisions: [...this.agent.pendingDecisions],
       turnCount: this.turnCount,
     };

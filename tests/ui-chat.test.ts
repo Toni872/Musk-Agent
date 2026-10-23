@@ -414,3 +414,25 @@ describe('ui/chat view-model', () => {
     expect(agentMessages.some((message) => message.text.includes('500'))).toBe(false);
   });
 });
+
+// Spec 6 asks for "dudas principales" with a denominator. The panel counts them,
+// so the view-model has to expose them: without this number the demo can answer
+// "should retrieval grow?" only by guessing.
+describe('las dudas medidas llegan a la vista de supervision', () => {
+  it('cuenta las dudas del agente y las conserva en el estado', async () => {
+    const chat = createChat();
+
+    const state = await chat.send('¿Cuánto cobran en las prácticas?');
+
+    expect(state.doubts).toEqual(['¿Cuánto cobran en las prácticas?']);
+  });
+
+  it('un reinicio vuelve a cero, como el resto del panel', async () => {
+    const chat = createChat();
+    await chat.send('¿Cuánto cobran en las prácticas?');
+
+    const state = chat.reset();
+
+    expect(state.doubts).toEqual([]);
+  });
+});

@@ -204,6 +204,15 @@ export class MuskAgent {
     return this.stopped;
   }
 
+  // The lead's own words for every question the agent could not answer from
+  // approved content, in arrival order and deduplicated. Supervision surface
+  // only (spec 3.3 and 6, "dudas principales"): the demo has to make them
+  // countable, because whether the knowledge base is missing content or
+  // vocabulary is the one question that decides if retrieval has to grow.
+  get doubts(): string[] {
+    return [...this.doubtMessages];
+  }
+
   reset(): void {
     this.stopped = false;
     this.handoffFired = false;

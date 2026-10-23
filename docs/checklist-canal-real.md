@@ -62,7 +62,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 259 tests, informe del bucle de evaluación, disparador de protección del bundle (§9) y empaquetado de la interfaz. |
+| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 266 tests, informe del bucle de evaluación, disparador de protección del bundle (§9) y empaquetado de la interfaz. |
 | Traza de tokens, latencia y coste | Parcial | Hoy el modo por defecto es determinista (0 tokens). Si se enciende la reformulación con LLM, cada turno debe registrar tokens, latencia y coste. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
@@ -86,7 +86,7 @@ irreversibles o con coste.
 
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
-| Conjunto propio versionado | Hecho | 73 casos etiquetados (43 de la FAQ + 30 de la base de conocimiento) en `src/eval.dataset.ts`, con las expectativas derivadas de las reglas duras. |
+| Conjunto propio versionado | Hecho | 74 casos etiquetados (43 de la FAQ + 31 de la base de conocimiento) en `src/eval.dataset.ts`, con las expectativas derivadas de las reglas duras. |
 | Métricas de recuperación | Hecho | recall 1.00, precisión 1.00, aciertos de intención 1.00, 0 violaciones del guard, 0 falsos positivos. |
 | Fidelidad de la respuesta generada | No aplica hoy | Sin generación libre no hay nada que medir. Si se enciende el LLM, hay que medir que no se salga del texto aprobado. |
 | Evaluación en cada cambio | Hecho | Se ejecuta en cada push (ver `.github/workflows/ci.yml`). |

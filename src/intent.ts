@@ -72,6 +72,14 @@ export const INPUT_PATTERNS: Record<Exclude<Intent, 'general' | 'unknown' | 'kb'
 // never reach its real intent (decline/unknown).
 const SOCIAL_GREETING =
   /^(hola|buenas|buenos dias|buenas tardes|buenas noches|hey|que tal|como estas|adios|hasta luego|gracias)(?:\s+(ok|vale|perfecto|genial|claro|gracias|adios|hasta luego|que tal|como estas))?$/;
+
+// Check-ins and sympathy remarks carry no question either, but they are NOT
+// greetings: answering them with the knowledge base produced the worst possible
+// reply in the demo ("¿sigues ahí?" -> a passage about AI and jobs). They are
+// matched as WHOLE messages only, so "sigues ahi, no me interesa" keeps its
+// decline intent and a substantive question that starts the same way still
+// reaches its own answer.
+const SOCIAL_CHECK_IN = /^(sigues (?:por )?ahi|estas (?:por )?ahi|que pena|vaya|uf|lo siento)$/;
 const SOCIAL_ACK = /^(ok|vale|perfecto|entendido|genial|claro|si|no)$/;
 
 // A bare acknowledgement ("si", "vale", "ok", "no") carries no question of its
@@ -160,7 +168,9 @@ export function classify(
   if (asksProtectedTopic(folded)) return 'unknown';
   if (findApprovedAnswer(content, folded)) return 'general';
   if (INPUT_PATTERNS.decline.test(folded)) return 'decline';
-  if (SOCIAL_GREETING.test(folded) || SOCIAL_ACK.test(folded)) return 'general';
+  if (SOCIAL_GREETING.test(folded) || SOCIAL_CHECK_IN.test(folded) || SOCIAL_ACK.test(folded)) {
+    return 'general';
+  }
   // Knowledge base (Phase 0): the deterministic retrieval layer over the
   // approved knowledge base (src/kb.ts). It is consulted LAST, right before
   // the rule-5 fallback, so NO existing classification changes: the guarded

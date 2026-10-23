@@ -145,7 +145,10 @@ function render(state: ChatState): void {
   }
 
   const stopped = state.stopped ? 'sí' : 'no';
-  summaryEl.textContent = `Detenido: ${stopped} · Registros: ${state.records.length} · Turnos: ${state.turnCount}`;
+  // "Dudas" is the measurement the spec asks for (spec 6: register the main
+  // questions with a denominator). The wording of each one is already in the
+  // records list; this is the denominator.
+  summaryEl.textContent = `Detenido: ${stopped} · Registros: ${state.records.length} · Turnos: ${state.turnCount} · Dudas: ${state.doubts.length}`;
 
   if (state.records.length === 0) {
     const empty = document.createElement('li');

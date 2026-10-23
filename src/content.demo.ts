@@ -107,7 +107,11 @@ export const DEMO_CONTENT: ApprovedContent = {
       id: 'duracion',
       // A broad "cuánto tiempo" match would steal the specifically approved
       // completion-window question from the deterministic knowledge base.
-      keywords: ['cuanto dura', 'duracion', 'cuantos meses', 'cuantas semanas'],
+      // "cuántos años" is spelled out on purpose: without it, "¿cuántos años
+      // dura la formación?" reached the knowledge base and came back with the
+      // "no tengo tiempo" objection passage - a confident answer to a question
+      // nobody asked.
+      keywords: ['cuanto dura', 'duracion', 'cuantos meses', 'cuantas semanas', 'cuantos anos'],
       answer:
         'Es un programa pensado para compaginarlo con tu día a día: clases en directo y trabajo por proyectos a tu ritmo entre sesiones.',
     },

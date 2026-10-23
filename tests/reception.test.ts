@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { DEMO_CONTENT } from '../src/content.demo';
-import { findApprovedAnswer, normalizeEs } from '../src/intent';
+import { classify, findApprovedAnswer, normalizeEs } from '../src/intent';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { MockProvider } from '../src/llm';
 import { buildReply, guardReply, REPLY_TEMPLATES } from '../src/rules';
@@ -1835,5 +1835,64 @@ describe('la fuente de fundamentación es todo lo que se le mostró al modelo', 
     // The formation name (and its internal demo marker) are not.
     expect(system).not.toContain(DEMO_CONTENT.formationName);
     expect(system).not.toContain('muestra de demo');
+  });
+});
+
+// Two demo defects found while checking the spec by hand, both user-visible in
+// the published demo and both fixed at the routing level, not by rewriting copy:
+//
+// 1. "¿sigues ahí?" and "qué pena" reached the knowledge base and came back with
+//    the "AI is worth it" or "you can take two years" passage. Nonsense replies
+//    to a check-in are worse than no reply: the lead reads a bot that is not
+//    listening. They are small talk and now classify as such.
+// 2. "¿cuántos años dura la formación?" matched the "no tengo tiempo" objection
+//    passage because the demo duration entry only knew "cuánto dura" and
+//    "cuántos meses". A confident answer to a question nobody asked.
+describe('small talk y duración no se responden con la base de conocimiento', () => {
+  it('un "¿sigues ahí?" recibe el saludo social, no un pasaje', async () => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('¿Sigues ahí?');
+
+    expect(result.intent).toBe('general');
+    expect(result.reply).toBe(buildReply('social'));
+    expect(result.registeredDoubts).toHaveLength(0);
+  });
+
+  it('"qué pena" es small talk y no una pregunta a la base de conocimiento', () => {
+    // Locked at the classifier because a message like this one can legitimately
+    // be received as the answer to an armed ask; the defect was the route, not
+    // the turn. Before the fix this returned 'kb' and answered with the
+    // "la IA sigue mereciendo la pena" passage.
+    expect(classify('Qué pena', DEMO_CONTENT)).toBe('general');
+  });
+
+  it('el small talk no se traga un rechazo que empieza igual', async () => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('Sigues ahí, no me interesa');
+
+    expect(result.intent).toBe('decline');
+    expect(result.reply).toBe(buildReply('decline'));
+  });
+
+  it('"¿cuántos años dura la formación?" responde la entrada de duración', async () => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('¿Cuántos años dura la formación?');
+
+    expect(result.intent).toBe('general');
+    expect(result.reply).toBe(findApprovedAnswer(DEMO_CONTENT, 'duracion')?.answer);
+    expect(result.reply).not.toContain('no tengo tiempo');
+  });
+
+  it('las dudas quedan contables y deduplicadas para poder medirlas', async () => {
+    const agent = makeDemoAgent();
+    const question = '¿Cuánto cobran en las prácticas?';
+
+    await agent.runTurn(question);
+    await agent.runTurn(question);
+
+    expect(agent.doubts).toEqual([question]);
   });
 });
