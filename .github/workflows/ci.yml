@@ -41,5 +41,13 @@ jobs:
       - name: Retrieval report
         run: npm run eval
 
+      # The public bundle is a static artifact: deployment protection is the only
+      # thing that hides it. This gate fails the run when the artifact stops being
+      # a demo (signed knowledge base, approved profile in the browser, committed
+      # .env), so the notification arrives before the next publish instead of
+      # after it. See docs/checklist-canal-real.md - 9.
+      - name: Pilot gate (bundle exposure)
+        run: npm run pilot-gate
+
       - name: Build browser simulator
         run: npm run build:ui

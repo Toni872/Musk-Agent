@@ -11,6 +11,8 @@
     "sim:demo": "tsx src/simulator.ts --demo",
     "eval": "tsx src/eval.ts",
     "build:ui": "node ui/build.mjs",
+    "pilot-gate": "tsx scripts/pilot-gate.ts",
+    "deploy": "npm run pilot-gate && vercel deploy --prod",
     "ui": "node ui/build.mjs && node ui/server.mjs"
   },
   "devDependencies": {

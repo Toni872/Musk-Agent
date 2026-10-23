@@ -28,6 +28,7 @@ Relacionado: `AGENTS.md`, `docs/musk-mvp-spec.md`, `docs/pedido-nicolas.md`,
 | Herramientas con efectos | No aplica todavía |
 | Permisos, lotes y datos personales | Pendiente |
 | Aprobaciones de MUSK | Pendiente |
+| Protección del bundle público | Disparador armado (§9) |
 
 ## 1. Entrada: lo que llega del lead
 
@@ -61,7 +62,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 250 tests, informe del bucle de evaluación y empaquetado de la interfaz. |
+| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 259 tests, informe del bucle de evaluación, disparador de protección del bundle (§9) y empaquetado de la interfaz. |
 | Traza de tokens, latencia y coste | Parcial | Hoy el modo por defecto es determinista (0 tokens). Si se enciende la reformulación con LLM, cada turno debe registrar tokens, latencia y coste. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
@@ -100,6 +101,50 @@ irreversibles o con coste.
    (`docs/decisiones-operativas-nicolas.md`).
 3. Base legal, privacidad y transparencia del lote real; tamaño de muestra y fecha de
    lanzamiento.
+
+## 9. Protección del bundle público
+
+El demo es un sitio estático: **todo lo que necesita en el navegador viaja en el
+bundle**. Hoy es aceptable porque el contenido es material de demo (sin precios, sin
+importes, sin datos de leads reales) y el enlace se comparte a mano. Deja de serlo en
+cuanto el artefacto público deje de ser una demo: proteger el despliegue es lo único
+que lo oculta de verdad, porque una comprobación en JavaScript se salta leyendo el
+`app.js`.
+
+**Qué vigila el disparador.** `npm run pilot-gate` —y el paso equivalente de CI— falla
+cuando se cumple cualquiera de estas tres condiciones, comprobables en el repositorio:
+
+1. El perfil aprobado lleva base de conocimiento (`APPROVED_CONTENT.kb`): hay contenido
+   firmado en el bundle, no material de demo.
+2. El demo público arranca con el perfil `real` en `ui/main.ts` en vez del de demo.
+3. Hay un `.env` versionado: configuración real dentro del repositorio.
+
+Si no puede determinar el perfil (por ejemplo, tras refactorizar el punto de entrada),
+**falla igual**: un gate que se calla cuando no ve no es un gate.
+
+**Cómo te enteras.** Tres avisos, no uno:
+
+- **En cada push**, el paso «Pilot gate (bundle exposure)» pone CI en rojo y GitHub
+  manda el aviso de ejecución fallida a quien hizo el push.
+- **Antes de desplegar**, `npm run deploy` ejecuta el gate y se detiene si dispara.
+  `vercel deploy --prod` a mano se salta ese aviso; CI lo coge en el push siguiente.
+- **En local**, `npm run pilot-gate` imprime el motivo y el estado actual.
+
+**Qué hacer cuando dispara.** Antes de la siguiente publicación: activar protección de
+despliegue en Vercel (contraseña o SSO), comprobar que el alias público ya no sirve el
+bundle sin credenciales y anotarlo aquí con fecha y con quién lo decidió. Solo entonces
+poner `PILOT_GATE_ACK=1` en el paso del gate de `.github/workflows/ci.yml`: esa línea es
+el registro de que la decisión se tomó, y hasta que exista el gate falla a propósito.
+
+**Lo que el gate no puede ver.** Que hayan entrado datos de un lead real. Eso no se
+detecta leyendo el repositorio: sigue siendo una condición manual, la 4 del criterio de
+salida.
+
+**Riesgo aceptado hoy (23 de octubre de 2026).** Sin disparadores: perfil aprobado sin
+base de conocimiento, demo público en perfil de demo, sin `.env` versionado. Se acepta
+que el bundle exponga el nombre de la destinataria del aviso, las etiquetas de bolsa,
+las cuatro marcas `TODO(decisión)` y los pasajes de la base de conocimiento de demo,
+mientras el enlace sea privado y el contenido no sea el aprobado.
 
 ## Criterio de salida
 
