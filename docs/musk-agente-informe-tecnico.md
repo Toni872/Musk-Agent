@@ -337,7 +337,7 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-npm test          # 266 tests
+npm test          # 269 tests
 npm run eval      # 74 casos con métricas (43 de la FAQ + 31 de la base de conocimiento) más 22 de grounding
 npm run sim:demo  # conversar con el agente (perfil de muestra)
 npm run sim       # conversar con el contenido aprobado (se ve el hueco)

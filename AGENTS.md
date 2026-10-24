@@ -104,6 +104,24 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   exactamente como antes. Ninguna respuesta de la base de conocimiento puede
   contener una cifra (lo fija un test). La FAQ escrita a mano conserva
   prioridad sobre la base de conocimiento.
+- **La pregunta pendiente gana al catálogo.** `isReceivableAnswer` recibe como
+  respuesta del lead cualquier mensaje que case con las reacciones de la pregunta
+  armada, **antes** de mirar la FAQ. Sin esa prioridad, "quiero cambiar de sector"
+  (que es a la vez palabra clave del catálogo de orientación y respuesta válida a
+  la pregunta de objetivo) se respondía desde la FAQ y la respuesta del lead se
+  perdía. Corolario para el copy: una palabra clave del catálogo puede ser una
+  frase que el lead use al abrir; si además es una respuesta legítima a una
+  pregunta de cualificación, la regla de prioridad la resuelve, no el orden del
+  array.
+- **Orientación sin tocar los umbrales.** La FAQ lleva una entrada `orientacion`
+  (`no sé por dónde empezar`, `cuál me conviene`, `orientadme`, `cambio
+  profesional`, `cambiar de carrera`, `cambio de sector`…) porque la base de
+  conocimiento ya lista esos términos pero BM25 **no puede** aceptar una consulta
+  cuyo contenido se reduce a un solo término: se queda en ~2.4 y el umbral de 3.5
+  la rechaza. Los umbrales son una decisión calibrada y validada con hold-out, así
+  que la respuesta se da en la capa de catálogo curada y la barra **no se mueve**.
+  La respuesta de orientación no termina en pregunta: el motor ya pregunta el
+  objetivo en el mismo turno (`src/outbound.ts`).
 - **Fuente de la fundamentación del LLM.** La regla es: el modelo solo puede usar
   lo que se le mostró. La fuente de una llamada es la respuesta aprobada de la
   entrada casada **más el contexto aprobado del perfil** (`generalDescription` y
@@ -142,7 +160,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (266 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (269 tests) y `npm run eval`
   (43 casos etiquetados del bucle de evaluación de la FAQ + 31 de la base de
   conocimiento + 22 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre

@@ -86,6 +86,48 @@ export const DEMO_CONTENT: ApprovedContent = {
         'La formación prepara perfiles junior para incorporarse a un equipo real, construir su propio portafolio y especializarse en el área que elijan. El encaje concreto lo ves con el equipo.',
     },
     {
+      // Catalogue entry for the lead who has not chosen a programme yet. It
+      // answers the *orientation* question, not a course question: it does not
+      // rank programmes, does not list syllabus and does not price anything
+      // (rules 1, 2 and 4). The answer deliberately carries no "?" because the
+      // engine already asks the qualification question in the same turn
+      // (src/outbound.ts); asking twice was a real demo defect.
+      //
+      // Why this entry exists: the deterministic knowledge base knows these
+      // phrasings ("no se por donde empezar", "cual me conviene", "orientame"),
+      // but BM25 cannot accept a query whose whole content reduces to ONE term
+      // - the score stays around 2.4 and the 3.5 threshold refuses it. Result:
+      // the lead asked for orientation and got the rule-5 doubt. The FAQ is the
+      // curated catalogue layer, so it is the right place to answer, and the
+      // calibrated retrieval thresholds are left untouched.
+      id: 'orientacion',
+      keywords: [
+        'no se por donde empezar',
+        'no se por donde tirar',
+        'no se que estudiar',
+        'no se que formacion estudiar',
+        'estoy perdido',
+        'estoy perdida',
+        'orientadme',
+        'me orienteis',
+        'orientame',
+        'cual me conviene',
+        'cual encaja mejor',
+        'cual me iria mejor',
+        'que formacion me iria mejor',
+        'cambio profesional',
+        'cambiar de carrera',
+        'cambio de carrera',
+        'cambio de sector',
+        'cambiar de sector',
+        'reconversion profesional',
+        'vida laboral',
+        'ayuda para elegir',
+      ],
+      answer:
+        'La elección depende de qué te atraiga: la lógica y los datos, la parte visual o crear juegos. Si me cuentas qué buscas, el equipo te orienta en una llamada.',
+    },
+    {
       id: 'modalidad',
       keywords: [
         'horario',

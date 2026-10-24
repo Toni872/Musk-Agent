@@ -836,6 +836,15 @@ export class MuskAgent {
     // stolen by the knowledge base.
     if (intent === 'kb') return this.matchesPendingQuestionAnswer(message);
     if (intent !== 'unknown' && intent !== 'general') return false;
+    // The lead's own answer to OUR question is never stolen by the approved
+    // catalogue. This matters for the orientation entry: "quiero cambiar de
+    // sector" is both a valid catalogue keyword (the lead opens with it) and a
+    // valid answer to the goal question (the lead replies with it). Without
+    // this line the FAQ branch below returned false and the reply was swallowed
+    // as a catalogue match: the ask stayed armed and the lead got no answer.
+    // The pending ask wins; classification for the OPENING message is
+    // unaffected because there is no pending ask then.
+    if (this.matchesPendingQuestionAnswer(message)) return true;
     // Rule 5 first: a question means the lead is ASKING, not answering.
     if (this.looksLikeQuestion(message)) return false;
     if (intent === 'general') {

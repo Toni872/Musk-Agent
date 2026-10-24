@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 266 tests en 8 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 269 tests en 8 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 43 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 31 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (modo determinista sin LLM; ver configuración abajo).
@@ -213,7 +213,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 266 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 269 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe del bucle de evaluación (43 casos de la FAQ + 31 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
@@ -221,7 +221,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 266 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 269 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

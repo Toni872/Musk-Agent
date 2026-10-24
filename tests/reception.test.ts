@@ -1896,3 +1896,71 @@ describe('small talk y duración no se responden con la base de conocimiento', (
     expect(agent.doubts).toEqual([question]);
   });
 });
+// ---------------------------------------------------------------------------
+// Orientación: el lead que todavía no sabe qué formación elegir
+// ---------------------------------------------------------------------------
+//
+// These phrasings reached rule 5 (registered doubt) before, so a lead who asked
+// the single most natural opening question got "no tengo una respuesta
+// aprobada" instead of orientation. The cause was NOT missing content: the
+// knowledge base already lists "no se por donde empezar", "cual me conviene" and
+// "orientame" as terms. It was the scorer: those queries reduce to ONE content
+// term after stopword removal, and BM25 cannot reach the 3.5 threshold with a
+// single matching term (it lands around 2.4). The calibrated thresholds are a
+// documented, held-out-validated decision, so the answer is provided by the
+// curated catalogue layer instead of moving the bar.
+describe('orientación: el lead que no sabe qué formación elegir', () => {
+  const phrasings = [
+    'No sé por dónde empezar',
+    'Me gustaría que me orientéis un poco',
+    'Orientadme un poco, por favor',
+    '¿Cuál me conviene más?',
+    'Busco un cambio profesional, ¿qué formación me iría mejor?',
+    'Quiero cambiar de carrera, ¿por dónde empiezo?',
+    'No sé qué hacer con mi vida laboral',
+    'Quiero un cambio de sector',
+  ];
+
+  it('cada frase recibe la entrada de orientación y no se archiva como duda', async () => {
+    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer;
+
+    for (const text of phrasings) {
+      const agent = makeDemoAgent();
+      const result = await agent.runTurn(text);
+
+      expect(result.intent, text).toBe('general');
+      expect(result.reply, text).toBe(expected);
+      expect(result.registeredDoubts, text).toHaveLength(0);
+      expect(guardReply(result.reply).ok, text).toBe(true);
+    }
+  });
+
+  it('la orientación no roba las preguntas que la base de conocimiento sí responde', async () => {
+    // "¿qué me recomendáis, Python o Full Stack?" is a labelled evaluation case
+    // for kb-guia-recomendacion. The catalogue entry must not intercept it: the
+    // knowledge base answers a comparison question better than a generic
+    // orientation sentence, and the eval dataset locks that expectation.
+    for (const text of ['¿Qué me recomendáis?', '¿Qué me recomendáis, Python o Full Stack?']) {
+      const agent = makeDemoAgent();
+      const result = await agent.runTurn(text);
+
+      expect(result.intent, text).toBe('kb');
+    }
+  });
+
+  it('la respuesta del lead al objetivo no la roba el catálogo de orientación', async () => {
+    // "Quiero cambiar de sector" is BOTH a catalogue keyword (the lead opens
+    // with it) and a valid answer to the goal question (the lead replies with
+    // it). The pending ask has priority: the answer is captured, not answered
+    // from the FAQ. Without that priority the turn returned the orientation
+    // sentence and swallowed the lead's answer.
+    const agent = makeDemoAgent();
+    const id = armQualification(agent);
+
+    const result = await agent.runTurn('Quiero cambiar de sector');
+
+    expect(result.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
+    expect(result.reply).not.toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer);
+    expect(agent.qualificationAnswers).toEqual([{ id, text: 'Quiero cambiar de sector' }]);
+  });
+});
