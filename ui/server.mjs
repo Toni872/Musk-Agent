@@ -56,7 +56,7 @@ let port = basePort;
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE' && port < basePort + 10) {
     port += 1;
-    server.listen(port);
+server.listen(port, '127.0.0.1');
     return;
   }
   console.error(`Server error: ${error.message}`);

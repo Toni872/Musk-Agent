@@ -245,9 +245,11 @@ root.querySelectorAll<HTMLElement>('[data-scroll]').forEach((trigger) => {
 composer.addEventListener('submit', (event) => {
   event.preventDefault();
   const text = input.value;
-  if (!text.trim()) return;
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const limited = trimmed.length > 1000 ? trimmed.slice(0, 1000) : trimmed;
   input.value = '';
-  void handleSend(text);
+  void handleSend(limited);
 });
 
 profileSelect.addEventListener('change', () => {
