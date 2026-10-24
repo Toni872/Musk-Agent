@@ -77,6 +77,7 @@ root.innerHTML = `
                 <option value="real">Real (contenido aprobado del piloto)</option>
               </select>
             </label>
+            <button id="export" class="btn btn--ghost btn--small" type="button">Descargar informe</button>
             <button id="reset" class="btn btn--ghost btn--small" type="button">Reiniciar</button>
           </div>
         </div>
@@ -114,6 +115,7 @@ root.innerHTML = `
 
 const profileSelect = getElement<HTMLSelectElement>('profile');
 const resetButton = getElement<HTMLButtonElement>('reset');
+const exportButton = getElement<HTMLButtonElement>('export');
 const banner = getElement<HTMLParagraphElement>('banner');
 const messagesEl = getElement<HTMLDivElement>('messages');
 const composer = getElement<HTMLFormElement>('composer');
@@ -179,6 +181,16 @@ function renderMessage(message: ChatMessage): HTMLElement {
   return item;
 }
 
+function formatRecordTime(timestamp?: string): string {
+  if (!timestamp) return '';
+  try {
+    const date = new Date(timestamp);
+    return `[${date.toLocaleString('es-ES')}] `;
+  } catch {
+    return '';
+  }
+}
+
 function renderRecord(record: ChatState['records'][number]): HTMLLIElement {
   const item = document.createElement('li');
 
@@ -189,7 +201,8 @@ function renderRecord(record: ChatState['records'][number]): HTMLLIElement {
   const detail = document.createElement('span');
   detail.className = 'record__detail';
   const intent = record.intent ? `(${record.intent}) ` : '';
-  detail.textContent = `${intent}${record.detail}`;
+  const time = formatRecordTime(record.timestamp);
+  detail.textContent = `${time}${intent}${record.detail}`;
 
   item.append(kind, detail);
   return item;
@@ -261,5 +274,94 @@ resetButton.addEventListener('click', () => {
   render(chat.reset());
   input.focus();
 });
+
+exportButton.addEventListener('click', () => {
+  const state = chat.getState();
+  const now = new Date().toLocaleString('es-ES');
+  const title = `Informe MUSK - ${now.replace(/[/:]/g, '-')}`;
+
+  const messages = state.messages
+    .map((m) => {
+      const role = ROLE_LABELS[m.role];
+      return `<div class="line"><strong>[${role}]</strong> ${escapeHtml(m.text)}</div>`;
+    })
+    .join('');
+
+  const records = state.records
+    .map((r) => {
+      const time = r.timestamp ? new Date(r.timestamp).toLocaleString('es-ES') : '-';
+      const intent = r.intent ? ` (${r.intent})` : '';
+      return `<tr><td>${escapeHtml(time)}</td><td>${escapeHtml(r.kind)}</td><td>${escapeHtml(intent)}</td><td>${escapeHtml(r.detail)}</td></tr>`;
+    })
+    .join('');
+
+  const doubts = state.doubts
+    .map((d, i) => `<li>${i + 1}. ${escapeHtml(d)}</li>`)
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:32px;line-height:1.5;color:#111}
+    h1,h2{margin:0 0 12px 0}
+    .meta{color:#555;margin-bottom:24px}
+    .section{margin:28px 0}
+    .line{margin:6px 0}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}
+    th{background:#f7f7f7}
+    ul{margin:8px 0;padding-left:20px}
+    @media print{button{display:none}}
+  </style>
+</head>
+<body>
+  <h1>Informe de conversación - Agente MUSK</h1>
+  <div class="meta">
+    <div>Fecha de generación: ${now}</div>
+    <div>Perfil: ${state.profile === 'demo' ? 'DEMO (muestra, no aprobado)' : 'Real (contenido aprobado)'}</div>
+    <div>Turnos: ${state.turnCount}</div>
+    <div>Detenido: ${state.stopped ? 'Sí' : 'No'}</div>
+    <div>Registros: ${state.records.length}</div>
+    <div>Dudas: ${state.doubts.length}</div>
+  </div>
+  <div class="section">
+    <h2>Conversación completa</h2>
+    ${messages || '<p><em>Sin mensajes</em></p>'}
+  </div>
+  <div class="section">
+    <h2>Registros cronológicos</h2>
+    <table>
+      <thead><tr><th>Fecha/Hora</th><th>Tipo</th><th>Intent</th><th>Detalle</th></tr></thead>
+      <tbody>${records || ''}</tbody>
+    </table>
+  </div>
+  <div class="section">
+    <h2>Dudas registradas</h2>
+    ${doubts ? `<ul>${doubts}</ul>` : '<p><em>Sin dudas registradas</em></p>'}
+  </div>
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('No se ha podido abrir una nueva ventana. Permite ventanas emergentes para exportar el informe.');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+});
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 render(chat.getState());

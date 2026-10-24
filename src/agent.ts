@@ -115,6 +115,7 @@ export interface ConversationRecord {
   // question) has no classified intent, and is left empty instead of faked.
   intent?: Intent;
   detail: string;
+  timestamp: string;
   // Provenance of a knowledge-base turn (Phase 0): the passage that answered
   // (or the closest one when nothing cleared the thresholds), the score and
   // the coverage it reached, and the thresholds that were applied.
@@ -1336,8 +1337,8 @@ export class MuskAgent {
     if (!this.doubtMessages.includes(message)) this.doubtMessages.push(message);
   }
 
-  private push(record: ConversationRecord): void {
-    this.conversationRecords.push(record);
+  private push(record: Omit<ConversationRecord, 'timestamp'>): void {
+    this.conversationRecords.push({ ...record, timestamp: new Date().toISOString() } as ConversationRecord);
   }
 
   // STABLE part of the LLM request: the role, the tone, the eleven hard
