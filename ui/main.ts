@@ -78,7 +78,7 @@ root.innerHTML = `
                 <option value="real">Real (contenido aprobado del piloto)</option>
               </select>
             </label>
-            <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso a Laura</button>
+            <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso</button>
             <button id="export-json" class="btn btn--ghost btn--small" type="button">Descargar JSON</button>
             <button id="export" class="btn btn--ghost btn--small" type="button">Descargar informe</button>
             <button id="reset" class="btn btn--ghost btn--small" type="button">Reiniciar</button>
@@ -295,7 +295,7 @@ copyHandoffButton.addEventListener('click', async () => {
   }
 
   const lines: string[] = [];
-  lines.push('AVISO A LAURA - Escuela Musk');
+  lines.push('AVISO COMERCIAL - Escuela Musk');
   lines.push('===========================');
   lines.push(`Fecha: ${new Date().toLocaleString('es-ES')}`);
   lines.push(`Motivo: ${handoff.reason}`);
@@ -412,7 +412,7 @@ exportButton.addEventListener('click', () => {
 
   const handoffHtml = handoff
     ? `<div class="section">
-    <h2>AVISO A LAURA</h2>
+      <h2>AVISO COMERCIAL</h2>
     <table>
       <tbody>
         <tr><th>Motivo</th><td>${escapeHtml(handoff.reason)}</td></tr>
@@ -428,7 +428,7 @@ exportButton.addEventListener('click', () => {
     ${handoff.doubts && handoff.doubts.length > 0 ? `<h3>Dudas en el momento del aviso</h3><ul>${handoff.doubts.map((d: string) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}
     ${handoff.afterHandoff && handoff.afterHandoff.length > 0 ? `<h3>Mensajes del lead tras el aviso</h3><ul>${handoff.afterHandoff.map((m: string) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>` : ''}
   </div>`
-    : `<div class="section"><h2>AVISO A LAURA</h2><p><em>No se ha generado handoff en esta sesión.</em></p></div>`;
+    : `<div class="section"><h2>AVISO COMERCIAL</h2><p><em>No se ha generado handoff en esta sesión.</em></p></div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="es">
