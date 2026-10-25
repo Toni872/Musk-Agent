@@ -79,6 +79,7 @@ root.innerHTML = `
               </select>
             </label>
             <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso a Laura</button>
+            <button id="export-json" class="btn btn--ghost btn--small" type="button">Descargar JSON</button>
             <button id="export" class="btn btn--ghost btn--small" type="button">Descargar informe</button>
             <button id="reset" class="btn btn--ghost btn--small" type="button">Reiniciar</button>
           </div>
@@ -118,6 +119,7 @@ root.innerHTML = `
 const profileSelect = getElement<HTMLSelectElement>('profile');
 const resetButton = getElement<HTMLButtonElement>('reset');
 const exportButton = getElement<HTMLButtonElement>('export');
+const exportJsonButton = getElement<HTMLButtonElement>('export-json');
 const copyHandoffButton = getElement<HTMLButtonElement>('copy-handoff');
 const banner = getElement<HTMLParagraphElement>('banner');
 const messagesEl = getElement<HTMLDivElement>('messages');
@@ -347,6 +349,34 @@ copyHandoffButton.addEventListener('click', async () => {
       alert('No se ha podido copiar. Prueba con el informe PDF.');
     }
   }
+});
+
+exportJsonButton.addEventListener('click', () => {
+  const state = chat.getState();
+  const agentState = (chat as any).agent;
+  const now = new Date();
+  const payload = {
+    generatedAt: now.toISOString(),
+    profile: state.profile,
+    turnCount: state.turnCount,
+    stopped: state.stopped,
+    messages: state.messages,
+    records: state.records,
+    doubts: state.doubts,
+    pendingDecisions: state.pendingDecisions,
+    handoff: agentState?.lastHandoffContext || null,
+    qualificationAnswers: agentState?.qualificationAnswers || [],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const filename = `musk-sesion-${now.toISOString().replace(/[:.]/g, '-')}.json`;
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 });
 
 exportButton.addEventListener('click', () => {
