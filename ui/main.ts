@@ -78,6 +78,7 @@ root.innerHTML = `
                 <option value="real">Real (contenido aprobado del piloto)</option>
               </select>
             </label>
+            <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso a Laura</button>
             <button id="export" class="btn btn--ghost btn--small" type="button">Descargar informe</button>
             <button id="reset" class="btn btn--ghost btn--small" type="button">Reiniciar</button>
           </div>
@@ -117,6 +118,7 @@ root.innerHTML = `
 const profileSelect = getElement<HTMLSelectElement>('profile');
 const resetButton = getElement<HTMLButtonElement>('reset');
 const exportButton = getElement<HTMLButtonElement>('export');
+const copyHandoffButton = getElement<HTMLButtonElement>('copy-handoff');
 const banner = getElement<HTMLParagraphElement>('banner');
 const messagesEl = getElement<HTMLDivElement>('messages');
 const composer = getElement<HTMLFormElement>('composer');
@@ -274,6 +276,77 @@ profileSelect.addEventListener('change', () => {
 resetButton.addEventListener('click', () => {
   render(chat.reset());
   input.focus();
+});
+
+copyHandoffButton.addEventListener('click', async () => {
+  const agentState = (chat as any).agent;
+  const handoff: HandoffContext | undefined = agentState?.lastHandoffContext || undefined;
+  if (!handoff) {
+    alert('Aún no hay handoff generado en esta sesión.');
+    return;
+  }
+
+  const qa = [] as Array<{ questionId?: string; id?: string; answer?: string; text?: string }>;
+  if ((handoff as any).qualificationAnswers) qa.push(...(handoff as any).qualificationAnswers);
+  else if (agentState?.qualificationAnswers) {
+    qa.push(...agentState.qualificationAnswers.map((q: any) => ({ questionId: q.id, answer: q.text })));
+  }
+
+  const lines: string[] = [];
+  lines.push('AVISO A LAURA - Escuela Musk');
+  lines.push('===========================');
+  lines.push(`Fecha: ${new Date().toLocaleString('es-ES')}`);
+  lines.push(`Motivo: ${handoff.reason}`);
+  lines.push(`Lead ID: ${handoff.leadId}`);
+  lines.push(`Contacto: ${handoff.contact || '-'}`);
+  lines.push(`Bolsa / origen: ${handoff.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores'}`);
+  lines.push(`Destinataria: ${handoff.recipient || 'Laura'}`);
+  lines.push(`Formación detectada: ${handoff.formation || '-'}`);
+  lines.push('');
+  lines.push('RESUMEN PARA EL COMERCIAL:');
+  lines.push(handoff.summary || '-');
+  lines.push('');
+
+  if (qa.length > 0) {
+    lines.push('RESPUESTAS DE CUALIFICACIÓN:');
+    for (const q of qa) {
+      lines.push(`- ${q.questionId || q.id || 'pregunta'}: ${q.answer || q.text || '-'}`);
+    }
+    lines.push('');
+  }
+
+  if (handoff.doubts && handoff.doubts.length > 0) {
+    lines.push('DUDA S INCLUIDAS:');
+    for (const d of handoff.doubts) {
+      lines.push(`- ${d}`);
+    }
+    lines.push('');
+  }
+
+  if (handoff.afterHandoff && handoff.afterHandoff.length > 0) {
+    lines.push('MENSAJES DEL LEAD TRAS EL AVISO:');
+    for (const m of handoff.afterHandoff) {
+      lines.push(`- ${m}`);
+    }
+    lines.push('');
+  }
+
+  const text = lines.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    copyHandoffButton.textContent = '¡Copiado!';
+    setTimeout(() => {
+      copyHandoffButton.textContent = 'Copiar aviso a Laura';
+    }, 1500);
+  } catch {
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`<pre>${escapeHtml(text)}</pre>`);
+      win.document.close();
+    } else {
+      alert('No se ha podido copiar. Prueba con el informe PDF.');
+    }
+  }
 });
 
 exportButton.addEventListener('click', () => {
