@@ -23,7 +23,31 @@ const INPUT_PLACEHOLDER = 'Escribe como el lead y pulsa Enviar';
 const INPUT_PLACEHOLDER_STOPPED =
   'Conversación detenida: escribe un mensaje o pulsa Reiniciar.';
 
-const chat = createChat({ profile: 'demo' });
+const STORAGE_KEY = 'musk-ui-session-v1';
+
+function loadPersisted(): { profile: ContentProfile } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.profile === 'demo' || parsed.profile === 'real') return { profile: parsed.profile };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function persistState(): void {
+  try {
+    const state = chat.getState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile: state.profile, savedAt: new Date().toISOString() }));
+  } catch {
+    // ignore
+  }
+}
+
+const persisted = loadPersisted();
+const chat = createChat({ profile: persisted?.profile ?? 'demo' });
 let busy = false;
 
 const root = document.getElementById('app');
@@ -229,6 +253,7 @@ async function handleSend(text: string): Promise<void> {
   try {
     const state = await chat.send(text);
     render(state);
+    persistState();
   } finally {
     busy = false;
     applyBusy(chat.getState());
@@ -272,11 +297,19 @@ composer.addEventListener('submit', (event) => {
 
 profileSelect.addEventListener('change', () => {
   render(chat.setProfile(profileSelect.value as ContentProfile));
+  persistState();
   input.focus();
 });
 
 resetButton.addEventListener('click', () => {
+  if (!confirm('¿Reiniciar la sesión? Se borrará la conversación actual.')) return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
   render(chat.reset());
+  persistState();
   input.focus();
 });
 
