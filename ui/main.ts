@@ -10,6 +10,7 @@ import {
   type ChatState,
   type ContentProfile,
 } from './chat';
+import type { HandoffContext } from '../src/agent';
 
 const ROLE_LABELS: Record<ChatMessage['role'], string> = {
   agent: 'Agente',
@@ -279,11 +280,18 @@ exportButton.addEventListener('click', () => {
   const state = chat.getState();
   const now = new Date().toLocaleString('es-ES');
   const title = `Informe MUSK - ${now.replace(/[/:]/g, '-')}`;
+  const agentState = (chat as any).agent;
+  const handoff: HandoffContext | undefined = agentState?.lastHandoffContext || undefined;
+  const handedQualification = (): Array<{questionId?: string; id?: string; answer?: string; text?: string}> => {
+    if (handoff && (handoff as any).qualificationAnswers) return (handoff as any).qualificationAnswers;
+    if (agentState?.qualificationAnswers) return agentState.qualificationAnswers.map((qa: any) => ({ questionId: qa.id, answer: qa.text }));
+    return [];
+  };
 
   const messages = state.messages
-    .map((m) => {
+    .map((m, idx) => {
       const role = ROLE_LABELS[m.role];
-      return `<div class="line"><strong>[${role}]</strong> ${escapeHtml(m.text)}</div>`;
+      return `<div class="line"><strong>[Turno ${idx + 1}] [${role}]</strong> ${escapeHtml(m.text)}</div>`;
     })
     .join('');
 
@@ -299,6 +307,26 @@ exportButton.addEventListener('click', () => {
     .map((d, i) => `<li>${i + 1}. ${escapeHtml(d)}</li>`)
     .join('');
 
+  const handoffHtml = handoff
+    ? `<div class="section">
+    <h2>AVISO A LAURA</h2>
+    <table>
+      <tbody>
+        <tr><th>Motivo</th><td>${escapeHtml(handoff.reason)}</td></tr>
+        <tr><th>Lead ID</th><td>${escapeHtml(handoff.leadId)}</td></tr>
+        <tr><th>Contacto</th><td>${escapeHtml(handoff.contact || '-')}</td></tr>
+        <tr><th>Bolsa / origen</th><td>${escapeHtml(handoff.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores')}</td></tr>
+        <tr><th>Destinataria</th><td>${escapeHtml(handoff.recipient || '-')}</td></tr>
+        <tr><th>Formación detectada</th><td>${escapeHtml(handoff.formation || '-')}</td></tr>
+        <tr><th>Resumen para el comercial</th><td>${escapeHtml(handoff.summary || '-')}</td></tr>
+      </tbody>
+    </table>
+    ${handedQualification().length > 0 ? `<h3>Respuestas de cualificación</h3><ul>${handedQualification().map((qa: any) => `<li><strong>${escapeHtml(qa.questionId || qa.id || '')}</strong>: ${escapeHtml(qa.answer || qa.text || '')}</li>`).join('')}</ul>` : ''}
+    ${handoff.doubts && handoff.doubts.length > 0 ? `<h3>Dudas en el momento del aviso</h3><ul>${handoff.doubts.map((d: string) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}
+    ${handoff.afterHandoff && handoff.afterHandoff.length > 0 ? `<h3>Mensajes del lead tras el aviso</h3><ul>${handoff.afterHandoff.map((m: string) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>` : ''}
+  </div>`
+    : `<div class="section"><h2>AVISO A LAURA</h2><p><em>No se ha generado handoff en esta sesión.</em></p></div>`;
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -306,7 +334,7 @@ exportButton.addEventListener('click', () => {
   <title>${title}</title>
   <style>
     body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:32px;line-height:1.5;color:#111}
-    h1,h2{margin:0 0 12px 0}
+    h1,h2,h3{margin:0 0 12px 0}
     .meta{color:#555;margin-bottom:24px}
     .section{margin:28px 0}
     .line{margin:6px 0}
@@ -331,6 +359,7 @@ exportButton.addEventListener('click', () => {
     <h2>Conversación completa</h2>
     ${messages || '<p><em>Sin mensajes</em></p>'}
   </div>
+  ${handoffHtml}
   <div class="section">
     <h2>Registros cronológicos</h2>
     <table>
