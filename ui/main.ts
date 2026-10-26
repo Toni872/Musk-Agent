@@ -47,7 +47,7 @@ function persistState(): void {
 }
 
 const persisted = loadPersisted();
-const chat = createChat({ profile: persisted?.profile ?? 'demo' });
+const chat = createChat({ profile: persisted?.profile ?? 'real' });
 let busy = false;
 
 const root = document.getElementById('app');
@@ -94,12 +94,12 @@ root.innerHTML = `
               <p class="chat__status">En línea · respuestas aprobadas</p>
             </div>
           </div>
-          <div class="chat__controls">
+          <div classtag="chat__controls">
             <label class="field">
               <span class="field__label">Contenido</span>
               <select id="profile">
-                <option value="demo">DEMO (muestra, no aprobado)</option>
                 <option value="real">Real (contenido aprobado del piloto)</option>
+                <option value="demo">DEMO (muestra, not approved)</option>
               </select>
             </label>
             <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso</button>
