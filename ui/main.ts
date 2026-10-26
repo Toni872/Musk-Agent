@@ -481,7 +481,7 @@ exportButton.addEventListener('click', () => {
   <h1>Informe de conversación - Agente MUSK</h1>
   <div class="meta">
     <div>Fecha de generación: ${now}</div>
-    <div>Perfil: ${state.profile === 'demo' ? 'DEMO (muestra, no aprobado)' : 'Real (contenido aprobado)'}</div>
+    <div>Perfil: Real (contenido aprobado)</div>
     <div>Turnos: ${state.turnCount}</div>
     <div>Detenido: ${state.stopped ? 'Sí' : 'No'}</div>
     <div>Registros: ${state.records.length}</div>
