@@ -140,7 +140,7 @@ root.innerHTML = `
   </footer>
 `;
 
-const profileSelect = getElement<HTMLSelectElement>('profile');
+// Perfil único: real. Se elimina el selector demo/real.
 const resetButton = getElement<HTMLButtonElement>('reset');
 const exportButton = getElement<HTMLButtonElement>('export');
 const exportJsonButton = getElement<HTMLButtonElement>('export-json');
@@ -163,7 +163,7 @@ function getElement<T extends HTMLElement>(id: string): T {
 // never be interpreted as markup.
 function render(state: ChatState): void {
   banner.textContent = state.banner;
-  profileSelect.value = state.profile;
+  // profileSelect.value = state.profile; // perfil único real
   document.body.dataset.stopped = String(state.stopped);
 
   if (state.messages.length === 0) {
@@ -295,11 +295,7 @@ composer.addEventListener('submit', (event) => {
   void handleSend(limited);
 });
 
-profileSelect.addEventListener('change', () => {
-  render(chat.setProfile(profileSelect.value as ContentProfile));
-  persistState();
-  input.focus();
-});
+// Selector de perfil eliminado - solo contenido real
 
 resetButton.addEventListener('click', () => {
   if (!confirm('¿Reiniciar la sesión? Se borrará la conversación actual.')) return;
