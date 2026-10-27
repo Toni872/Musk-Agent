@@ -1,5 +1,9 @@
 # Matriz de validación de las formaciones
 
+Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
+pendiente de firma.
+
 ## Finalidad y estado
 
 Esta es una matriz interna para revisar el contenido de la primera demo de captación de leads y pedir validación a Nicolás antes de ampliar el agente. Resume de forma selectiva los cinco dosieres locales; no incorpora los PDF completos al agente ni convierte sus afirmaciones en contenido aprobado. Salvo las reglas confirmadas expresamente por MUSK, los datos extraídos de los dosieres quedan **PENDIENTES DE VALIDAR**. Las citas localizan la fuente; no equivalen a una aprobación.
@@ -32,7 +36,7 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 - **Certificados de los dosieres no Python.** Back End (p. 19), Front End (p. 18), Full Stack (p. 21) y Videojuegos (p. 17) muestran texto o una muestra de certificado que identifica «Programación en Python». En videojuegos también se anuncian UCAGD y UCU-PROG. La base anterior identifica PCAP para Python y certificaciones Unity para Videojuegos, pero no resuelve qué certificado de finalización o ARP corresponde a cada formación. No asignar el certificado Python/ARP de muestra a los otros cursos sin confirmación. (BackEnd.pdf, p. 19; FrontEnd (1).pdf, p. 18; FullStack.pdf, p. 21; Videojuegos.pdf, p. 17; `escuela-musk-base-conocimiento.md`, §§1 y 2.4–2.5; `src/kb.ts`, pasajes de certificación.)
 - **Videojuegos — proyecto final y Steam.** El dosier titula el proyecto «Crea tu juego: Proyecto final» (p. 12) y en otra página habla en general de publicar proyectos en plataformas líderes (p. 3); no nombra Steam para el proyecto final. La base anterior sí afirma que se publica y vende en Steam. Mantener esa afirmación fuera de WhatsApp hasta que Nicolás confirme el alcance. (Videojuegos.pdf, pp. 3, 12; `escuela-musk-base-conocimiento.md`, §2.5 y §6; `src/kb.ts`, pasajes `kb-videojuegos-contenido` y `kb-freelance`.)
 - **Nombres canónicos y mención de IA.** Los títulos impresos en las portadas no llevan «con IA». La respuesta de catálogo recogida en el correo de Nicolás usa «con IA» para Back End, Front End, Full Stack y Videojuegos, pero no para Python; la base anterior también incluye esas denominaciones. Confirmar el nombre comercial que debe usarse en una presentación general. (PDF citados en la matriz, p. 1; `docs/pedido-nicolas.md`, §8; `escuela-musk-base-conocimiento.md`, §§2.1–2.5.)
-- **Respuesta de catálogo del perfil DEMO: la invitación duplicada se ha retirado.** La entrada `catalogo-formaciones` de `src/content.demo.ts` termina ahora en «Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.» Antes terminaba con «Dime qué te atrae y te oriento.», que pedía exactamente lo mismo que la pregunta de cualificación `goal` que sale en ese mismo turno: el lead leía la misma pregunta dos veces. Desde el 22-10 el turno emite **un solo mensaje** (respuesta y pregunta de cualificación unidas; `src/outbound.ts`, el mismo helper que usan la UI y el CLI), y la respuesta de catálogo dejó de preguntar para que la pregunta lo haga. Se conservan los cinco programas y el diferenciador «con IA»; no hay interrogación, cifras, precios ni promesas. Sigue siendo **copia de demostración pendiente de firma de MUSK** (reglas 4 y 11) y el texto propuesto por Nicolás para su aprobación (§8 de `docs/pedido-nicolas.md`) sigue siendo el pendiente de validar.
+- **Respuesta de catálogo del perfil único: la invitación duplicada se ha retirado.** La entrada `catalogo-formaciones` de `src/content.ts` termina ahora en «Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.» Antes terminaba con «Dime qué te atrae y te oriento.», que pedía exactamente lo mismo que la pregunta de cualificación `goal` que sale en ese mismo turno: el lead leía la misma pregunta dos veces. Desde el 22-10 el turno emite **un solo mensaje** (respuesta y pregunta de cualificación unidas; `src/outbound.ts`, el mismo helper que usan la UI y el CLI), y la respuesta de catálogo dejó de preguntar para que la pregunta lo haga. Se conservan los cinco programas y el diferenciador «con IA»; no hay interrogación, cifras, precios ni promesas. Sigue siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y el texto propuesto por Nicolás para su aprobación (§8 de `docs/pedido-nicolas.md`) sigue siendo el pendiente de validar.
 
 ## Contenido que debe quedar fuera de WhatsApp
 
@@ -40,7 +44,7 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 - Salarios, porcentajes, estimaciones y otras cifras de mercado o empleabilidad.
 - Horas, calendarios y otras duraciones, salvo la afirmación confirmada de que la formación puede completarse en dos años con flexibilidad.
 - Temario módulo a módulo y reproducción de los dosieres o certificados completos.
-- Garantías de empleo, promesas de contratación o resultados laborales. «Prácticas garantizadas» se refiere al convenio de prácticas; no autoriza a prometer un empleo ni una empresa concreta.
+- Cualquier garantía, promesa de contratación o resultado asegurado. `guardReply` rechaza todas las formas de «garantiz*»; el copy de prácticas no puede prometer el convenio, un empleo ni una empresa concreta.
 - Ubicación, remuneración, duración y condiciones concretas de las prácticas, salvo confirmación independiente.
 - Material interno, nombres o datos de contacto personales, testimonios y detalles identificables de empresas o personas.
 
@@ -54,15 +58,15 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 - **Python:** «Python es una formación de programación con aplicaciones en software y análisis de datos. El equipo puede orientarte en una llamada.»
 - **Videojuegos:** «Videojuegos combina diseño y programación para crear experiencias interactivas. El equipo puede ampliarte la información en una llamada.»
 
-### Estado en el código: implementadas en el perfil DEMO, pendientes de firma
+### Estado en el código: implementadas en el perfil único, pendientes de firma
 
-Las cinco frases de arriba ya están en el perfil **DEMO** (`src/content.demo.ts`, reacciones de la
+Las cinco frases de arriba ya están en `APPROVED_CONTENT` (`src/content.ts`, reacciones de la
 pregunta `goal`), con una redacción adaptada: la reacción del agente solo **reconoce la elección y
 añade una cláusula breve** sobre qué es esa formación. La llamada no la propone el propio texto; la
-cierra el `closingInvitation` ya configurado. Es decir, la frase aprobada aquí está **recortada a una
+cierra el `closingInvitation` ya configurado. Es decir, la frase propuesta aquí está **recortada a una
 cláusula** para que el mensaje completo siga siendo corto y el lead reciba una sola pregunta.
 
-| Formación | Reacción implementada (perfil DEMO) |
+| Formación | Reacción implementada (perfil único) |
 |---|---|
 | Python | «Entiendo, te interesa Python: programación con aplicaciones en software y análisis de datos.» |
 | Front End | «Entiendo, te interesa Front End: diseño y desarrollo de interfaces web.» |
@@ -76,15 +80,14 @@ el mensaje completo queda por debajo de 240 caracteres, con **una sola** interro
 pasa `guardReply`. Una mención negada («no me interesa Full Stack») **no** se acusa como elección
 positiva.
 
-**Siguen siendo copia de demostración pendiente de aprobación de MUSK** (reglas 4 y 11): viven solo en
-`src/content.demo.ts`, que se carga únicamente con `--demo`. El perfil aprobado (`src/content.ts`) no las
-contiene. Hasta que Nicolás valide el texto, no deben usarse con un lead real.
+Siguen siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y viven en
+`src/content.ts`. Hasta que Nicolás valide el texto, no deben usarse con un lead real.
 
 ## Lista de aprobación de Nicolás
 
 - [ ] Confirmar los nombres canónicos de las cinco formaciones, incluida la mención «con IA» cuando corresponda.
 - [ ] Validar para cada curso la lista breve de áreas y tecnologías de nivel general.
 - [ ] Confirmar qué certificado corresponde a cada formación y qué páginas de muestra deben sustituirse o corregirse.
-- [ ] Validar el wording de las prácticas: el convenio garantizado, sin promesa de empleo ni de empresa concreta; definir aparte si se autoriza algún detalle de ubicación, remuneración, duración o condiciones.
-- [ ] Aprobar o corregir la respuesta breve propuesta para cada formación. La versión corta ya implementada en el perfil DEMO (reacciones de `goal`, ver «Estado en el código») es la que está pendiente de firma; si Nicolás aprueba otra redacción, se cambia en `src/content.demo.ts` y aquí.
+- [ ] Validar el wording de las prácticas: se gestionan mediante un convenio de colaboración, sin promesa de empleo ni de empresa concreta; definir aparte si se autoriza algún detalle de ubicación, remuneración, duración o condiciones.
+- [ ] Aprobar o corregir la respuesta breve propuesta para cada formación. La versión corta ya implementada en el perfil único (reacciones de `goal`, ver «Estado en el código») es la que está pendiente de firma; si Nicolás aprueba otra redacción, se cambia en `src/content.ts` y aquí.
 - [ ] Confirmar que ninguna afirmación aprobada pueda entenderse como garantía de empleo o promesa de contratación.

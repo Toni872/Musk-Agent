@@ -23,7 +23,7 @@ import {
   type Intent,
 } from './intent';
 import { retrieve } from './retrieval';
-import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, extractSpanishPhone, guardReply, momentConfirmed, RULES } from './rules';
+import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, expressesInterest, extractSpanishPhone, FAREWELL_FRAMES, guardReply, isClosingRemark, momentConfirmed, RULES } from './rules';
 
 export type LeadBucket = 'ilocalizable' | 'no_comprador';
 
@@ -203,6 +203,13 @@ export class MuskAgent {
 
   get isStopped(): boolean {
     return this.stopped;
+  }
+
+  // The commercial handoff fired in this session, if any. Public read-only
+  // seam for the surfaces that export the notice (UI copy/JSON/report); the
+  // object is amended in place when the lead sends a later message.
+  get handoff(): HandoffContext | undefined {
+    return this.lastHandoffContext;
   }
 
   // The lead's own words for every question the agent could not answer from
@@ -423,6 +430,13 @@ export class MuskAgent {
     if (this.pendingAsk !== null && this.isReceivableAnswer(message, intent)) {
       return this.receiveAnswer(message, intent);
     }
+    // The opening is a yes/no ask, so it only owns the turn that answers it. Once
+    // the lead asks something else the agent answers that instead and the ask is
+    // stale: kept armed, a later "sí" (answering the FAQ's call invitation) was
+    // filed as the answer to the opening and swallowed in silence.
+    if (this.pendingAsk !== null && this.pendingAsk.kind === 'opening') {
+      this.pendingAsk = null;
+    }
 
     let reply: string;
     let action: AgentAction = 'none';
@@ -624,6 +638,16 @@ export class MuskAgent {
             this.recordDoubtMessage(message);
             reply = buildReply('decline');
             this.push({ kind: 'doubt', intent, detail: `bare decline registered: "${message}"` });
+          } else if (isClosingRemark(normalizeEs(message))) {
+            // The lead is wrapping up ("gracias", "hasta luego"). Re-answering
+            // with the greeting opener re-opened a finished conversation.
+            reply = buildReply('closing');
+          } else if (expressesInterest(normalizeEs(message))) {
+            // "Me interesa" is a statement, not a question: the approved next
+            // step is the call invitation (same sentence the price answer
+            // already uses). Its tail arms the ask, so the lead's next message
+            // is received as the answer to it.
+            reply = buildReply('callProposal');
           } else {
             // Social/small talk (classified as 'general').
             reply = buildReply('social');
@@ -848,6 +872,18 @@ export class MuskAgent {
     if (this.matchesPendingQuestionAnswer(message)) return true;
     // Rule 5 first: a question means the lead is ASKING, not answering.
     if (this.looksLikeQuestion(message)) return false;
+    // The OPENING is a yes/no question ("¿sigue siendo algo que te interese?"),
+    // so only an actual yes/no answer belongs to it. A greeting, a closing, an
+    // interest statement or any other fresh message must be classified: while the
+    // opening was armed, they were consumed as its answer and the lead got an
+    // EMPTY reply (no reaction matches "hola, vi vuestro mensaje").
+    if (
+      this.pendingAsk !== null &&
+      this.pendingAsk.kind === 'opening' &&
+      !isWholeMessageAnswer(normalizeEs(message))
+    ) {
+      return false;
+    }
     if (intent === 'general') {
       // Only a CONFIRMED acceptance is kept out of the answer path: a negated
       // acceptance ("no me viene bien") fails acceptanceConfirmed, IS
@@ -1128,6 +1164,51 @@ export class MuskAgent {
     // the nonAvailability branch ("no me viene bien"), the negated-moment
     // guard above, or the rule 5 doubt fallback below. Do NOT re-add
     // confirmed acceptances here.
+
+    // A statement of interest ("me interesa", "me interesa mucho") is not the
+    // answer to the call ask, but it is not an unanswerable question either:
+    // the rule 5 doubt reply would tell the lead "no tengo una respuesta
+    // aprobada sobre eso" for a message that asked nothing, and would count a
+    // FALSE doubt in the pilot's KPI. The already-approved invitation is
+    // re-offered (rule 11: no new copy) and the ask stays armed, so the lead's
+    // next message is still received as its answer.
+    if (expressesInterest(normalizeEs(message))) {
+      const proposal = buildReply('callProposal');
+      this.lastOutbound = proposal;
+      this.push({ kind: 'reply', intent, detail: proposal });
+      return {
+        intent,
+        action: 'none',
+        reply: proposal,
+        suppressed: false,
+        registeredDoubts: [],
+        registeredNoContinuar: false,
+        ruleViolations: [],
+        capturedAnswer,
+      };
+    }
+
+    // A pure thanks ("gracias", "muchas gracias") arriving as the reply to the
+    // ask is acknowledged as a closing: it is not a failed answer and must not
+    // be filed as a doubt. A FAREWELL is deliberately excluded: "hasta mañana"
+    // carries a day and is the documented goodbye trap - a goodbye must never
+    // arrange a call (rule 9), so it stays in the doubt path where it is
+    // registered and the lead is offered a human (locked by tests).
+    if (isClosingRemark(normalizeEs(message)) && !FAREWELL_FRAMES.test(normalizeEs(message))) {
+      const closing = buildReply('closing');
+      this.lastOutbound = closing;
+      this.push({ kind: 'reply', intent, detail: closing });
+      return {
+        intent,
+        action: 'none',
+        reply: closing,
+        suppressed: false,
+        registeredDoubts: [],
+        registeredNoContinuar: false,
+        ruleViolations: [],
+        capturedAnswer,
+      };
+    }
 
     // Anything else: the same rule 5 handling as any other message the agent
     // has no approved answer for.

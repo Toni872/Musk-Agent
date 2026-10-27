@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **209 passed**, todo está correcto y ya puedes arrancar el simulador.
+    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **270 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -34,11 +34,11 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
 npm run sim
 ```
 
-Al arrancar verás primero una nota técnica: el bloque `--- opening ---` con el mensaje de apertura (o el aviso de que ese texto sigue pendiente de que lo cerréis con nosotros) y la lista `pending` de lo que todavía falta por aprobar. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
+Al arrancar verás primero una nota técnica y el bloque `--- opening ---` con el mensaje de apertura. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
 
-Si además quieres ver el flujo **completo** (mensaje de apertura + pregunta breve sobre el objetivo + propuesta de llamada), ejecuta `npm run sim:demo`. Ese modo usa contenido de **ejemplo**: la orientación directa a la llamada y las respuestas de financiación están confirmadas; los demás textos de muestra siguen pendientes de validación.
+Este comando ya muestra el flujo **completo** por defecto: mensaje de apertura, una pregunta breve sobre el objetivo y propuesta de llamada. Usa el perfil único de `src/content.ts`, con **copy unificado pendiente de firma de MUSK**; ya no existe un modo `sim:demo` ni un contenido de ejemplo alternativo.
 
-Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor con una interfaz de chat (y un desplegable para alternar entre el contenido real y el de ejemplo). Para cerrarlo, pulsa `Ctrl+C` en la terminal.
+Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor y el mismo perfil único, con una interfaz de chat y sin selector de perfiles. Para cerrarlo, pulsa `Ctrl+C` en la terminal.
 
 ## 4. Prueba estas frases, en este orden
 
@@ -49,7 +49,7 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 | 3 | `¿cuánto cuesta?` | **NO da precios**; dice que se habla en una llamada |
 | 4 | `¿hay financiación?` | Indica que hay opciones y que puedes completar la formación en dos años con flexibilidad; no da precios ni condiciones de pago |
 | 5 | `¿me pasáis el temario?` | **NO da el temario detallado**; ofrece el contenido general |
-| 6 | `¿cuánto dura el curso?` | No hay respuesta aprobada: lo registra como duda y propone que os contacten |
+| 6 | `¿cuánto dura el curso?` | Indica que tienes dos años para completarla con flexibilidad; remite el calendario y las fechas de inicio a una llamada, sin dar cifras |
 | 7 | `me parece muy caro` | Sin importes, invita a la llamada |
 | 8 | `bueno, me va bien una llamada` | Acepta la llamada y avisa al equipo — **ese es el objetivo del flujo** |
 | 9 | `no me interesa` | Lo respeta con tono amable y deja la puerta abierta (no es una parada) |

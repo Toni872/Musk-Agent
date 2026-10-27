@@ -62,9 +62,9 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: 'C06',
     question: '¿hay prácticas en empresa?',
-    expectedAnswerId: 'metodologia',
-    expectedIntent: 'general',
-    note: 'Direct keyword hit ("practicas"); rule 2 allows general methodology content.',
+    expectedAnswerId: null,
+    expectedIntent: 'kb',
+    note: 'Internships with companies belong to the knowledge-base passage; the FAQ must NOT steal it with the adjective "practico".',
   },
   {
     id: 'C07',
@@ -172,9 +172,9 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: 'C21',
     question: '¿es muy teórico o más bien práctico?',
-    expectedAnswerId: 'metodologia',
-    expectedIntent: 'general',
-    note: 'Same meaning as C04/C05 (practical methodology) but "practico/teorico" does not match any metodologia keyword today ("practicas" needs the noun).',
+    expectedAnswerId: null,
+    expectedIntent: 'kb',
+    note: 'Learning-by-doing is the knowledge-base method passage (same lane as K22); the FAQ method entry keeps only its own wording so it cannot steal the richer answer.',
   },
   {
     id: 'C22',
@@ -182,6 +182,31 @@ export const EVAL_CASES: EvalCase[] = [
     expectedAnswerId: 'salidas',
     expectedIntent: 'general',
     note: 'Same meaning as C11 but the salidas keyword is "de que puedo trabajar" and the missing "de" makes this phrasing miss today; rule 4: outcomes are approved, employment is never promised.',
+  },
+
+  // Catalogue and orientation entries added by the unified profile. The single
+  // word "orientacion" cannot clear the BM25 floor, so the curated FAQ answers
+  // these (and the thresholds stay untouched).
+  {
+    id: 'C44',
+    question: 'no sé por dónde empezar',
+    expectedAnswerId: 'orientacion',
+    expectedIntent: 'general',
+    note: 'Orientation is curated FAQ content: a single-term query cannot clear MIN_BM25_SCORE, so the approved catalogue layer answers it.',
+  },
+  {
+    id: 'C45',
+    question: '¿qué cursos tenéis?',
+    expectedAnswerId: 'catalogo-formaciones',
+    expectedIntent: 'general',
+    note: 'The lead asks for the catalogue, not for a specific programme: the approved presentation lists the areas without inventing detail.',
+  },
+  {
+    id: 'C46',
+    question: '¿de qué trata el de programación?',
+    expectedAnswerId: 'programacion',
+    expectedIntent: 'general',
+    note: 'Generic "what is the programming course about" question: "programación" alone cannot clear MIN_BM25_SCORE, so the curated FAQ answers it (thresholds untouched) instead of falling into an unrelated certificate passage.',
   },
 
   // Financing paraphrases: reflexive/enclitic/infinitive forms the old
@@ -641,10 +666,10 @@ export const EVAL_KB_CASES: KbEvalCase[] = [
   },
   {
     id: 'K29',
-    question: '¿qué requisitos técnicos necesito?',
+    question: '¿qué ordenador necesito para hacer el curso?',
     expectedPassageId: null,
     expectedIntent: 'unknown',
-    note: 'Technical entry requirements: the source does not state them, so they escalate (rule 5).',
+    note: 'Equipment and technical entry requirements: the source does not state them, so they escalate (rule 5).',
   },
   {
     id: 'K30',
@@ -660,12 +685,31 @@ export const EVAL_KB_CASES: KbEvalCase[] = [
     expectedIntent: 'unknown',
     note: 'Pay of any kind, including the internship stipend, has no approved answer: rule 5 registers the doubt and proposes a human instead of answering the internship passage.',
   },
+  // The programme-content template. These two labels exist because the class
+  // was measured broken on 2026-10-27: the first answered with the PCAP
+  // certification (a different programme) and the second was silence (score
+  // 3.43 against the 3.5 floor). Both are content questions a lead writes
+  // verbatim, so the base must answer them from that programme's passage.
+  {
+    id: 'K32',
+    question: '¿de qué trata el de python?',
+    expectedPassageId: 'kb-python-contenido',
+    expectedIntent: 'kb',
+    note: 'Content question about a named programme: rule 2 allows general content and skills, and the answer must not drift into the certification passage.',
+  },
+  {
+    id: 'K33',
+    question: '¿de qué trata el de videojuegos?',
+    expectedPassageId: 'kb-videojuegos-contenido',
+    expectedIntent: 'kb',
+    note: 'Same template for the rarest programme term: silence here was a measured defect, not a rule-5 case, because the base does cover programme content.',
+  },
 ];
 
 // Group membership of the knowledge-base dataset. Same shape as the FAQ
 // groups: an explicit id list, so a group can hold non-adjacent ids.
 export const KB_EVAL_GROUPS: EvalGroup[] = [
-  { group: 'F', label: 'answered by the knowledge base', ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22] },
+  { group: 'F', label: 'answered by the knowledge base', ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 32, 33] },
   { group: 'G', label: 'must escalate (knowledge base silent)', ids: [23, 24, 25, 26, 27, 28, 29, 30, 31] },
 ];
 

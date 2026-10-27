@@ -24,7 +24,6 @@ import {
 import { MuskAgent } from './agent';
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT } from './content';
-import { DEMO_CONTENT } from './content.demo';
 import { classify, findApprovedAnswer, normalizeEs, type Intent } from './intent';
 import { MockProvider } from './llm';
 import { KB_PASSAGES } from './kb';
@@ -805,10 +804,10 @@ async function main(argv: string[]): Promise<void> {
   const verbose = argv.includes('--verbose');
   const asJson = argv.includes('--json');
   const devOnly = argv.includes('--dev-only');
-  const devBaseline = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_DEV_CASES, 'baseline');
-  const devCandidate = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_DEV_CASES, 'candidate');
-  const legacyBaseline = runKbEval(DEMO_CONTENT, EVAL_KB_CASES, 'baseline');
-  const legacyCandidate = runKbEval(DEMO_CONTENT, EVAL_KB_CASES, 'candidate');
+  const devBaseline = runKbParaphraseEval(APPROVED_CONTENT, KB_PARAPHRASE_DEV_CASES, 'baseline');
+  const devCandidate = runKbParaphraseEval(APPROVED_CONTENT, KB_PARAPHRASE_DEV_CASES, 'candidate');
+  const legacyBaseline = runKbEval(APPROVED_CONTENT, EVAL_KB_CASES, 'baseline');
+  const legacyCandidate = runKbEval(APPROVED_CONTENT, EVAL_KB_CASES, 'candidate');
   if (devOnly) {
     process.stdout.write(
       `${formatKbParaphraseDevReport(devBaseline, devCandidate)}\n\n` +
@@ -816,8 +815,8 @@ async function main(argv: string[]): Promise<void> {
     );
     return;
   }
-  const testBaseline = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_TEST_CASES, 'baseline');
-  const testCandidate = runKbParaphraseEval(DEMO_CONTENT, KB_PARAPHRASE_TEST_CASES, 'candidate');
+  const testBaseline = runKbParaphraseEval(APPROVED_CONTENT, KB_PARAPHRASE_TEST_CASES, 'baseline');
+  const testCandidate = runKbParaphraseEval(APPROVED_CONTENT, KB_PARAPHRASE_TEST_CASES, 'candidate');
   const holdoutReport = formatKbParaphraseTestReport(
     testBaseline,
     testCandidate,

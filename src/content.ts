@@ -1,21 +1,38 @@
 // Approved-content model for MUSK's conversational lead-capture flow.
 //
-// Pilot formation: "Curso de Desarrollo Full Stack" (chosen with NIC/MUSK as the
-// most in-demand profile). Curated from MUSK's own official FullStack dossier:
-// per AGENTS.md and the MVP spec we SELECT the content and EXCLUDE prices/amounts
-// and the detailed syllabus (hard rules 1, 2 and 10). Final wording sign-off with
-// MUSK is still pending for the items marked TODO(decisión).
+// SINGLE UNIFIED PROFILE. There is no demo/real split any more: this is the one
+// profile the harness, the UI and the evaluation run. It keeps the full catalogue
+// behaviour that used to live in the demo profile (both qualification copy and
+// the deterministic knowledge base) and drops nothing the pilot needs.
+//
+// Content provenance: curated from MUSK's own dossier and the copy drafted in
+// docs/matriz-validacion-cursos.md. Final wording sign-off with MUSK is still
+// pending for the whole profile: nothing here is a price, an amount, a payment
+// condition or a detailed syllabus (hard rules 1, 2, 3 and 10).
 //
 // Schema guard: this model has no numeric price/amount data and NO
-// syllabus/temario field (hard rules 1, 2 and 10). Approved response copy may
-// explain the no-price policy and financing options without payment terms.
+// syllabus/temario field (hard rules 1, 2 and 10).
 //
 // Hard-rule guard: every lead-facing string here must pass rules.guardReply
-// (no currency, no percentages, no "módulo N", no promotions, no job promises).
+// (no currency, no percentages, no "módulo N", no promotions, no guarantees and
+// no job promises). A lead-facing "garantizado" is a rule 4 violation.
+//
+// A decision that is still open with MUSK is stored as a "TODO(decisión)"
+// placeholder and is NEVER sent (rule 4): use isPendingDecision() to tell a real
+// value apart from a placeholder before showing one. There are no placeholders
+// left in this profile today; the guard stays for future gaps.
+
+import { KB_PASSAGES, type KbPassage } from './kb';
 
 export interface FaqEntry {
   id: string;
   keywords: string[];
+  // Terms that veto the entry even when a keyword matches. Needed for the
+  // generic entries: "¿qué salidas tiene videojuegos?" names a specific
+  // programme, so the generic 'salidas' answer must stand aside and let the
+  // knowledge base answer about THAT programme (otherwise the lead is told the
+  // outcomes of a course they did not ask about).
+  avoidKeywords?: string[];
   answer: string;
 }
 
@@ -41,19 +58,15 @@ export interface QualificationQuestion {
   reactions?: QualificationReaction[];
 }
 
-import type { KbPassage } from './kb';
-
 export interface ApprovedContent {
   formationName: string;
   generalDescription: string;
   skills: string[];
   outcomes: string[];
   methodology: string;
-  // Presentation of MUSK (the company) for the lead. The MVP spec requires it as
-  // a minimum content item (§3.6 "presentación de MUSK y metodología"), but MUSK
-  // has not provided it yet (§8.1 "información básica de MUSK"). While it is a
-  // TODO(decisión) placeholder it is NEVER sent and never quoted (rule 4); it is
-  // reported through MuskAgent.pendingDecisions so the gap stays visible.
+  // Presentation of Escuela Musk (the company) for the lead. Lead-facing: it is
+  // part of the LLM grounding source, so it must stay free of prices, syllabus
+  // detail and promises.
   companyPresentation: string;
   faq: FaqEntry[];
   qualificationQuestions: QualificationQuestion[];
@@ -74,78 +87,82 @@ export interface ApprovedContent {
   // Profile-specific second acknowledgement of a rule-5 doubt, used when the
   // same doubt reply would be sent twice in a row. It is NEVER sent unless the
   // profile provides it: a profile without it falls back to the bare approved
-  // invitation, so no unapproved copy reaches the real profile (rules 4, 11).
+  // invitation, so no unapproved copy reaches the lead (rules 4, 11).
   doubtFollowup?: string;
-  // Optional knowledge base for the deterministic retrieval layer
-  // (src/retrieval.ts). A passage is the only thing that can be sent as a
-  // knowledge-base answer, and it is sent verbatim after the output guard.
-  //
-  // It is OPTIONAL and, while the copy is pending MUSK sign-off (hard rules
-  // 4 and 11), it is NOT set on APPROVED_CONTENT: only the DEMO profile
-  // carries it. A profile without a knowledge base behaves exactly as before:
-  // every question it cannot answer from the FAQ escalates to rule 5.
+  // Knowledge base for the deterministic retrieval layer (src/retrieval.ts). A
+  // passage is the only thing that can be sent as a knowledge-base answer, and
+  // it is sent verbatim after the output guard. This is what answers questions
+  // about one specific programme ("¿qué se aprende en Python?").
   kb?: KbPassage[];
 }
 
-// A decision that is still open with MUSK is stored as a "TODO(decisión)"
-// placeholder (see the header comment and AGENTS.md "Decisiones abiertas").
-// A placeholder is NOT lead-facing content (rule 4): the agent must never send
-// it to the lead, nor quote it. Use isPendingDecision() to tell a real value
-// apart from a placeholder before showing one.
 export const PENDING_DECISION_PATTERN = /^\s*TODO\s*\(\s*decisi[oó]n\s*\)/i;
 
 export function isPendingDecision(value: string): boolean {
   return PENDING_DECISION_PATTERN.test(value);
 }
 
+// A specific programme named by the lead. The generic FAQ entries must not
+// answer a question about ONE programme, or "¿qué salidas tiene videojuegos?"
+// is answered with the outcomes of another course. Kept next to the entries it
+// protects so the two cannot drift.
+// The programmes the pilot presents. Also used as a veto list by the generic
+// FAQ entries and by `mentionsProgramme` in the intent layer, because naming a
+// course is what turns a generic question ("¿en qué consiste?") into a question
+// about that course.
+export const PROGRAMME_NAMES = [
+  'python',
+  'front end',
+  'frontend',
+  'back end',
+  'backend',
+  'full stack',
+  'fullstack',
+  'videojuegos',
+  'videojuego',
+  'juegos',
+  'master',
+];
+
+// True when the lead names a programme in the message. Expects the folded form
+// (normalizeEs), same as findApprovedAnswer. Kept here, next to the list, so the
+// intent layer does not need to know how a programme is spelled.
+export function mentionsProgramme(foldedMessage: string): boolean {
+  return PROGRAMME_NAMES.some((name) => foldedMessage.includes(name));
+}
+
+
 export const APPROVED_CONTENT: ApprovedContent = {
-  formationName: 'Curso de Desarrollo Full Stack',
+  // Neutral on purpose: the pilot covers a catalogue of five programmes, so a
+  // single course name here would be wrong for most leads. It is operator-facing
+  // (the commercial summary), never used as a lead-facing programme claim.
+  formationName: 'Formación tecnológica de Escuela Musk',
   generalDescription:
-    'El desarrollo Full Stack es un perfil muy demandado en el sector tecnológico por su versatilidad: te forma para crear aplicaciones web completas, desde la parte visual (front end) hasta la lógica del servidor (back end). No necesitas conocimientos previos: la metodología es progresiva y práctica desde el primer día.',
+    'Una formación práctica y acompañada para dar el salto profesional en el sector tecnológico, trabajando por proyectos reales desde el primer día.',
   skills: [
-    'Desarrollo web (front end y back end)',
-    'Diseño de interfaces (UI/UX)',
-    'Integración de APIs',
-    'Gestión de bases de datos',
-    'Despliegue en la nube',
-    'Inteligencia artificial aplicada al desarrollo',
+    'Fundamentos sólidos de programación',
+    'Trabajo por proyectos con metodologías ágiles',
+    'Resolución de problemas reales en equipo',
   ],
   outcomes: [
-    'Full Stack Developer',
-    'Frontend Developer',
-    'Backend Developer',
-    'UX/UI Designer',
-    'API Developer',
-    'QA Engineer',
-    'Cloud Support Engineer',
-    'Desarrollo y mantenimiento web',
+    'Perfiles junior preparados para incorporarse a un equipo real',
+    'Un portafolio de proyectos propios',
+    'Base sólida para especializarte en el área que elijas',
   ],
   methodology:
-    'Método práctico y gamificado (aprender haciendo): retos, quizzes y puzzles de lógica, acompañamiento continuo del equipo docente con, como mínimo, una tutoría semanal, clases en directo y workshops, comunidad de desarrollo y orientación para la empleabilidad, con prácticas en empresas colaboradoras.',
+    'Clases en directo, tutorías y proyectos guiados, con acompañamiento durante todo el programa.',
   companyPresentation:
-    'TODO(decisión): presentación de MUSK (qué es la empresa, su equipo y su propuesta) — pendiente de Nicolas; la spec §3.6 la exige como contenido mínimo y §8.1 la lista como información a aportar',
+    'Escuela Musk es la escuela de formación tecnológica que imparte esta formación, con un método práctico y acompañado.',
   priceReply:
     'No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada.',
   financingReply:
     'Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada.',
+  // Simulated notification destination only; no WhatsApp message is sent.
   handoffRecipient: 'Laura',
-  // FAQ = routing table from a lead message to ALREADY-APPROVED content.
-  //
-  // Order is significant: findApprovedAnswer() returns the FIRST entry whose
-  // keyword is contained in the folded message, so entries go from most specific
-  // to most general — the broad 'informacion' entry is deliberately LAST, so a
-  // specific topic ("...sobre tutorías", "...sobre salidas") always wins over it.
-  //
-  // Forbidden topics (price, syllabus, financing) are classified BEFORE the FAQ
-  // is consulted (intent.ts classify order), so no keyword here can steal them.
-  // Every answer is composed only from approved fields of this profile and must
-  // pass rules.guardReply — no amounts, no percentages, no module numbers, no
-  // promotions and no employment promises (rules 1-4, 6).
+  // Same specific-to-general order as before: findApprovedAnswer() returns the
+  // FIRST keyword match, so the broad 'informacion' entry is last.
   faq: [
     {
-      // "sobre MUSK" / "qué es MUSK" / "quiénes sois". MUSK's own presentation
-      // is still a pending decision (see companyPresentation above), so this
-      // answer stays safe: identity + formation + human, nothing invented.
       id: 'sobre-musk',
       keywords: [
         'sobre musk',
@@ -155,19 +172,17 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'que es escuela musk',
         'quienes sois',
         'quien sois',
+        'quien esta detras',
         'vuestra empresa',
         'sois musk',
         'que haceis',
-        'quien esta detras',
         'hablame de musk',
         'cuentame sobre musk',
       ],
       answer:
-        'Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre el Curso de Desarrollo Full Stack: en qué consiste, qué habilidades trabajas y qué salidas tiene. Cualquier detalle sobre MUSK o el equipo te lo confirma una persona cuando quieras.',
+        'Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras.',
     },
     {
-      // Methodology BEFORE 'modalidad': both mention classes, so "cómo son las
-      // clases" must reach methodology, not the broader modality entry.
       id: 'metodologia',
       keywords: [
         'metodologia',
@@ -176,19 +191,19 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'como funciona',
         'como es el curso',
         'como se estudia',
-        'practicas',
-        'practico',
         'gamificado',
         'aprender haciendo',
       ],
       answer:
-        'Se aprende haciendo: retos, quizzes y puzzles de lógica en un método práctico y gamificado, con acompañamiento continuo del equipo docente, al menos una tutoría semanal, clases en directo y workshops, comunidad de desarrollo y orientación para la empleabilidad.',
+        'Se aprende con proyectos guiados y clases en directo, con acompañamiento y tutorías durante todo el programa.',
     },
     {
+      // The one word that used to be missing: "¿tendré un tutor?" fell through
+      // to the doubt path because only "tutorías" was listed.
       id: 'acompanamiento',
-      keywords: ['tutorias', 'acompanamiento', 'tutor', 'profesor', 'docente', 'apoyo'],
+      keywords: ['tutor', 'tutorias', 'acompanamiento', 'profesor', 'docente', 'apoyo'],
       answer:
-        'Cuentas con acompañamiento continuo del equipo docente y, como mínimo, una tutoría semanal para resolver dudas, además de comunidad, workshops y recursos adicionales.',
+        'Tienes tutorías personalizadas y acompañamiento continuo: siempre hay alguien del equipo para resolver tus dudas.',
     },
     {
       id: 'requisitos',
@@ -207,69 +222,160 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'No necesitas conocimientos previos: la metodología es progresiva y práctica, pensada para empezar desde la base.',
     },
     {
+      id: 'contenido',
+      // A question about ONE programme belongs to the knowledge base: the
+      // generic skills answer would be answering about the wrong course.
+      avoidKeywords: PROGRAMME_NAMES,
+      keywords: ['que aprendo', 'que voy a aprender', 'habilidades', 'contenidos', 'que enseña'],
+      answer:
+        'Trabajas fundamentos sólidos de programación, proyectos con metodologías ágiles y resolución de problemas reales en equipo.',
+    },
+    {
+      id: 'salidas',
+      // Same veto as 'contenido': "¿salidas de videojuegos?" must be answered
+      // about videojuegos (kb-videojuegos-salidas), not with this general line.
+      avoidKeywords: PROGRAMME_NAMES,
+      keywords: ['salidas', 'que salidas', 'de que puedo trabajar', 'que puedo trabajar', 'empleabilidad'],
+      answer:
+        'La formación prepara perfiles junior para incorporarse a un equipo real, construir su propio portafolio y especializarte en el área que elijas. El encaje concreto lo ves con el equipo.',
+    },
+    {
+      // Why this entry exists: the deterministic knowledge base knows these
+      // phrasings ("no se por donde empezar", "cual me conviene", "orientame"),
+      // but BM25 cannot accept a query whose whole content reduces to ONE term
+      // - the score stays around 3.08 and the 3.5 threshold refuses it. Result:
+      // the lead asked for orientation and got the rule-5 doubt. The FAQ is the
+      // curated catalogue layer, so it is the right place to answer, and the
+      // calibrated retrieval thresholds are left untouched.
+      id: 'orientacion',
+      keywords: [
+        'no se por donde empezar',
+        'no se por donde tirar',
+        'no se que estudiar',
+        'no se que formacion estudiar',
+        'estoy perdido',
+        'estoy perdida',
+        'orientadme',
+        'me orienteis',
+        'orientame',
+        'cual me conviene',
+        'cual encaja mejor',
+        'cual me iria mejor',
+        'que formacion me iria mejor',
+        'cambio profesional',
+        'cambiar de carrera',
+        'cambio de carrera',
+        'cambio de sector',
+        'cambiar de sector',
+        'reconversion profesional',
+        'vida laboral',
+        'ayuda para elegir',
+      ],
+      answer:
+        'La elección depende de qué te atraiga: la lógica y los datos, la parte visual o crear juegos. Si me cuentas qué buscas, el equipo te orienta en una llamada.',
+    },
+    {
       id: 'modalidad',
       keywords: [
+        'horario',
+        'clases',
         'modalidad',
         'online',
-        'clases',
-        'horario',
-        'directo',
-        'workshops',
-        'sede',
         'presencial',
+        'sede',
         'donde esta',
         'donde queda',
         'academia',
         'ubicacion',
         'direccion',
+        'workshops',
       ],
       answer:
-        'La formación es online, con clases en directo y workshops, además de recursos y una comunidad de desarrollo. Los detalles de horarios y disponibilidad los concretamos contigo en una llamada.',
+        'Todo es online: campus virtual, comunidad y tutores personales que te acompañan. No hay horarios fijos de conexión, así que puedes compaginarlo con tu rutina.',
     },
     {
-      // Rule 2 allows general content, skills and outcomes: the "what will I
-      // learn" route to the approved skills list.
-      id: 'contenido',
-      keywords: ['que aprendo', 'que voy a aprender', 'habilidades', 'contenidos', 'que enseña', 'que ensenais'],
-      answer:
-        'Trabajas desarrollo web (front end y back end), diseño de interfaces (UI/UX), integración de APIs, gestión de bases de datos, despliegue en la nube e inteligencia artificial aplicada al desarrollo.',
+      id: 'programacion',
+      keywords: [
+        'de que trata el de programacion',
+        'de que trata el de programación',
+        'de que trata la programacion',
+        'curso de programacion',
+        'curso de programación',
+        'aprender a programar',
+        'empezar a programar',
+        'bases de programacion',
+        'fundamentos de programacion'
+      ],
+      answer: 'El curso de programación está pensado para empezar desde cero. Aprendes fundamentos con proyectos prácticos, lógica y resolución de problemas. Puedes orientarte hacia Front End, Back End o Full Stack. El equipo te lo explica con más detalle en una llamada.'
     },
     {
-      // Outcomes are approved content (rule 2), but employment is never promised
-      // (rule 4): the answer states professional paths, not a guaranteed job.
-      id: 'salidas',
-      keywords: ['salidas', 'que salidas', 'salidas profesionales', 'de que puedo trabajar', 'que puedo trabajar', 'empleabilidad'],
-      answer:
-        'La formación apunta a perfiles como Full Stack Developer, Frontend Developer, Backend Developer, UX/UI Designer, API Developer, QA Engineer o Cloud Support Engineer. Son salidas que se trabajan durante el curso; el encaje concreto lo ves con el equipo en una llamada.',
-    },
-    {
-      // Duration has no approved answer yet (spec §3.3 escalation topic), so the
-      // agent says so honestly and refers to the call instead of inventing.
       id: 'duracion',
+      // A broad "cuánto tiempo" match would steal the specifically approved
+      // completion-window question from the deterministic knowledge base.
+      // "cuántos años" is spelled out on purpose: without it, "¿cuántos años
+      // dura la formación?" reached the knowledge base and came back with the
+      // "no tengo tiempo" objection passage - a confident answer to a question
+      // nobody asked.
       keywords: [
         'cuanto dura',
         'duracion',
-        'cuanto tiempo',
         'cuantos meses',
         'cuantas semanas',
-        'cuando empieza',
-        'cuando empiezo',
-        'fecha de inicio',
+        'cuantos anos',
       ],
       answer:
-        'La duración, el calendario y las fechas de inicio los concretamos contigo en una llamada, para ajustarlo a tu punto de partida. Por aquí no puedo darte cifras.',
+        'Tienes dos años para completarla con flexibilidad, a tu ritmo entre sesiones. El calendario y las fechas de inicio los concretamos contigo en una llamada. Por aquí no puedo darte cifras.',
     },
     {
-      // Broadest entry, deliberately last: any "quiero más información" reaches
-      // the approved general description, never an invented answer.
+      // Catalogue entry for the lead who has not chosen a programme yet. It
+      // answers the *orientation* question, not a course question: it does not
+      // rank programmes, does not list syllabus and does not price anything
+      // (rules 1, 2 and 4). The answer deliberately carries no "?" because the
+      // engine already asks the qualification question in the same turn
+      // (src/outbound.ts); asking twice was a real demo defect.
+      id: 'catalogo-formaciones',
+      keywords: [
+        'que cursos',
+        'que formaciones',
+        'catalogo',
+        'que teneis',
+        'que ofreceis',
+        'que impartis',
+        'que ensenais',
+        'cursos hay',
+        'formaciones hay',
+        'cuentame sobre los cursos',
+        'hablame de los cursos',
+        'dame informacion sobre los cursos',
+        'informacion sobre los cursos',
+        'quiero informacion de los cursos',
+        'quiero saber que cursos teneis',
+      ],
+      // Short on purpose: this is a lead-capture agent, not a brochure. The
+      // full programme detail lives in the knowledge base, which the agent only
+      // quotes when the lead asks for one specific programme.
+      answer:
+        'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.',
+    },
+    {
       id: 'informacion',
       keywords: [
         'informacion',
         'mas informacion',
         'dame informacion',
         'quiero informacion',
-        'de que va',
+        // "en qué consiste" and "de qué va" carry no content word of their own
+        // once the stopwords are removed, so the deterministic base cannot tell
+        // which passage the lead means. This generic answer is the safe net for
+        // those shapes: true, and it hands the detail to the call instead of
+        // guessing a programme. The templates that DO carry a content word
+        // ("de qué trata", "qué es el curso de", "de qué va el curso de",
+        // "háblame de") are not listed here on purpose: they reach the
+        // knowledge base and answer with the passage for the named programme.
         'en que consiste',
+        'de que va',
+        'explicame la formacion',
+        'que es la formacion',
         'sobre el curso',
         'sobre la formacion',
         'cuentame mas',
@@ -280,20 +386,71 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'mas detalles',
       ],
       answer:
-        'Claro. El Curso de Desarrollo Full Stack te forma para crear aplicaciones web completas, desde la parte visual (front end) hasta la lógica del servidor (back end), y puedes empezar sin conocimientos previos: la metodología es progresiva y práctica desde el primer día. Si quieres, te cuento las habilidades y las salidas, o lo vemos con detalle en una llamada sin compromiso.',
+        'Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo.',
     },
   ],
   qualificationQuestions: [
     {
-      id: 'starting-experience',
-      text: 'TODO(decisión): pregunta de cualificación — experiencia de partida (propuesta, no cerrada con Nicolas)',
-      purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
-    },
-    {
-      id: 'time-interest',
-      text: 'TODO(decisión): pregunta de cualificación — tiempo de interés (propuesta, no cerrada con Nicolas)',
-      purpose: 'Brief qualification only: no exam, no scoring, no automatic exclusion.',
+      id: 'goal',
+      text: '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
+      purpose: 'A brief conversation prompt to understand the lead’s goal and move toward a call; not an exam or screening.',
+      reactions: [
+        // Course selections add ONE brief clause about what the programme is,
+        // with the wording drafted in docs/matriz-validacion-cursos.md
+        // ("Respuestas breves propuestas para el lead"). No digits, prices,
+        // certificates, internship promises or syllabus detail (rules 1, 2, 4),
+        // so the acknowledgement stays safe under guardReply.
+        {
+          keywords: ['python'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Python: programación con aplicaciones en software y análisis de datos.',
+        },
+        {
+          keywords: ['front end', 'frontend'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Front End: diseño y desarrollo de interfaces web.',
+        },
+        {
+          keywords: ['back end', 'backend'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Back End: la lógica del servidor, los datos y las APIs.',
+        },
+        {
+          keywords: ['full stack'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.',
+        },
+        {
+          keywords: ['videojuegos', 'videojuego', 'crear juegos', 'crear videojuegos'],
+          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
+          say: 'Entiendo, te interesa videojuegos: diseño y programación para crear experiencias interactivas.',
+        },
+        {
+          keywords: ['optar a una plaza', 'plaza'],
+          say: 'Entiendo: quieres ampliar conocimientos para optar a una plaza.',
+        },
+        {
+          keywords: ['cambiar de sector', 'cambiar de trabajo'],
+          say: 'Entiendo: buscas prepararte para cambiar de sector.',
+        },
+        {
+          keywords: ['conocimientos', 'aprender'],
+          say: 'Entiendo: quieres ampliar tus conocimientos en el área tecnológica.',
+        },
+      ],
     },
   ],
-  initialMessage: 'TODO(decisión): texto del mensaje inicial por definir con Nicolas',
+  // Short call-first wording, stored in the profile so it remains easy to revise.
+  closingInvitation: '¿Qué día y a qué hora te viene bien que el equipo te llame?',
+  // Profile-specific second acknowledgement of a rule-5 doubt (see
+  // MuskAgent.neverRepeat): it lives here and not in the shared templates so the
+  // wording can be revised without touching the engine.
+  doubtFollowup:
+    'Eso también lo anoto como duda para que te lo confirmen. Si te encaja, una persona del equipo te contacta y lo veis todo con calma. ¿Te viene bien?',
+  // The knowledge base is what answers per-programme questions. It is filtered
+  // by the output guard like every other answer, and no passage may contain a
+  // figure (asserted by tests).
+  kb: KB_PASSAGES,
+  initialMessage:
+    'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación de especialización tecnológica: ¿sigue siendo algo que te interese? Puedo contarte en qué consiste y qué salidas tiene, y si encaja te pongo con una persona del equipo, sin compromiso.',
 };

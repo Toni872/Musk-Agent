@@ -67,8 +67,17 @@ export const HANDOFF_TRIGGERS = {
   // ANSWER_TRIGGERS.availability; a lead asking to be called IS an acceptance
   // ("llamame"/"llamadme"). "no me llames" cannot match the latter — "llames"
   // is a different word — and STOP_TRIGGER (rule 7) wins in classify() anyway.
+  // F4 (rule 9): the subjunctive paradigm after "que me ..." only covered
+  // "llame"/"llamen", so the tuteo/vosotros forms a real lead uses ("quiero
+  // que me llameis", "quiero que me llames") were NOT an acceptance and fell
+  // to the rule 5 doubt reply with no handoff at all - an explicit request to
+  // be called answered with "no tengo una respuesta aprobada sobre eso".
+  // "no quiero que me llameis" cannot widen the stop path: STOP_TRIGGER is
+  // evaluated first in classify(), and acceptanceConfirmed() still rejects a
+  // negated acceptance. "¿me podeis llamar?" is the same request phrased as a
+  // question and is covered by the second alternative.
   callAccepted:
-    /\b(acepto|aceptamos|de acuerdo|perfecto|genial|vale)\b[^.?!]{0,60}\bllamad|\b(si|sí)[,.]? ?(me )?(va|viene) bien\b|\bme (va|viene) bien\b|\bcuando (querais|puedais|puedas|os venga bien|te venga bien)\b|\bque me (llamen|llame)\b|\bacuerd\w* (la|una) llamada\b|\bpara (la|una) llamada\b|\bllamad?me\b/,
+    /\b(acepto|aceptamos|de acuerdo|perfecto|genial|vale)\b[^.?!]{0,60}\bllamad|\b(si|sí)[,.]? ?(me )?(va|viene) bien\b|\bme (va|viene) bien\b|\bcuando (querais|puedais|puedas|os venga bien|te venga bien)\b|\bque me llam(?:e|es|en|eis|ais)\b|\b(?:podeis|puedes|podriais|podrias|puede) llamar(?:me|nos)?\b|\bacuerd\w* (la|una) llamada\b|\bpara (la|una) llamada\b|\bllamad?me\b/,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -291,7 +300,10 @@ export const FORBIDDEN_OUTPUT_PATTERNS: { id: string; pattern: RegExp; rule: num
   { id: 'financing-condition', pattern: /\b(sin intereses|interes cero|cuotas fijas|aplazado sin coste)\b/, rule: 3 },
   { id: 'detailed-syllabus-item', pattern: /\b(?:modulo|unidad|tema|semana|leccion)\s+\d+\b/, rule: 2 },
   { id: 'unapproved-promotion', pattern: /\b(promocion\w*|descuento\w*|2x1|oferta especial|precio cerrado)\b/, rule: 4 },
-  { id: 'employment-promise', pattern: /\b(garantizamos|empleo garantizado|trabajo garantizado|plaza garantizada)\b/, rule: 4 },
+  // Nothing is guaranteed to a lead: not a job, not an internship placement, not
+  // a result. The stem catches every form ("garantizamos", "garantizadas",
+  // "garantizado"), because the promise is the problem, not its conjugation.
+  { id: 'employment-promise', pattern: /\bgarantiz\w*\b/, rule: 4 },
 ];
 
 function foldForGuard(reply: string): string {
@@ -359,7 +371,41 @@ export const REPLY_TEMPLATES = {
   // Social/small talk fallback (general intent without an approved FAQ match).
   social:
     '¡Hola! Soy el asistente de MUSK. ¿En qué puedo ayudarte? Si prefieres, puedes hablar con una persona del equipo cuando quieras.',
+  // Closing of a conversation the lead is wrapping up ("gracias", "hasta
+  // luego"). Reuses the wording already approved in the decline template, so no
+  // new commercial copy is introduced: it only acknowledges and leaves the door
+  // open to a human, without pressure (rule 8) and without promising anything.
+  closing:
+    'Gracias a ti. Si en algún momento quieres retomarlo, tienes una duda o prefieres hablar con una persona del equipo, aquí estoy.',
 } as const;
+
+// A pure thanks or goodbye carries no question and no interest signal. Answering
+// it with the greeting opener ("¡Hola! Soy el asistente de MUSK. ¿En qué puedo
+// ayudarte?") ignores what the lead just said and re-opens a conversation that
+// is ending, which is exactly the incoherence a closing remark must avoid.
+// Matched as WHOLE messages only: "gracias, no me interesa" keeps its decline
+// intent upstream, and "gracias, ¿y el precio?" still reaches the price path.
+export const CLOSING_REMARK =
+  /^(?:(?:muchas|mil) )?gracias(?: (?:por todo|por la info|por la informacion|de nada))?$|^(?:adios|hasta luego|hasta pronto|nos vemos|chao|hasta manana)$/;
+
+export function isClosingRemark(folded: string): boolean {
+  return CLOSING_REMARK.test(folded);
+}
+
+// A positive interest statement ("me interesa", "me interesa mucho") is not a
+// question, so the rule 5 doubt reply is incoherent for it: the lead would read
+// "no tengo una respuesta aprobada sobre eso" for a message that asked nothing,
+// and the pilot's doubt metric would count a false doubt. The natural next step
+// of the flow is the call, and its wording is already approved (CALL_INVITATION
+// is the same sentence the price answer uses), so no new copy is introduced.
+// Whole-message and unnegated on purpose: "no me interesa" stays in the decline
+// intent (evaluated earlier) and "me interesa el temario" keeps 'temario'.
+export const INTEREST_STATEMENT =
+  /^(?:si,? )?(?:me )?interesa(?: (?:mucho|bastante|un monton|de verdad))?$|^estoy interesad[oa](?: (?:mucho|bastante))?$/;
+
+export function expressesInterest(folded: string): boolean {
+  return INTEREST_STATEMENT.test(folded);
+}
 
 export type ReplyTemplateId = keyof typeof REPLY_TEMPLATES;
 

@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
-import { DEMO_CONTENT } from '../src/content.demo';
 import { normalizeEs } from '../src/intent';
 import { MockProvider } from '../src/llm';
 import { ANSWER_TRIGGERS, acceptanceConfirmed, buildReply, extractSpanishPhone, guardReply, momentConfirmed, NEGATED_ACCEPTANCE, PHONE_CUE, REPLY_TEMPLATES, RULES, TRAILING_NEGATOR } from '../src/rules';
@@ -23,6 +22,23 @@ function makeAgent() {
   const provider = new MockProvider('Respuesta genérica del proveedor que no debería usarse en rutas protegidas.');
   const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead });
   return { agent, provider };
+}
+
+// The unified profile carries no open copies, so the "a TODO(decisión) is never
+// sent" behaviour is locked with an explicit fixture: it is a rule of the engine,
+// not a property of today's copy.
+const PENDING_COPY = 'TODO(decisión): pendiente de aprobación de MUSK.';
+
+function pendingContent(): typeof APPROVED_CONTENT {
+  return {
+    ...APPROVED_CONTENT,
+    initialMessage: PENDING_COPY,
+    companyPresentation: PENDING_COPY,
+    qualificationQuestions: [
+      { id: 'starting-experience', text: PENDING_COPY, purpose: 'open decision', reactions: [] },
+      { id: 'time-interest', text: PENDING_COPY, purpose: 'open decision', reactions: [] },
+    ],
+  };
 }
 
 describe('mandatory rule tests', () => {
@@ -192,23 +208,27 @@ describe('mandatory rule tests', () => {
   });
 
   // 7d. Precisión: un "no ..." sustantivo (objeción de tiempo) no debe
-  //     responderse con el saludo social; se registra como duda (regla 5).
+  //     responderse con el saludo social. La objeción tiene pasaje aprobado, así
+  //     que se contesta desde la base de conocimiento (regla 4) y no se registra
+  //     como duda: el lead recibe el plazo aprobado y la vía de la llamada.
   it('un "no ..." sustantivo no se responde con el saludo social', async () => {
     const { agent } = makeAgent();
     const result = await agent.runTurn('no tengo tiempo ahora mismo');
-    expect(result.intent).toBe('unknown');
-    expect(result.reply).toMatch(/duda/i);
-    expect(result.registeredDoubts).toContain('no tengo tiempo ahora mismo');
+    expect(result.intent).toBe('kb');
+    expect(result.reply).toMatch(/dos años|flexibilidad/i);
+    expect(result.reply).not.toMatch(/asistente de MUSK/i);
+    expect(result.registeredDoubts).toHaveLength(0);
   });
 
   // 7e. Precisión: un mensaje sustantivo que EMPIEZA con "gracias" no debe
-  //     caer en el saludo social ("gracias, no tengo tiempo" -> duda,
-  //     "gracias, no me interesa" -> decline).
+  //     caer en el saludo social ("gracias, no tengo tiempo" -> respuesta de la
+  //     objeción, "gracias, no me interesa" -> decline).
   it('un mensaje que empieza con "gracias" mantiene su intent real', async () => {
     const { agent } = makeAgent();
     const time = await agent.runTurn('gracias, no tengo tiempo ahora mismo');
-    expect(time.intent).toBe('unknown');
-    expect(time.reply).toMatch(/duda/i);
+    expect(time.intent).toBe('kb');
+    expect(time.reply).toMatch(/dos años|flexibilidad/i);
+    expect(time.reply).not.toMatch(/asistente de MUSK/i);
 
     const decline = await agent.runTurn('gracias, no me interesa');
     expect(decline.intent).toBe('decline');
@@ -263,7 +283,7 @@ describe('mandatory rule tests', () => {
       ['no me interesa el temario detallado', 'temario'],
       ['no me interesa el precio', 'price'],
       ['no me interesa la financiación', 'financiacion'],
-      ['no tengo tiempo ahora mismo', 'unknown'],
+      ['no tengo tiempo ahora mismo', 'kb'],
       ['no me escribáis más', 'stop'],
       ['no me interesa seguir', 'stop'],
     ];
@@ -276,32 +296,30 @@ describe('mandatory rule tests', () => {
   });
 });
 
-describe('respuestas de precio y financiación configuradas por perfil', () => {
-  it('usa el copy autorizado y protegido en ambos perfiles, incluido el precio y la objeción «es caro»', async () => {
-    expect(APPROVED_CONTENT.priceReply).toBe(DEMO_CONTENT.priceReply);
-    expect(APPROVED_CONTENT.financingReply).toBe(DEMO_CONTENT.financingReply);
+describe('respuestas de precio y financiación configuradas en el perfil', () => {
+  it('usa el copy autorizado y protegido, incluido el precio y la objeción «es caro»', async () => {
+    const content = APPROVED_CONTENT;
 
-    for (const content of [APPROVED_CONTENT, DEMO_CONTENT]) {
-      const priceAgent = new MuskAgent({ content, provider: null, lead });
-      for (const message of ['¿cuánto cuesta?', 'es caro']) {
-        const price = await priceAgent.runTurn(message);
-        expect(price.intent).toBe('price');
-        expect(price.reply).toBe(content.priceReply);
-        expect(price.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
-        expect(guardReply(price.reply).ok).toBe(true);
-        expect(price.ruleViolations).toEqual([]);
-      }
-
-      const financingAgent = new MuskAgent({ content, provider: null, lead });
-      const financing = await financingAgent.runTurn('¿hay financiación?');
-      expect(financing.intent).toBe('financiacion');
-      expect(financing.reply).toBe(content.financingReply);
-      expect(financing.reply).toContain('dos años');
-      expect(financing.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
-      expect(guardReply(financing.reply).ok).toBe(true);
-      expect(financing.ruleViolations).toEqual([]);
+    const priceAgent = new MuskAgent({ content, provider: null, lead });
+    for (const message of ['¿cuánto cuesta?', 'es caro']) {
+      const price = await priceAgent.runTurn(message);
+      expect(price.intent).toBe('price');
+      expect(price.reply).toBe(content.priceReply);
+      expect(price.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
+      expect(guardReply(price.reply).ok).toBe(true);
+      expect(price.ruleViolations).toEqual([]);
     }
+
+    const financingAgent = new MuskAgent({ content, provider: null, lead });
+    const financing = await financingAgent.runTurn('¿hay financiación?');
+    expect(financing.intent).toBe('financiacion');
+    expect(financing.reply).toBe(content.financingReply);
+    expect(financing.reply).toContain('dos años');
+    expect(financing.reply).not.toMatch(/\d|€|\beuros?\b|intereses|cuotas/i);
+    expect(guardReply(financing.reply).ok).toBe(true);
+    expect(financing.ruleViolations).toEqual([]);
   });
+
 
   it('conserva las plantillas anteriores como fallback de un perfil sin copy específico', async () => {
     const content = { ...APPROVED_CONTENT, priceReply: undefined, financingReply: undefined };
@@ -329,38 +347,23 @@ describe('structural guards', () => {
     expect(RULES).toHaveLength(11);
   });
 
-  // The pilot formation is now chosen (Curso de Desarrollo Full Stack), so the
-  // "formación elegida" decision is closed. The still-open decisions (initial
-  // message text and the final qualification questions) must stay visible as
-  // TODO(decisión) markers and never be presented as agreed with MUSK.
-  it('src/content.ts keeps the still-open decisions marked as TODO(decisión)', () => {
-    const source = readFileSync(new URL('../src/content.ts', import.meta.url), 'utf8');
-    const markers = source.match(/TODO\(decisión\)/g) ?? [];
-    expect(markers.length).toBeGreaterThanOrEqual(3);
-    expect(source).toMatch(/mensaje inicial/);
-    expect(source).toMatch(/cualificación/);
+  // The profile was unified: every lead-facing copy item is now written, so no
+  // open decision is left in the file. A new TODO(decisión) resurrects the
+  // "never sent" behaviour, so the invariant is: the profile ships none.
+  it('src/content.ts leaves no open copy marked as TODO(decisión)', () => {
+    // The comment that documents the marker itself is fine; what must never
+    // exists is a TODO marker reaching a lead-facing string value.
+    expect(JSON.stringify(APPROVED_CONTENT)).not.toMatch(/TODO\(decisi/i);
   });
 
   // Approved FAQ answers are lead-facing: they must pass the output guard, so a
   // question routed to an approved answer can never leak a forbidden response.
+  // This is the single profile now, so it also locks what DEMO used to lock.
   it('APPROVED_CONTENT: sin importes y respuestas FAQ válidas para el guard', () => {
     const json = JSON.stringify(APPROVED_CONTENT);
     expect(json).not.toMatch(/€/);
     expect(json).not.toMatch(/\beuros?\b/i);
     for (const entry of APPROVED_CONTENT.faq) {
-      const result = guardReply(entry.answer);
-      expect(result.ok, `FAQ "${entry.id}" no debe violar el guard: ${JSON.stringify(result.violations)}`).toBe(true);
-    }
-  });
-
-  // The DEMO sample profile (src/content.demo.ts) must never carry money text
-  // and every FAQ answer must pass the output guard, so the sample can be shown
-  // without leaking forbidden content.
-  it('DEMO_CONTENT: sin importes y respuestas FAQ válidas para el guard', () => {
-    const json = JSON.stringify(DEMO_CONTENT);
-    expect(json).not.toMatch(/€/);
-    expect(json).not.toMatch(/\beuros?\b/i);
-    for (const entry of DEMO_CONTENT.faq) {
       const result = guardReply(entry.answer);
       expect(result.ok, `FAQ "${entry.id}" no debe violar el guard: ${JSON.stringify(result.violations)}`).toBe(true);
     }
@@ -376,20 +379,20 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   // sobre la formación de interés"). The DEMO sample carries a real one, so
   // there the flow is complete end to end.
   it('apertura: con contenido real (DEMO) se envía el mensaje inicial', () => {
-    const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, lead });
     const opening = agent.opening();
 
-    expect(opening).toBe(DEMO_CONTENT.initialMessage);
+    expect(opening).toBe(APPROVED_CONTENT.initialMessage);
     expect(guardReply(opening as string).ok).toBe(true);
     expect(agent.pendingDecisions).toHaveLength(0);
   });
 
-  it('la pregunta y el cierre de DEMO son breves, configurables y plantean una pregunta cada vez', () => {
-    const question = DEMO_CONTENT.qualificationQuestions[0]?.text ?? '';
-    const closing = DEMO_CONTENT.closingInvitation ?? '';
+  it('la pregunta y el cierre son breves, configurables y plantean una pregunta cada vez', () => {
+    const question = APPROVED_CONTENT.qualificationQuestions[0]?.text ?? '';
+    const closing = APPROVED_CONTENT.closingInvitation ?? '';
 
-    expect(DEMO_CONTENT.qualificationQuestions).toHaveLength(1);
-    expect(DEMO_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
+    expect(APPROVED_CONTENT.qualificationQuestions).toHaveLength(1);
+    expect(APPROVED_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
     expect(question).toBe('¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.');
     expect(closing).toBe('¿Qué día y a qué hora te viene bien que el equipo te llame?');
     expect(closing.length).toBeLessThanOrEqual(200);
@@ -403,7 +406,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   // initial message is still open with MUSK, nothing is sent and the item stays
   // visible as a pending decision instead of being invented.
   it('apertura: un TODO(decisión) no se envía y queda como decisión abierta', () => {
-    const { agent } = makeAgent();
+    const agent = new MuskAgent({ content: pendingContent(), provider: null, lead });
 
     expect(agent.opening()).toBeNull();
     expect(agent.pendingDecisions).toContain('initialMessage');
@@ -412,7 +415,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   // Same rule for qualification: never asked while the text is a placeholder,
   // and never replaced by a made-up question.
   it('cualificación: un texto TODO(decisión) no se pregunta', () => {
-    const { agent } = makeAgent();
+    const agent = new MuskAgent({ content: pendingContent(), provider: null, lead });
 
     expect(agent.nextQualificationQuestion()).toBeNull();
     expect(agent.pendingDecisions).toEqual([
@@ -425,8 +428,8 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
   // §4: pocas preguntas, una cada vez, sin examen, sin puntuación y sin
   // exclusión automática — el arnés no descarta a nadie.
-  it('cualificación (DEMO): una pregunta cada vez, en orden y sin excluir', async () => {
-    const agent = new MuskAgent({ content: DEMO_CONTENT, lead });
+  it('cualificación: una pregunta cada vez, en orden y sin excluir', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, lead });
 
     expect(agent.nextQualificationQuestion()?.id).toBe('goal');
     // Una cada vez: con un ask armado no se pregunta otra cosa, porque la
@@ -436,7 +439,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     const goal = await agent.runTurn('Quiero cambiar de sector');
     expect(goal.capturedAnswer?.questionId).toBe('goal');
     expect(goal.reply).toBe(
-      `Entiendo: buscas prepararte para cambiar de sector. ${DEMO_CONTENT.closingInvitation}`,
+      `Entiendo: buscas prepararte para cambiar de sector. ${APPROVED_CONTENT.closingInvitation}`,
     );
     // Sin preguntas aprobadas pendientes: el flujo pasa a la llamada.
     expect(agent.nextQualificationQuestion()).toBeNull();
@@ -448,12 +451,12 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   // Rules 7 and 9: once the lead stops, or is handed to a person, the agent
   // asks nothing else.
   it('cualificación: no pregunta tras una parada ni tras un handoff', async () => {
-    const stopped = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const stopped = new MuskAgent({ content: APPROVED_CONTENT, lead });
     await stopped.runTurn('no me escribas más');
     expect(stopped.isStopped).toBe(true);
     expect(stopped.nextQualificationQuestion()).toBeNull();
 
-    const handedOff = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const handedOff = new MuskAgent({ content: APPROVED_CONTENT, lead });
     const result = await handedOff.runTurn('bueno, me va bien una llamada');
     expect(result.action).toBe('handoff');
     expect(handedOff.nextQualificationQuestion()).toBeNull();
@@ -462,10 +465,10 @@ describe('apertura y cualificación (MVP spec §4)', () => {
   // Structural: everything the agent can open with or ask is lead-facing, so it
   // must pass the output guard — and no path may ever return a raw TODO stub.
   it('estructural: apertura y preguntas pasan el guard y nunca devuelven un TODO', async () => {
-    const demo = new MuskAgent({ content: DEMO_CONTENT, lead });
+    const demo = new MuskAgent({ content: APPROVED_CONTENT, lead });
     const opening = demo.opening();
 
-    expect(opening).toBe(DEMO_CONTENT.initialMessage);
+    expect(opening).toBe(APPROVED_CONTENT.initialMessage);
     expect(guardReply(opening as string).ok).toBe(true);
 
     let question = demo.nextQualificationQuestion();
@@ -484,10 +487,12 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     }
     expect(asked).toBe(1);
 
-    // The approved profile keeps both items open: nothing is invented.
+    // The approved profile ships both items: nothing is left open, so the flow
+    // is complete end to end without a single made-up sentence.
     const approved = new MuskAgent({ content: APPROVED_CONTENT, lead });
-    expect(approved.opening()).toBeNull();
-    expect(approved.nextQualificationQuestion()).toBeNull();
+    expect(approved.opening()).toBe(APPROVED_CONTENT.initialMessage);
+    expect(approved.pendingDecisions).toHaveLength(0);
+    expect(approved.nextQualificationQuestion()).not.toBeNull();
   });
 });
 
@@ -517,14 +522,14 @@ describe('cobertura de información (routing a contenido aprobado)', () => {
   });
 
   const routed: Array<{ message: string; expected: RegExp }> = [
-    { message: '¿de qué va el curso?', expected: /front end|back end|aplicaciones web/i },
-    { message: 'quiero más información', expected: /Full Stack|front end|back end/i },
-    { message: '¿qué voy a aprender?', expected: /desarrollo web|bases de datos|interfaces/i },
-    { message: '¿qué salidas tiene?', expected: /Full Stack Developer|salidas|Frontend/i },
-    { message: '¿cómo son las clases?', expected: /reto|tutoría|directo|acompañamiento/i },
-    { message: '¿cómo funciona la metodología?', expected: /reto|gamificado|tutoría|directo/i },
+    { message: '¿de qué va el curso?', expected: /online y prácticas|programación, videojuegos e IA/i },
+    { message: 'quiero más información', expected: /online y prácticas|programación, videojuegos e IA/i },
+    { message: '¿qué voy a aprender?', expected: /fundamentos sólidos|metodologías ágiles/i },
+    { message: '¿qué salidas tiene?', expected: /perfiles junior|portafolio/i },
+    { message: '¿cómo son las clases?', expected: /proyectos guiados|clases en directo|tutorías/i },
+    { message: '¿cómo funciona la metodología?', expected: /proyectos guiados|clases en directo|tutorías/i },
     { message: '¿me contáis los requisitos?', expected: /conocimientos previos|desde la base/i },
-    { message: '¿cuánto dura el curso?', expected: /llamada/i },
+    { message: '¿cuánto dura el curso?', expected: /dos años|flexibilidad/i },
   ];
 
   for (const { message, expected } of routed) {
@@ -540,6 +545,7 @@ describe('cobertura de información (routing a contenido aprobado)', () => {
       expect(result.reply).not.toMatch(/€|\beuros?\b|\d/i);
     });
   }
+
 
   // Precision: the broad 'informacion' entry must never steal a forbidden topic —
   // forbidden topics are classified BEFORE the FAQ is consulted, so asking about
@@ -562,18 +568,22 @@ describe('cobertura de información (routing a contenido aprobado)', () => {
     expect(result.registeredNoContinuar).toBe(false);
   });
 
-  // Rule 4: MUSK's own company presentation is a minimum content item (spec
-  // §3.6) that MUSK has not provided yet (§8.1). It stays a visible pending
-  // decision and is never sent to the lead.
-  it('la presentación de MUSK queda pendiente y nunca se envía', async () => {
+  // Rule 4: the company presentation is a minimum content item (spec §3.6). The
+  // unified profile carries approved copy, so it is delivered — and it must never
+  // leak the placeholder marker nor an unapproved claim.
+  it('la presentación de MUSK se envía con copy aprobado y sin marcadores', async () => {
     const agent = makePlainAgent();
 
-    expect(agent.pendingDecisions).toContain('companyPresentation');
+    expect(agent.pendingDecisions).not.toContain('companyPresentation');
+    expect(guardReply(APPROVED_CONTENT.companyPresentation).ok).toBe(true);
     const result = await agent.runTurn('¿qué es MUSK?');
-    // The placeholder marker ("TODO(decisión)…") is never sent: the lead gets the
-    // safe identity+formation answer instead. (Matched precisely, so the ordinary
-    // Spanish word "todo" cannot produce a false positive.)
+    // The placeholder marker ("TODO(decisión)…") is never sent. (Matched
+    // precisely, so the ordinary Spanish word "todo" cannot produce a false
+    // positive.)
     expect(result.reply).not.toMatch(/TODO\(decisi/i);
+    expect(result.reply).toMatch(/Escuela Musk|formación/i);
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
   });
 
   // Structural: every FAQ answer is guard-clean and carries no amounts/digits,
@@ -715,6 +725,108 @@ describe('aceptación negada (regla 9): el "no" anula la aceptación', () => {
     expect(result.registeredNoContinuar).toBe(true);
     expect(result.ruleViolations).toHaveLength(0);
     expect(agent.isStopped).toBe(true);
+  });
+
+  // F4 (rule 9): the "que me ..." paradigm only covered "llame"/"llamen", so a
+  // lead explicitly asking to be called in tuteo or vosotros ("quiero que me
+  // llameis", "quiero que me llames") got the rule 5 doubt reply with NO
+  // handoff at all. An explicit request to be called IS the rule 9 trigger.
+  it('regla 9: "quiero que me llameis" deriva; no se queda en duda', async () => {
+    const requests = [
+      'quiero que me llameis',
+      'quiero que me llames',
+      'me podeis llamar?',
+      '¿me puedes llamar?',
+    ];
+    for (const message of requests) {
+      const { agent } = makeAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent, `"${message}" debería clasificarse como general`).toBe('general');
+      expect(result.action, `"${message}" debe derivar (regla 9)`).toBe('handoff');
+      expect(result.handoff?.reason).toBe('call_accepted');
+      expect(result.reply).toBe(buildReply('callAccepted'));
+      expect(result.registeredDoubts).toHaveLength(0);
+      expect(result.ruleViolations).toHaveLength(0);
+      expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+    }
+  });
+
+  // F4 + rule 7: the widened trigger must not swallow a request to stop.
+  it('regla 7: "no quiero que me llameis" es parada, nunca handoff', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('no quiero que me llameis');
+
+    expect(result.intent).toBe('stop');
+    expect(result.action).toBe('stop');
+    expect(result.handoff).toBeUndefined();
+    expect(result.registeredNoContinuar).toBe(true);
+    expect(agent.isStopped).toBe(true);
+  });
+
+  // Coherence: a greeting with a neutral preamble asks nothing, so it must be
+  // answered as social small talk and must NOT be filed as a doubt.
+  it('un saludo con contexto no registra una duda falsa', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('hola, vi vuestro mensaje');
+
+    expect(result.intent).toBe('general');
+    expect(result.reply).toBe(buildReply('social'));
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.doubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  // Coherence: a greeting that DOES ask something still reaches the doubt path
+  // when no approved passage answers it (the leading-greeting rule asks for a
+  // question-free message, so this never suppresses a real question).
+  it('un saludo con una pregunta real sigue yendo a la duda (no se traga)', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('hola, ¿cuánto cobran en las prácticas?');
+
+    expect(result.registeredDoubts).toContain('hola, ¿cuánto cobran en las prácticas?');
+  });
+
+  // Coherence: "gracias" is a closing, not a greeting. Replying with the
+  // greeting opener re-opened a conversation that was ending.
+  it('"gracias" cierra la conversación en lugar de saludar de nuevo', async () => {
+    const closings = ['gracias', 'muchas gracias', 'hasta luego', 'adiós'];
+    for (const message of closings) {
+      const { agent } = makeAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent, `"${message}"`).toBe('general');
+      expect(result.reply, `"${message}" debe cerrar`).toBe(buildReply('closing'));
+      expect(result.registeredDoubts).toHaveLength(0);
+      expect(result.ruleViolations).toHaveLength(0);
+      expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+    }
+  });
+
+  // Coherence: "me interesa" is a statement, not a question. It must advance to
+  // the approved call proposal instead of the rule 5 doubt and must not be
+  // counted as a doubt (the pilot KPI measures real doubts).
+  it('una declaración de interés avanza a la propuesta de llamada sin duda', async () => {
+    const statements = ['me interesa', 'me interesa mucho', 'estoy interesado'];
+    for (const message of statements) {
+      const { agent } = makeAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent, `"${message}"`).toBe('general');
+      expect(result.reply, `"${message}"`).toBe(buildReply('callProposal'));
+      expect(result.registeredDoubts).toHaveLength(0);
+      expect(agent.doubts).toHaveLength(0);
+      expect(result.ruleViolations).toHaveLength(0);
+    }
+  });
+
+  // The interest trigger must never catch the soft decline (rule 5 family).
+  it('"no me interesa" sigue siendo decline, no interés', async () => {
+    const { agent } = makeAgent();
+    const result = await agent.runTurn('no me interesa');
+
+    expect(result.intent).toBe('decline');
+    expect(result.reply).toBe(buildReply('decline'));
   });
 
   // The predicates themselves: the trigger must match AND the negation guard

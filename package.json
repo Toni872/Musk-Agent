@@ -8,7 +8,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/simulator.ts",
-    "sim:demo": "tsx src/simulator.ts --demo",
     "eval": "tsx src/eval.ts",
     "build:ui": "node ui/build.mjs",
     "pilot-gate": "tsx scripts/pilot-gate.ts",

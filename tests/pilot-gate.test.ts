@@ -3,62 +3,31 @@ import { describe, expect, it } from 'vitest';
 import {
   evaluatePilotGate,
   readCommittedEnvFiles,
-  readPublicProfile,
   type PilotGateSignals,
 } from '../scripts/pilot-gate';
 
-// The gate is the reminder that the public bundle stops being a demo. It has to
-// fail loudly when a signal fires and stay quiet otherwise, so these tests pin
-// the decision of each signal instead of the wording of the banner.
+// The gate is the reminder that a published bundle is public. It has to fail
+// loudly when a signal fires and stay quiet otherwise, so these tests pin the
+// decision of each signal instead of the wording of the banner.
+//
+// The demo/real split is gone: there is one content profile and the knowledge
+// base belongs to it, so those two signals were removed with the split. What
+// remains provable from the repository is committed real configuration.
 const CLEAR: PilotGateSignals = {
-  approvedKb: false,
-  publicProfile: 'demo',
   committedEnvFiles: [],
 };
 
 describe('pilot gate', () => {
-  it('stays silent while the public artifact is still a demo', () => {
+  it('stays silent when the repository carries no real configuration', () => {
     const result = evaluatePilotGate(CLEAR);
     expect(result.triggered).toBe(false);
     expect(result.reasons).toEqual([]);
-  });
-
-  it('fires when the approved profile carries a knowledge base', () => {
-    const result = evaluatePilotGate({ ...CLEAR, approvedKb: true });
-    expect(result.triggered).toBe(true);
-    expect(result.reasons.join(' ')).toContain('base de conocimiento');
-  });
-
-  it('fires when the public demo opens with the approved profile', () => {
-    const result = evaluatePilotGate({ ...CLEAR, publicProfile: 'real' });
-    expect(result.triggered).toBe(true);
-    expect(result.reasons.join(' ')).toContain("'real'");
-  });
-
-  it('fails closed when the public profile cannot be determined', () => {
-    const result = evaluatePilotGate({ ...CLEAR, publicProfile: 'unknown' });
-    expect(result.triggered).toBe(true);
-    expect(result.reasons.join(' ')).toContain('se ha podido determinar');
   });
 
   it('fires when real configuration has been committed', () => {
     const result = evaluatePilotGate({ ...CLEAR, committedEnvFiles: ['.env'] });
     expect(result.triggered).toBe(true);
     expect(result.reasons.join(' ')).toContain('.env');
-  });
-
-  describe('readPublicProfile', () => {
-    it('reads the profile from the entry point', () => {
-      expect(readPublicProfile("const chat = createChat({ profile: 'demo' });")).toBe('demo');
-      expect(readPublicProfile("const chat = createChat({ profile: 'real' });")).toBe('real');
-    });
-
-    it('reports unknown instead of guessing', () => {
-      expect(readPublicProfile("const chat = createChat({ profile: selectedProfile });")).toBe(
-        'unknown',
-      );
-      expect(readPublicProfile('')).toBe('unknown');
-    });
   });
 
   describe('readCommittedEnvFiles', () => {

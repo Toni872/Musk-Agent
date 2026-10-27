@@ -12,7 +12,6 @@ import { describe, expect, it } from 'vitest';
 
 import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
-import { DEMO_CONTENT } from '../src/content.demo';
 import { classify, findApprovedAnswer, normalizeEs } from '../src/intent';
 import { KB_PASSAGES, type KbPassage } from '../src/kb';
 import { MockProvider } from '../src/llm';
@@ -26,7 +25,7 @@ const lead: LeadContact = {
 };
 
 function makeDemoAgent(): MuskAgent {
-  return new MuskAgent({ content: DEMO_CONTENT, provider: null, lead });
+  return new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
 }
 
 // Arms a qualification ask and returns its id (the ask is the pending one).
@@ -39,12 +38,12 @@ function armQualification(agent: MuskAgent): string {
 // The close this profile ships (a profile without one falls back to the
 // approved sentence in REPLY_TEMPLATES).
 function demoGoalReply(answerText = 'Quiero cambiar de sector'): string {
-  const question = DEMO_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
+  const question = APPROVED_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
   const foldedAnswer = normalizeEs(answerText);
   const reaction = question?.reactions?.find((entry) =>
     entry.keywords.some((keyword) => foldedAnswer.includes(normalizeEs(keyword))),
   )?.say;
-  const closing = DEMO_CONTENT.closingInvitation ?? buildReply('callProposal');
+  const closing = APPROVED_CONTENT.closingInvitation ?? buildReply('callProposal');
   return reaction ? `${reaction} ${closing}` : closing;
 }
 
@@ -62,11 +61,11 @@ describe('recepción de respuestas (answer reception)', () => {
     const musk = await makeDemoAgent().runTurn('dame informacion sobre musk');
 
     expect(catalog.intent).toBe('general');
-    expect(findApprovedAnswer(DEMO_CONTENT, 'Dame informacion sobre los cursos')?.id).toBe('catalogo-formaciones');
-    expect(catalog.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
-    expect(findApprovedAnswer(DEMO_CONTENT, 'dame informacion sobre musk')?.id).toBe('sobre-musk');
+    expect(findApprovedAnswer(APPROVED_CONTENT, 'Dame informacion sobre los cursos')?.id).toBe('catalogo-formaciones');
+    expect(catalog.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
+    expect(findApprovedAnswer(APPROVED_CONTENT, 'dame informacion sobre musk')?.id).toBe('sobre-musk');
     expect(musk.intent).toBe('general');
-    expect(musk.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')?.answer);
+    expect(musk.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')?.answer);
   });
 
   it('runs the reproduced transcript through the catalog, formation choice, and protected financing route', async () => {
@@ -74,8 +73,8 @@ describe('recepción de respuestas (answer reception)', () => {
     const catalogQuestion = 'Si, me interesa. Dame informacion sobre los cursos';
     const catalog = await agent.runTurn(catalogQuestion);
 
-    expect(findApprovedAnswer(DEMO_CONTENT, catalogQuestion)?.id).toBe('catalogo-formaciones');
-    expect(catalog.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
+    expect(findApprovedAnswer(APPROVED_CONTENT, catalogQuestion)?.id).toBe('catalogo-formaciones');
+    expect(catalog.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
     expect(agent.nextQualificationQuestion()?.text).toBe(
       '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
     );
@@ -83,7 +82,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const choice = await agent.runTurn('el curso de full stack');
     const fullStackAcknowledgement =
       'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.';
-    const closingInvitation = DEMO_CONTENT.closingInvitation!;
+    const closingInvitation = APPROVED_CONTENT.closingInvitation!;
     expect(choice.capturedAnswer).toEqual({ questionId: 'goal', text: 'el curso de full stack' });
     expect(choice.reply).toContain(fullStackAcknowledgement);
     expect(choice.reply.split(closingInvitation)).toHaveLength(2);
@@ -96,7 +95,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const financingQuestion = 'los cursos pueden finanaciarse?';
     const financing = await agent.runTurn(financingQuestion);
     expect(financing.intent).toBe('financiacion');
-    expect(financing.reply).toBe(DEMO_CONTENT.financingReply);
+    expect(financing.reply).toBe(APPROVED_CONTENT.financingReply);
     expect(agent.records.some((record) => record.kind === 'kb')).toBe(false);
     for (const reply of [catalog.reply, choice.reply, financing.reply]) {
       expect(guardReply(reply).ok).toBe(true);
@@ -124,7 +123,7 @@ describe('recepción de respuestas (answer reception)', () => {
     const result = await agent.runTurn('los cursos pueden finanaciarse?');
 
     expect(result.intent).toBe('financiacion');
-    expect(result.reply).toBe(DEMO_CONTENT.financingReply);
+    expect(result.reply).toBe(APPROVED_CONTENT.financingReply);
     expect(result.registeredDoubts).toEqual([]);
     expect(agent.records.some((record) => record.kind === 'kb')).toBe(false);
   });
@@ -137,13 +136,13 @@ describe('recepción de respuestas (answer reception)', () => {
     ['Cuéntame en qué consiste', 'informacion'],
   ])('routes "%s" to FAQ %s without consuming the qualification ask', async (message, expectedFaqId) => {
     const agent = makeDemoAgent();
-    const expectedFaq = DEMO_CONTENT.faq.find((entry) => entry.id === expectedFaqId);
+    const expectedFaq = APPROVED_CONTENT.faq.find((entry) => entry.id === expectedFaqId);
     expect(expectedFaq).toBeDefined();
 
     const result = await agent.runTurn(message);
 
     expect(result.intent).toBe('general');
-    expect(findApprovedAnswer(DEMO_CONTENT, message)?.id).toBe(expectedFaqId);
+    expect(findApprovedAnswer(APPROVED_CONTENT, message)?.id).toBe(expectedFaqId);
     expect(result.reply).toBe(expectedFaq!.answer);
     expect(result.registeredDoubts).toEqual([]);
     expect(agent.nextQualificationQuestion()?.id).toBe('goal');
@@ -160,7 +159,7 @@ describe('recepción de respuestas (answer reception)', () => {
 
   it('flujo demo: responde qué es la formación, reconoce el objetivo y propone la llamada', async () => {
     const agent = makeDemoAgent();
-    const infoAnswer = DEMO_CONTENT.faq.find((entry) => entry.id === 'informacion')!.answer;
+    const infoAnswer = APPROVED_CONTENT.faq.find((entry) => entry.id === 'informacion')!.answer;
 
     const info = await agent.runTurn('Cuéntame en qué consiste');
 
@@ -177,8 +176,8 @@ describe('recepción de respuestas (answer reception)', () => {
 
     expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: goalText });
     expect(goal.reply.startsWith(acknowledgement)).toBe(true);
-    expect(goal.reply).toContain(DEMO_CONTENT.closingInvitation);
-    expect(goal.reply).toBe(`${acknowledgement} ${DEMO_CONTENT.closingInvitation}`);
+    expect(goal.reply).toContain(APPROVED_CONTENT.closingInvitation);
+    expect(goal.reply).toBe(`${acknowledgement} ${APPROVED_CONTENT.closingInvitation}`);
     expect(goal.reply.match(/\?/g)).toHaveLength(1);
     expect(goal.reply).toContain(availabilityQuestion);
     expect(goal.reply.length).toBeLessThan(240);
@@ -187,7 +186,7 @@ describe('recepción de respuestas (answer reception)', () => {
   });
 
   it('las reacciones del objetivo priorizan frases específicas y pasan el guard', async () => {
-    const goalQuestion = DEMO_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
+    const goalQuestion = APPROVED_CONTENT.qualificationQuestions.find((entry) => entry.id === 'goal');
     const reactions = goalQuestion?.reactions ?? [];
     expect(reactions).toHaveLength(8);
 expect(reactions.slice(0, 5).map((reaction) => reaction.say)).toEqual([
@@ -221,7 +220,7 @@ expect(reactions.slice(0, 5).map((reaction) => reaction.say)).toEqual([
       const result = await agent.runTurn(answer);
 
 expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
-      expect(result.reply).toBe(`${expectedAcknowledgement} ${DEMO_CONTENT.closingInvitation}`);
+      expect(result.reply).toBe(`${expectedAcknowledgement} ${APPROVED_CONTENT.closingInvitation}`);
       expect(result.reply.match(/\?/g)).toHaveLength(1);
       expect(result.reply.length).toBeLessThan(240);
       expect(guardReply(result.reply).ok).toBe(true);
@@ -246,7 +245,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
 
       expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
       expect(result.reply.startsWith(expectedAcknowledgement)).toBe(true);
-      expect(result.reply).toContain(DEMO_CONTENT.closingInvitation);
+      expect(result.reply).toContain(APPROVED_CONTENT.closingInvitation);
       expect(guardReply(result.reply).ok).toBe(true);
     }
   });
@@ -289,7 +288,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
 
     const price = await agent.runTurn('¿cuánto cuesta?');
     expect(price.intent).toBe('price');
-    expect(price.reply).toBe(DEMO_CONTENT.priceReply);
+    expect(price.reply).toBe(APPROVED_CONTENT.priceReply);
     expect(price.capturedAnswer).toBeUndefined();
     expect(price.registeredDoubts).toHaveLength(0);
     expect(agent.qualificationAnswers).toHaveLength(0);
@@ -364,7 +363,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
     const modality = await agent.runTurn('¿Dónde está la academia?');
 
     expect(modality.intent).toBe('general');
-    expect(modality.reply).toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'modalidad')?.answer);
+    expect(modality.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'modalidad')?.answer);
 
     const goalQuestion = agent.nextQualificationQuestion();
     expect(goalQuestion).toMatchObject({
@@ -392,7 +391,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
 
   it('el resumen distingue la bolsa de no compradores y admite una destinataria sin configurar', async () => {
     const agent = new MuskAgent({
-      content: { ...DEMO_CONTENT, handoffRecipient: undefined },
+      content: { ...APPROVED_CONTENT, handoffRecipient: undefined },
       provider: null,
       lead: { ...lead, bucket: 'no_comprador' },
     });
@@ -518,17 +517,14 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
   it('no envía dos veces seguidas el mismo mensaje', async () => {
     const agent = makeDemoAgent();
 
-    // The first message is received as the answer to the opening ask and the
-    // turn sends nothing of its own.
-    const opening = await agent.runTurn('xyz');
-    expect(opening.reply).toBe('');
-
+    // A greeting is classified, not swallowed by the opening ask: the lead's
+    // first message always gets an answer.
     const first = await agent.runTurn('xyz');
     expect(first.intent).toBe('unknown');
     expect(first.reply).toBe(buildReply('doubt'));
 
     const second = await agent.runTurn('xyz');
-    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
+    expect(second.reply).toBe(APPROVED_CONTENT.doubtFollowup);
     expect(second.reply).not.toBe(first.reply);
   });
 
@@ -819,16 +815,16 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
 
     expect(result.action).toBe('handoff');
     expect(handoff).toBeDefined();
-    expect(handoff?.formation).toBe(DEMO_CONTENT.formationName);
+    expect(handoff?.formation).toBe(APPROVED_CONTENT.formationName);
     expect(handoff?.qualification).toEqual([
-      { question: first(DEMO_CONTENT.qualificationQuestions).text, answer: 'Quiero cambiar de sector' },
+      { question: first(APPROVED_CONTENT.qualificationQuestions).text, answer: 'Quiero cambiar de sector' },
     ]);
     expect(handoff?.doubts).toEqual([]);
     expect(handoff?.lastMessage).toBe(lastMessage);
-    expect(handoff?.summary.startsWith(DEMO_CONTENT.formationName)).toBe(true);
+    expect(handoff?.summary.startsWith(APPROVED_CONTENT.formationName)).toBe(true);
     expect(handoff?.summary).toContain('aceptó la llamada');
     expect(handoff?.summary).toContain(
-      `${first(DEMO_CONTENT.qualificationQuestions).text} → Quiero cambiar de sector`,
+      `${first(APPROVED_CONTENT.qualificationQuestions).text} → Quiero cambiar de sector`,
     );
     expect(handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
     expect(handoff?.recipient).toBe('Laura');
@@ -921,7 +917,7 @@ describe('recepción de respuestas a la propuesta de llamada (answer to call)', 
 // being captured as the goal response. This is not the partner's demonstrated
 // transcript; that flow has its own end-to-end test above.
 describe('preguntas sin signo de interrogación (questions without "?")', () => {
-  const sobreMuskAnswer = DEMO_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')!.answer;
+  const sobreMuskAnswer = APPROVED_CONTENT.faq.find((entry) => entry.id === 'sobre-musk')!.answer;
 
   it('una pregunta compuesta sin signo se responde y NO se captura como objetivo', async () => {
     const agent = makeDemoAgent();
@@ -1078,7 +1074,7 @@ describe('contacto entregado sin pregunta armada (fresh path)', () => {
 
     expect(result.action).toBe('none');
     expect(result.handoff).toBeUndefined();
-    expect(result.reply).toBe(DEMO_CONTENT.priceReply);
+    expect(result.reply).toBe(APPROVED_CONTENT.priceReply);
   });
 
   // Rule 7 outranks the contact: a lead who asks to stop is not called.
@@ -1158,12 +1154,46 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
   // A guarded answer keeps priority over the armed ask: the price question is
   // NOT received as the call's answer (rule 1 copy is mandatory), and it does
   // not steal the ask either — the next message is still received as its answer.
+  // A statement of interest arriving as the reply to the armed call ask is NOT
+  // a failed answer: re-offering it as a doubt said "no tengo una respuesta
+  // aprobada sobre eso" to a message that asked nothing and counted a FALSE
+  // doubt in the pilot KPI. The approved invitation is re-offered and no doubt
+  // is registered; the ask stays armed.
+  it('"me interesa mucho" tras el ask no registra una duda falsa', async () => {
+    const agent = await armCallProposal();
+
+    const result = await agent.runTurn('me interesa mucho');
+
+    expect(result.action).toBe('none');
+    expect(result.reply).toBe(buildReply('callProposal'));
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.doubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
+    expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+  });
+
+  // A pure thanks arriving as the reply to the armed ask is a closing, not a
+  // failed answer: it must not be filed as a doubt either. A FAREWELL stays in
+  // the doubt path on purpose ("hasta mañana" is the documented goodbye trap).
+  it('"gracias" tras el ask cierra sin registrar duda', async () => {
+    const agent = await armCallProposal();
+
+    const result = await agent.runTurn('gracias');
+
+    expect(result.action).toBe('none');
+    expect(result.reply).toBe(buildReply('closing'));
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.doubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
+    expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+  });
+
   it('una pregunta de precio tras la duda conserva su respuesta y no roba el ask', async () => {
     const agent = await armCallProposal();
     await agent.runTurn('depende');
 
     const price = await agent.runTurn('cuánto cuesta?');
-    expect(price.reply).toBe(DEMO_CONTENT.priceReply);
+    expect(price.reply).toBe(APPROVED_CONTENT.priceReply);
     expect(price.action).toBe('none');
 
     const accepted = await agent.runTurn('me viene bien');
@@ -1183,8 +1213,8 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
     const first = await agent.runTurn('cuánto cuesta?');
     const second = await agent.runTurn('cuánto cuesta?');
 
-    expect(first.reply).toBe(DEMO_CONTENT.priceReply);
-    expect(second.reply).toBe(DEMO_CONTENT.priceReply);
+    expect(first.reply).toBe(APPROVED_CONTENT.priceReply);
+    expect(second.reply).toBe(APPROVED_CONTENT.priceReply);
     expect(second.reply).not.toBe(buildReply('callProposal'));
   });
 });
@@ -1245,7 +1275,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
     const result = await agent.runTurn('¿Los cursos pueden financiarse?');
 
     expect(result.intent).toBe('financiacion');
-    expect(result.reply).toBe(DEMO_CONTENT.financingReply);
+    expect(result.reply).toBe(APPROVED_CONTENT.financingReply);
     expect(result.capturedAnswer).toBeUndefined();
     expect(result.registeredDoubts).toHaveLength(0);
   });
@@ -1262,7 +1292,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
 
     const second = await agent.runTurn('¿me lo dices en ingles?');
     expect(second.intent).toBe('unknown');
-    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
+    expect(second.reply).toBe(APPROVED_CONTENT.doubtFollowup);
     expect(second.reply).not.toBe(buildReply('callProposal'));
 
     const handoff = await agent.runTurn('quiero hablar con una persona');
@@ -1272,7 +1302,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
 
   // Demo catalog entry (KB): the question routes to the new FAQ answer.
   it('catálogo demo: "Que cursos teneis?" responde con la entrada catalogo-formaciones', async () => {
-    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
+    const expected = APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
     const agent = makeDemoAgent();
 
     const result = await agent.runTurn('Que cursos teneis?');
@@ -1287,8 +1317,8 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
   // emits ONE message, so the lead read the ask twice). The answer keeps the
   // five programmes and the "con IA" differentiator, and stops asking.
   it('el catálogo ya no repite la invitación que hace la pregunta de cualificación', async () => {
-    const entry = DEMO_CONTENT.faq.find((item) => item.id === 'catalogo-formaciones')!;
-    const question = DEMO_CONTENT.qualificationQuestions.find((item) => item.id === 'goal')!;
+    const entry = APPROVED_CONTENT.faq.find((item) => item.id === 'catalogo-formaciones')!;
+    const question = APPROVED_CONTENT.qualificationQuestions.find((item) => item.id === 'goal')!;
 
     expect(entry.answer).toBe(
       'Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos.' +
@@ -1316,7 +1346,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
   // Demo modality/location (KB): "dónde está la academia" reaches the enriched
   // modalidad answer (everything online, no fixed connection schedule).
   it('modalidad demo: "Hola, donde esta la academia?" responde con la entrada modalidad', async () => {
-    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'modalidad')!.answer;
+    const expected = APPROVED_CONTENT.faq.find((entry) => entry.id === 'modalidad')!.answer;
     const agent = makeDemoAgent();
 
     const result = await agent.runTurn('Hola, donde esta la academia?');
@@ -1339,7 +1369,7 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
     expect(first.reply).toBe(buildReply('doubt'));
 
     const second = await agent.runTurn('¿me lo dices en ingles?');
-    expect(second.reply).toBe(DEMO_CONTENT.doubtFollowup);
+    expect(second.reply).toBe(APPROVED_CONTENT.doubtFollowup);
     expect(second.reply).not.toBe(first.reply);
 
     const third = await agent.runTurn('¿tiene parking?');
@@ -1350,9 +1380,13 @@ describe('financiación reflexiva, duda seguida y contenidos demo (KB)', () => {
 
   // A profile WITHOUT its own follow-up wording keeps the old behaviour: the
   // second consecutive doubt falls back to the bare approved invitation. The
-  // unapproved copy lives in the DEMO profile only (rules 4 and 11).
+  // follow-up copy is optional, so a future profile can drop it.
   it('sin follow-up propio, la segunda duda vuelve a la invitación aprobada', async () => {
-    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
+    const agent = new MuskAgent({
+      content: { ...APPROVED_CONTENT, doubtFollowup: undefined },
+      provider: null,
+      lead,
+    });
 
     const first = await agent.runTurn('¿tienen piscina?');
     expect(first.intent).toBe('unknown');
@@ -1634,7 +1668,7 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
   //    receives, and the turn says the rephrase was grounded.
   it('una reformulación fiel llega al lead y la fundamentación es correcta', async () => {
     const rephrase =
-      'Los detalles de horarios y disponibilidad los concretamos contigo en una llamada: la formación es online, con clases en directo y workshops.';
+      'Es online: campus virtual, comunidad y tutores personales que te acompañan. No hay horarios fijos de conexión.';
     const provider = new MockProvider(rephrase);
     const agent = makeGroundedAgent(provider);
 
@@ -1739,7 +1773,7 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
 // Measured on the DEMO profile: its formation name carries the internal
 // marker "(muestra de demo)", which must never be able to reach the lead.
 const demoEntry = (id: string) => {
-  const found = DEMO_CONTENT.faq.find((entry) => entry.id === id);
+  const found = APPROVED_CONTENT.faq.find((entry) => entry.id === id);
   if (found === undefined) throw new Error(`FAQ entry not found: ${id}`);
   return found;
 };
@@ -1747,7 +1781,7 @@ const demoEntry = (id: string) => {
 const DEMO_ONLINE_QUESTION = 'donde esta la academia?';
 
 function makeDemoGroundedAgent(provider: MockProvider): MuskAgent {
-  return new MuskAgent({ content: DEMO_CONTENT, provider, lead });
+  return new MuskAgent({ content: APPROVED_CONTENT, provider, lead });
 }
 
 describe('la fuente de fundamentación es todo lo que se le mostró al modelo', () => {
@@ -1757,7 +1791,7 @@ describe('la fuente de fundamentación es todo lo que se le mostró al modelo', 
   //    to the raw approved text, which costs tokens and adds nothing.
   it('una reformulación fiel que usa una palabra del contexto del perfil se acepta', async () => {
     const rephrase =
-      'Es una formación online, con campus virtual, comunidad en Discord y tutores personales que te acompañan.';
+      'Es una formación online, con campus virtual, comunidad y tutores personales que te acompañan.';
     const provider = new MockProvider(rephrase);
     const agent = makeDemoGroundedAgent(provider);
 
@@ -1825,15 +1859,15 @@ describe('la fuente de fundamentación es todo lo que se le mostró al modelo', 
     // The matched answer (the volatile part) and the profile context (the
     // stable part) are both there.
     expect(system).toContain(demoEntry('modalidad').answer);
-    expect(system).toContain(DEMO_CONTENT.generalDescription);
-    expect(system).toContain(DEMO_CONTENT.methodology);
+    expect(system).toContain(APPROVED_CONTENT.generalDescription);
+    expect(system).toContain(APPROVED_CONTENT.methodology);
     // The other FAQ answers are not.
-    for (const entry of DEMO_CONTENT.faq) {
+    for (const entry of APPROVED_CONTENT.faq) {
       if (entry.id === 'modalidad') continue;
       expect(system).not.toContain(entry.answer);
     }
     // The formation name (and its internal demo marker) are not.
-    expect(system).not.toContain(DEMO_CONTENT.formationName);
+    expect(system).not.toContain(APPROVED_CONTENT.formationName);
     expect(system).not.toContain('muestra de demo');
   });
 });
@@ -1864,7 +1898,7 @@ describe('small talk y duración no se responden con la base de conocimiento', (
     // be received as the answer to an armed ask; the defect was the route, not
     // the turn. Before the fix this returned 'kb' and answered with the
     // "la IA sigue mereciendo la pena" passage.
-    expect(classify('Qué pena', DEMO_CONTENT)).toBe('general');
+    expect(classify('Qué pena', APPROVED_CONTENT)).toBe('general');
   });
 
   it('el small talk no se traga un rechazo que empieza igual', async () => {
@@ -1882,7 +1916,7 @@ describe('small talk y duración no se responden con la base de conocimiento', (
     const result = await agent.runTurn('¿Cuántos años dura la formación?');
 
     expect(result.intent).toBe('general');
-    expect(result.reply).toBe(findApprovedAnswer(DEMO_CONTENT, 'duracion')?.answer);
+    expect(result.reply).toBe(findApprovedAnswer(APPROVED_CONTENT, 'duracion')?.answer);
     expect(result.reply).not.toContain('no tengo tiempo');
   });
 
@@ -1922,7 +1956,7 @@ describe('orientación: el lead que no sabe qué formación elegir', () => {
   ];
 
   it('cada frase recibe la entrada de orientación y no se archiva como duda', async () => {
-    const expected = DEMO_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer;
+    const expected = APPROVED_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer;
 
     for (const text of phrasings) {
       const agent = makeDemoAgent();
@@ -1960,7 +1994,7 @@ describe('orientación: el lead que no sabe qué formación elegir', () => {
     const result = await agent.runTurn('Quiero cambiar de sector');
 
     expect(result.capturedAnswer).toEqual({ questionId: id, text: 'Quiero cambiar de sector' });
-    expect(result.reply).not.toBe(DEMO_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer);
+    expect(result.reply).not.toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'orientacion')?.answer);
     expect(agent.qualificationAnswers).toEqual([{ id, text: 'Quiero cambiar de sector' }]);
   });
 });

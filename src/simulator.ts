@@ -2,12 +2,9 @@
 //
 //   npm run sim                    -> interactive REPL (lead writes, agent replies)
 //   npm run sim -- --smoke         -> ONE scripted turn, exits 0 without stdin
-//   npm run sim -- --demo          -> interactive REPL with the DEMO sample content
-//   npm run sim -- --demo --smoke  -> one scripted turn with the DEMO sample content
-//
-// --demo loads src/content.demo.ts (clearly-labelled SAMPLE, not approved by
-// MUSK). Without --demo the real approved content for the pilot formation is
-// used (Curso de Desarrollo Full Stack, curated from MUSK's dossier).
+// There is ONE content profile (src/content.ts): the demo/real split is gone and
+// the curated copy is what every surface uses. Wording is still pending MUSK's
+// final sign-off, which is why nothing here talks to a real lead.
 //
 // Standalone by design: no WhatsApp, no real leads, no CRM. The handoff target
 // (Laura in the configured profiles) is simulated only; no notification is sent.
@@ -18,22 +15,16 @@ import { createInterface } from 'node:readline/promises';
 
 import { MuskAgent, type LeadContact, type TurnResult } from './agent';
 import { APPROVED_CONTENT, type ApprovedContent, type QualificationQuestion } from './content';
-import { DEMO_CONTENT } from './content.demo';
 import { loadLLMConfigFromEnv, OpenAICompatibleLLM, type LLMProvider } from './llm';
 import { composeTurnOutbound } from './outbound';
 
 const args = process.argv.slice(2);
-const useDemoContent = args.includes('--demo');
-
-// Content profile: the real approved content for the pilot formation by default,
-// or the clearly-labelled DEMO sample when --demo is passed.
-const CONTENT: ApprovedContent = useDemoContent ? DEMO_CONTENT : APPROVED_CONTENT;
+// Single unified profile: no flag, no alternate sample to drift out of sync.
+const CONTENT: ApprovedContent = APPROVED_CONTENT;
 
 function printContentBanner(): void {
   console.log(
-    useDemoContent
-      ? 'Content: DEMO SAMPLE (not approved by MUSK) — for flow demonstration only.'
-      : 'Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).',
+    'Content: Escuela Musk unified profile (curated from MUSK material; final wording sign-off pending).',
   );
 }
 

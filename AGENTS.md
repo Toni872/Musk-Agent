@@ -65,20 +65,24 @@ externa de llamadas, integración con el CRM propio de MUSK (en desarrollo).
     revisan antes de incorporarse al contenido aprobado.
 
 Las once están codificadas como datos en `src/rules.ts`, con guardián de salida
-(`guardReply`) y tests obligatorios. El contenido aprobado vive en
-`src/content.ts`; el perfil de muestra, solo con `--demo`, en `src/content.demo.ts`.
+(`guardReply`) y tests obligatorios. El perfil único de contenido vive en
+`src/content.ts` (`APPROVED_CONTENT`): reúne el copy del simulador y la base de
+conocimiento, y es **copy unificado pendiente de firma de MUSK**.
+`src/content.demo.ts` y `DEMO_CONTENT` se eliminaron; ya no existe el flag `--demo`.
 
 ## Decisiones abiertas (no asumir; dejar configurable y marcar `TODO(decisión)`)
 
 Tamaño de muestra y fecha de lanzamiento · cadencia de seguimiento y reglas de
-parada · texto del mensaje inicial · copy de cualificación del perfil aprobado ·
-nombres definitivos de las etiquetas conversacionales · cobertura de Laura para los
-avisos · configuración del canal WhatsApp · base legal / privacidad / transparencia
-del lote real · umbrales de éxito.
+parada · nombres definitivos de las etiquetas conversacionales · cobertura de Laura
+para los avisos · configuración del canal WhatsApp · base legal / privacidad /
+transparencia del lote real · umbrales de éxito.
 
-Ahora mismo hay cuatro `TODO(decisión)` vivos en `src/content.ts`: mensaje inicial,
-presentación de MUSK y las dos preguntas de cualificación. **Un `TODO(decisión)`
-nunca se envía**: se informa como decisión abierta de MUSK. Ver
+Ya no queda ningún `TODO(decisión)` en `src/content.ts`. El mensaje inicial, la
+presentación de MUSK, la pregunta de cualificación `goal`, la FAQ y los 35 pasajes
+de la base de conocimiento están escritos y se usan en el perfil único, pero todo
+ello sigue siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11),
+no contenido aprobado. La protección se mantiene para futuros huecos: **un
+`TODO(decisión)` nunca se envía**, se informa como decisión abierta de MUSK. Ver
 `docs/pedido-nicolas.md`.
 
 Importante: los "6 intentos" de la reunión del 18/09 NO son una regla del MVP. El
@@ -88,22 +92,31 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 ## Convenciones técnicas
 
 - **Capa de base de conocimiento (Fase 0).** `src/kb.ts` guarda la base de
-  conocimiento aprobada como datos (pasajes con id, título, respuesta para el
-  lead, términos de recuperación y procedencia) y `src/retrieval.ts` la consulta
-  de forma determinista (BM25 + cobertura de términos, sin LLM, sin embeddings
-  ni dependencias). Reglas de la capa: la base de conocimiento decide si una
-  pregunta puede responderse y con qué pasaje; **el umbral vive en el código,
-  como constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`), nunca en
-  un prompt; los temas prohibidos (precio, condiciones de pago, horas, fechas de
+  conocimiento como datos (pasajes con id, título, respuesta para el lead,
+  términos de recuperación y procedencia) y `src/retrieval.ts` la consulta de
+  forma determinista (BM25 + cobertura de términos, sin LLM, sin embeddings ni
+  dependencias). Reglas de la capa: la base de conocimiento decide si una pregunta
+  puede responderse y con qué pasaje; **el umbral vive en el código, como
+  constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`), nunca en un
+  prompt; los temas prohibidos (precio, condiciones de pago, horas, fechas de
   inicio, devoluciones, becas, ubicación, requisitos) se rechazan siempre y
   escalan (regla 5), con la excepción expresa del plazo aprobado de dos años para
-  completar la formación con flexibilidad. El
-  contenido es **copy pendiente de firma de MUSK** (reglas 4 y 11): vive solo
-  en el perfil DEMO (`src/content.demo.ts`); el perfil aprobado
-  (`src/content.ts`) no lo lleva y, sin base de conocimiento, se comporta
-  exactamente como antes. Ninguna respuesta de la base de conocimiento puede
-  contener una cifra (lo fija un test). La FAQ escrita a mano conserva
-  prioridad sobre la base de conocimiento.
+  completar la formación con flexibilidad. Los 35 pasajes viajan en el perfil
+  único (`APPROVED_CONTENT.kb`, en `src/content.ts`) y forman parte del **copy
+  unificado pendiente de firma de MUSK** (reglas 4 y 11). Ninguna respuesta de la
+  base de conocimiento puede contener una cifra (lo fija un test). La FAQ escrita
+  a mano conserva prioridad sobre la base de conocimiento.
+- **Un programa nombrado gana a la FAQ genérica.** La entrada `informacion` existe
+  para las formas que no nombran nada ("¿en qué consiste?", "¿de qué va el
+  curso?"). Cuando el lead escribe el curso ("¿en qué consiste python?"), la
+  misma forma pregunta por ESE curso, así que `classify()` deja pasar antes al
+  pasaje `*-contenido`/`*-salidas` del programa (`isProgrammePassage` en
+  `src/kb.ts`, guardado por `mentionsProgramme`). El guard es lo que mantiene
+  "¿de qué trata el de programación?" en la FAQ `programacion`: "programación"
+  es una familia, no un programa, y sin él la base contestaba con el máster de
+  videojuegos. Un tema prohibido sigue escalando (regla 5) aunque nombre curso.
+  Si el pasaje del programa no supera el umbral (una consulta de un solo
+  término), la FAQ genérica responde: nunca silencio.
 - **La pregunta pendiente gana al catálogo.** `isReceivableAnswer` recibe como
   respuesta del lead cualquier mensaje que case con las reacciones de la pregunta
   armada, **antes** de mirar la FAQ. Sin esa prioridad, "quiero cambiar de sector"
@@ -122,18 +135,34 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   que la respuesta se da en la capa de catálogo curada y la barra **no se mueve**.
   La respuesta de orientación no termina en pregunta: el motor ya pregunta el
   objetivo en el mismo turno (`src/outbound.ts`).
+- **Plantillas de pregunta de contenido.** Las formas con las que el lead pide
+  contenido de un programa ("de qué trata…", "qué es el curso de…", "de qué va
+  el curso de…", "háblame de…", "en qué consiste…", "qué se aprende en…") están
+  como términos extra en los pasajes `*-contenido` (`CONTENT_QUESTION_TERMS` en
+  `src/kb.ts`), no como carril propio ni como umbral aparte. Medido el
+  2026-10-27: sin ellas, "¿de qué trata el de python?" se respondía con el
+  pasaje de **otra** certificación y "¿de qué trata el de videojuegos?" quedaba
+  por debajo del umbral (3.43 frente a 3.5). El contrato que fijan los tests no
+  es "siempre gana `-contenido`", sino: **con un programa nombrado, la respuesta
+  es de ese programa o la capa genérica, nunca de otro programa y nunca silencio
+  cuando la base sí cubre el tema**; y las plantillas con palabra de contenido
+  ("trata", "curso") llegan al pasaje `-contenido`. El duelo `-contenido` contra
+  `-salidas` del mismo programa lo decide BM25, y en los programas de dos
+  palabras ("full stack") gana el pasaje corto: es preferencia de ranking dentro
+  del programa correcto, no un fallo. "En qué consiste…" y "de qué va…" sin
+  programa siguen en la FAQ `informacion`, que es la que gana al KB por diseño.
 - **Fuente de la fundamentación del LLM.** La regla es: el modelo solo puede usar
   lo que se le mostró. La fuente de una llamada es la respuesta aprobada de la
   entrada casada **más el contexto aprobado del perfil** (`generalDescription` y
   `methodology`), y se compone en un solo sitio
   (`composeGroundingSource`, en `src/entailment.ts`) para que el prompt y la
   comprobación nunca discrepen. Quedan **fuera** de la fuente y del prompt: el
-  nombre de la formación (en el perfil DEMO es un marcador interno, "muestra de
-  demo", que no puede llegar al lead), las listas de habilidades y salidas (son
-  largas y desvían al modelo del tema de la pregunta) y las demás entradas de la
-  FAQ (la fuga entre entradas se mantiene cerrada). El contexto del perfil va en
-  la parte estable del prompt (no cambia entre llamadas, se cachea); la
-  respuesta casada, en la parte volátil.
+  nombre de la formación (en el perfil único es un dato interno para el resumen
+  comercial, no texto que pueda llegar al lead), las listas de habilidades y
+  salidas (son largas y desvían al modelo del tema de la pregunta) y las demás
+  entradas de la FAQ (la fuga entre entradas se mantiene cerrada). El contexto del
+  perfil va en la parte estable del prompt (no cambia entre llamadas, se cachea);
+  la respuesta casada, en la parte volátil.
 - **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee `normalizeEs`
   (minúsculas, sin acentos, puntuación a espacios, espacios colapsados). Vive
   aparte para que la capa de disparadores (`src/rules.ts`) y la capa de intents
@@ -160,8 +189,8 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (269 tests) y `npm run eval`
-  (43 casos etiquetados del bucle de evaluación de la FAQ + 31 de la base de
+- Antes de tocar nada: `npm run typecheck`, `npm test` (335 tests) y `npm run eval`
+  (46 casos etiquetados del bucle de evaluación de la FAQ + 33 de la base de
   conocimiento + 22 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
   también en cada push (`.github/workflows/ci.yml`).

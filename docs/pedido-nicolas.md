@@ -8,8 +8,12 @@ registran en el apartado 10 y no implican que el contenido completo esté firmad
 Fecha: 17 de octubre de 2026. Revisión de dialecto y registro: 18 de octubre de
 2026 (apartados 5 a 7).
 
-Relacionado: `src/content.ts` (contenido aprobado), `src/content.demo.ts`
-(contenido de ejemplo), `AGENTS.md` ("Decisiones abiertas"),
+Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
+pendiente de firma.
+
+Relacionado: `src/content.ts` (perfil único con copy unificado pendiente de firma
+de MUSK), `AGENTS.md` ("Decisiones abiertas"),
 `docs/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
 lote: las decisiones que no son de contenido) y `docs/checklist-canal-real.md`
 (qué queda por cerrar antes de tocar un lead real).
@@ -225,10 +229,10 @@ Lo que sí se puede afirmar de este copy, y lo que comprueban los tests:
   una persona (regla 5), y la capa lo garantiza con una lista explícita de
   temas prohibidos, no con la puntuación.
 - **Todas las respuestas pasan el guard de salida** (`guardReply`): ni
-  importes, ni porcentajes, ni promociones, ni promesas de empleo. Cuando la
-  escuela afirma "prácticas garantizadas", el texto dice que lo garantizado es
-  el convenio y que la empresa se asigna al final según las preferencias del
-  alumno; no promete puesto, ni remuneración, ni empresa.
+  importes, ni porcentajes, ni promociones, ni garantías ni promesas de empleo.
+  El guard rechaza cualquier forma de «garantiz*»; los pasajes de prácticas,
+  orientación laboral, videojuegos y contenido freelance no aseguran resultados,
+  una empresa asignada ni una publicación.
 - **La FAQ escrita a mano conserva la prioridad**: la base de conocimiento solo
   entra cuando la FAQ no responde.
 
@@ -265,22 +269,18 @@ Lo que necesita Nicolás:
   puede expresar «dos años» con palabras. Los demás temas que deben escalar siguen
   bloqueados.
 
-## Qué ocurre cuando estos puntos estén cerrados
+## Qué ocurre cuando el copy unificado esté firmado
 
-1. Se sustituyen los placeholders `TODO(decisión)` de `src/content.ts`.
-2. Se cambia el perfil por defecto del simulador al contenido aprobado
-   (hoy `this.profile = options.profile ?? 'demo'` en `ui/chat.ts`).
-3. Se aplican las correcciones de copy aprobadas (apartados 5 y 7) y se
-   sincronizan la aserción de `tests/rules.test.ts` sobre la respuesta de parada
-   y las citas literales de `GUION_DEMO.md` e `INSTRUCCIONES.md`.
-4. Se resuelven las cuatro afirmaciones de la muestra (apartado 6): se retiran, o
-   Nicolás confirma por escrito que esas condiciones existen.
-5. Se regenera la web publicada y se vuelve a verificar contra el bundle local.
-6. Si Nicolás firma los 35 pasajes de la base de conocimiento (apartado 9), la
-   base pasa del perfil de ejemplo al contenido aprobado: se copia
-   `KB_PASSAGES` a `ApprovedContent.kb` en `src/content.ts` y se retiran de
-   `src/content.demo.ts`. Hasta entonces, el contenido aprobado se comporta
-   como siempre.
+1. Se registra la validación de Nicolás en este documento y en
+   `docs/checklist-canal-real.md`, sin darla por supuesta antes de que exista.
+2. Si Nicolás corrige alguna redacción, se aplica en `src/content.ts` y se
+   sincronizan los tests y las citas literales de `GUION_DEMO.md` e
+   `INSTRUCCIONES.md`.
+3. Se comprueba de nuevo el conjunto de evaluación y se regenera la web publicada;
+   después se verifica contra el bundle local.
+
+No hay perfiles que alternar ni una base de conocimiento que migrar: los 35
+pasajes y el resto del copy ya viven en el perfil único, pendientes de firma.
 
 ## 10. Respuestas confirmadas por Nicolás (correo de Miguel)
 

@@ -1,8 +1,8 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-23, 266/269 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-23, 335/335 tests.
 
-> **Apertura y cualificación**: el agente ya consume `initialMessage` (apertura) y `qualificationQuestions` (una pregunta por turno). En el perfil aprobado, los marcadores `TODO(decisión)` siguen sin enviarse. El flujo DEMO tiene una pregunta de objetivo, orientada a la llamada. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
+> **Apertura y cualificación**: el perfil único ya incluye `initialMessage` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
 ## Preparación (una vez)
 
@@ -20,7 +20,7 @@ La demo se corre en **una terminal real** (Windows Terminal / PowerShell) porque
 npm run sim
 ```
 
-Al arrancar muestra: `Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).` y, debajo, el bloque `--- opening ---` con la apertura (o el aviso de que el mensaje inicial sigue pendiente con MUSK) y la lista `pending` de `TODO(decisión)`.
+Al arrancar muestra: `Content: Escuela Musk unified profile (curated from MUSK material; final wording sign-off pending).` y, debajo, el bloque `--- opening ---` con la apertura ya redactada. No aparece la antigua lista `pending` de `TODO(decisión)` porque el perfil único ya no contiene esos marcadores; el copy unificado sigue pendiente de firma de MUSK.
 
 > **Gotcha conocido**: el REPL no consume stdin pipeado en modo no-TTY (readline/promises lee solo la primera línea y el proceso muere con `unsettled top-level await`). Si la automatización rompe, no es el agente: es la limitación del REPL interactivo. Para validación no interactiva, ver "Verificación automatizada" abajo.
 
@@ -106,7 +106,7 @@ Y en la respuesta a la propuesta de llamada (ampliado 18-10, tras la traza del c
 > **Cambiado el 20-10 (defectos D5 y D6):** tras una duda (regla 5), un "sí" suelto **deriva ahora a humano** (regla 9): antes se archivaba como respuesta a la pregunta de cualificación y el lead se perdía. Y todo mensaje que llega **después** de la derivación queda registrado (el momento acordado suele llegar tarde: "mañana" y después "mañana a las 9:00"), amending el aviso al comercial; antes solo se guardaba el teléfono y el resto se perdía en silencio. El agente sigue sin escribir nada después de la derivación (regla 9).
 
 
-Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(decisión)`, así que no se envían y el mecanismo no altera nada del guion de la conversación 1.
+Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas y se usan tanto en `npm run sim` como en la interfaz. No quedan marcadores `TODO(decisión)`; todo el copy unificado sigue pendiente de firma de MUSK.
 
 ## Frase de apertura recomendada
 
@@ -123,8 +123,8 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 ## Decisiones a cerrar con Nicolás
 
 (A) **Contenido** (el contenido aprobado mantiene sus marcadores abiertos):
- 1. **Presentación de MUSK** (`companyPresentation`), mensaje inicial (`initialMessage`) y las dos preguntas del perfil aprobado (`qualificationQuestions`).
- 2. Los demás textos de la DEMO y los pasajes de la base de conocimiento siguen pendientes de firma, salvo el plazo de dos años con flexibilidad confirmado por Nicolás.
+  1. **Presentación de MUSK** (`companyPresentation`), mensaje inicial (`initialMessage`) y la pregunta de cualificación `goal` del perfil único.
+  2. El resto del copy unificado (FAQ y los 35 pasajes de la base de conocimiento) sigue pendiente de firma de MUSK (reglas 4 y 11).
  3. Los detalles de horas, fechas de inicio y condiciones de pago siguen sin aprobarse y deben escalar.
 
 (B) **Operación/producto** (no bloquean la demo):
@@ -140,7 +140,7 @@ Con el **contenido real (piloto)** la apertura y las preguntas siguen en `TODO(d
 
 ```powershell
 npm run typecheck   # cero errores
-npm test             # 269 tests, sin red
+npm test             # 335 tests, sin red
 npm run eval        # 43 casos de FAQ + 30 de KB + 22 de fundamentación
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador

@@ -1,5 +1,9 @@
 # Decisiones operativas pendientes (Escuela Musk)
 
+Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
+pendiente de firma.
+
 Anexo de `docs/pedido-nicolas.md`. El pedido original cierra **qué se dice** (mensaje
 inicial, preguntas, presentación). Este documento cierra **cómo se comporta** la
 conversación: seguimiento, llamada, aviso y datos del lote.
@@ -58,8 +62,9 @@ con preguntas breves que conduzcan a esa conversación humana. La muestra pide u
 día y una hora convenientes, en una llamada sin presión. La disponibilidad real del
 equipo antes de prometer cualquier plazo sigue pendiente.
 
-**Estado:** el texto del perfil DEMO pregunta qué día y a qué hora viene bien. Es
-copy configurable; no supone una agenda automática ni confirma cobertura.
+**Estado:** el texto del perfil único pregunta qué día y a qué hora viene bien. Es
+copy configurable pendiente de firma de MUSK; no supone una agenda automática ni
+confirma cobertura.
 
 ---
 
@@ -68,11 +73,11 @@ copy configurable; no supone una agenda automática ni confirma cobertura.
 **Qué necesitamos:** qué señales bastan para proponerla.
 
 **Decisión confirmada:** objetivo de llamada directa, sin cuestionario extenso. El
-perfil DEMO usa una única pregunta configurable que acepta tanto la formación que
-interesa al lead como lo que quiere conseguir, y después propone acordar la llamada.
-Es una conversación, no un examen ni un filtro; no se puntúa ni se excluye a nadie.
-Los marcadores de preguntas del perfil aprobado siguen pendientes y no se han
-sustituido.
+perfil único usa una única pregunta configurable `goal` que acepta tanto la
+formación que interesa al lead como lo que quiere conseguir, y después propone
+acordar la llamada. Es una conversación, no un examen ni un filtro; no se puntúa ni
+se excluye a nadie. La pregunta ya está redactada y no quedan marcadores
+`TODO(decisión)`, pero su copy sigue pendiente de firma de MUSK.
 
 Nada impide que el lead pida la llamada antes: en ese caso se ofrece en el acto.
 

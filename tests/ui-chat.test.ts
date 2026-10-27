@@ -1,23 +1,24 @@
 // Tests for the pure chat view-model of the static UI (ui/chat.ts).
 //
 // DOM-free by design: the chat module only drives MuskAgent and returns plain
-// data, so it can be asserted without a browser. Covers the opening placeholder
-// (rule 4), turn diagnostics, reset, and the content-profile toggle.
+// data, so it can be asserted without a browser. Covers the opening (sent, or\r
+// reported when it is still a TODO decision), turn diagnostics, reset and the\r
+// operator-facing helpers.
 
 import { describe, expect, it } from 'vitest';
 
 import { MuskAgent } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
-import { DEMO_CONTENT } from '../src/content.demo';
 import { MockProvider } from '../src/llm';
 import { buildReply, guardReply } from '../src/rules';
 import {
-  CONTENT_BANNERS,
+  Chat,
+  CONTENT_BANNER,
   DEFAULT_LEAD,
   HANDOFF_REPLY_PLACEHOLDER,
   OPENING_PLACEHOLDER,
   STOPPED_REPLY_PLACEHOLDER,
-createChat,
+  createChat,
   formatDiagnostic,
   formatHandoff,
 } from '../ui/chat';
@@ -27,32 +28,37 @@ function isPendingOpening(chatText: string): boolean {
   return chatText === OPENING_PLACEHOLDER;
 }
 
+// A profile whose opening is still an open decision with MUSK (rule 4).
+function pendingOpeningContent() {
+  return { ...APPROVED_CONTENT, initialMessage: 'TODO(decisión): texto inicial pendiente' };
+}
+
 describe('ui/chat view-model', () => {
-  // Rule 4: a TODO(decisión) opening is never sent, it is reported as visible.
-  it('shows the opening placeholder when the opening is empty (real profile)', async () => {
-    const chat = createChat({ profile: 'real' });
+  // The profile is unique now: the opening is real copy, so it IS sent.
+  it('sends the approved opening as the first agent message', () => {
+    const chat = createChat();
     const state = chat.getState();
 
-    // The real profile keeps the opening as a TODO(decisión): nothing to send.
-    expect(APPROVED_CONTENT.initialMessage).toMatch(/^TODO\s*\(/);
-    expect(isPendingOpening(first(state.messages).text)).toBe(true);
-    expect(state.pendingDecisions).toContain('initialMessage');
-    // The pending list must be surfaced as a visible message, not hidden.
-    expect(state.messages.some((message) => message.text.startsWith('pending :'))).toBe(true);
-    expect(state.banner).toBe(CONTENT_BANNERS.real);
+    expect(first(state.messages).role).toBe('agent');
+    expect(first(state.messages).text).toBe(APPROVED_CONTENT.initialMessage);
+    expect(state.pendingDecisions).not.toContain('initialMessage');
+    expect(state.banner).toBe(CONTENT_BANNER);
   });
 
-  it('defaults to the DEMO profile so the demo always has a greeting', () => {
-    const state = createChat().getState();
-    expect(state.profile).toBe('demo');
-    expect(state.banner).toBe(CONTENT_BANNERS.demo);
-    expect(first(state.messages).role).toBe('agent');
-    expect(first(state.messages).text).toBe(DEMO_CONTENT.initialMessage);
-    expect(state.pendingDecisions).toHaveLength(0);
+  // Rule 4 still has a client: if a future edit turns the opening back into a
+  // TODO(decisión), the placeholder is reported and never sent.
+  it('never sends a TODO(decisión) opening: it reports it instead', () => {
+    const pending = new Chat({ content: pendingOpeningContent() });
+    const state = pending.getState();
+
+    expect(first(state.messages).role).toBe('info');
+    expect(first(state.messages).text).toBe(OPENING_PLACEHOLDER);
+    expect(state.pendingDecisions).toContain('initialMessage');
+    expect(state.messages.some((message) => message.text.startsWith('pending :'))).toBe(true);
   });
 
   it('a turn produces ONE agent message, the diagnostic line and the ask inside that message', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('  ¿cuánto cuesta la formación?  ');
 
     expect(state.turnCount).toBe(1);
@@ -68,10 +74,10 @@ describe('ui/chat view-model', () => {
 
     // The first approved qualification question is asked in the SAME message as
     // the answer: one outbound message per turn (src/outbound.ts).
-    const question = first(DEMO_CONTENT.qualificationQuestions).text;
+    const question = first(APPROVED_CONTENT.qualificationQuestions).text;
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(agentMessages).toHaveLength(2); // opening + this turn
-    expect(last(agentMessages).text).toBe(`${DEMO_CONTENT.priceReply} ${question}`);
+    expect(last(agentMessages).text).toBe(`${APPROVED_CONTENT.priceReply} ${question}`);
     expect(state.stopped).toBe(false);
     expect(state.records.map((record) => record.kind)).toContain('reply');
   });
@@ -80,11 +86,11 @@ describe('ui/chat view-model', () => {
   // answer, then immediately the qualification question. The lead read the same
   // ask twice (the catalog answer used to invite exactly what `goal` asks).
   it('el turno de catálogo produce UN solo mensaje con la respuesta y la pregunta', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('Sí, me interesa. Dame información sobre los cursos.');
 
-    const answer = DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
-    const question = first(DEMO_CONTENT.qualificationQuestions).text;
+    const answer = APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
+    const question = first(APPROVED_CONTENT.qualificationQuestions).text;
 
     // Opening + exactly ONE message for the turn.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
@@ -107,7 +113,7 @@ describe('ui/chat view-model', () => {
   // The merge is a rendering decision only: the ask stays ARMED, so the lead's
   // next message is still RECEIVED as the answer to that question.
   it('tras el mensaje único, la siguiente respuesta del lead se captura igual', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     await chat.send('Sí, me interesa. Dame información sobre los cursos.');
 
     const state = await chat.send('el curso de full stack');
@@ -123,34 +129,37 @@ describe('ui/chat view-model', () => {
 
   // Single-question rule, as the engine already applies it on the rule-5 path:
   // the doubt reply asks the lead something, so no qualification question is
-  // stacked on top of it (the ask is deferred, never lost). The real profile is
-  // used because its questions are TODO(decisión): nothing else is askable.
+  // stacked on top of it (the ask is deferred, never lost). The opening is a real
+  // message now, so only the bubbles of THIS turn are inspected.
   it('una respuesta que ya pregunta no recibe otra pregunta encima (regla 5)', async () => {
-    const chat = createChat({ profile: 'real' });
+    const chat = createChat();
     const state = await chat.send('¿hacéis envíos a Canarias?');
 
-    const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(agentMessages).toHaveLength(2); // opening placeholder + the doubt
-    expect(at(agentMessages, 1).text).toBe(buildReply('doubt'));
-    expect(at(agentMessages, 1).text).not.toContain('¿Tienes ya alguna formación');
+    const agentMessages = state.messages.filter(
+      (message) => message.role === 'agent' && message.text !== APPROVED_CONTENT.initialMessage,
+    );
+    // Only the doubt: the opening is a separate, earlier bubble.
+    expect(agentMessages).toHaveLength(1);
+    expect(first(agentMessages).text).toBe(buildReply('doubt'));
+    expect(first(agentMessages).text).not.toContain('¿Tienes ya alguna formación');
     expect(buildReply('doubt').endsWith('?')).toBe(true);
   });
 
   // The visible half of the reception fix: answering a question sends no message
   // of its own, so no empty bubble is rendered next to the next question.
   it('adds no empty agent bubble when the lead answers a question', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('Si');
 
     // Opening + the next qualification question, nothing in between.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(agentMessages).toHaveLength(2);
-    expect(at(agentMessages, 1).text).toBe(first(DEMO_CONTENT.qualificationQuestions).text);
+    expect(at(agentMessages, 1).text).toBe(first(APPROVED_CONTENT.qualificationQuestions).text);
     expect(state.messages.every((message) => message.text.trim().length > 0)).toBe(true);
   });
 
   it('renders the handoff line after the lead accepts a call', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('Sí, llámame cuando queráis');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
@@ -165,7 +174,7 @@ describe('ui/chat view-model', () => {
       message.text.startsWith('resumen para el comercial = '),
     );
     expect(summaryLine).toBeDefined();
-    expect(summaryLine?.text).toContain(DEMO_CONTENT.formationName);
+    expect(summaryLine?.text).toContain(APPROVED_CONTENT.formationName);
     expect(summaryLine?.text).toContain('aceptó la llamada');
     // Spec §8.2: the lot's loss reason travels with the lead, so the commercial
     // knows why it was lost before picking up the phone.
@@ -175,7 +184,7 @@ describe('ui/chat view-model', () => {
     // Rule 9: once handed off, no further qualification question is asked.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(last(agentMessages).role).toBe('agent');
-    expect(agentMessages.some((message) => message.text === first(DEMO_CONTENT.qualificationQuestions).text)).toBe(false);
+    expect(agentMessages.some((message) => message.text === first(APPROVED_CONTENT.qualificationQuestions).text)).toBe(false);
   });
 
   // D5: the agreed moment usually arrives AFTER the handoff ("mañana" and then
@@ -183,7 +192,7 @@ describe('ui/chat view-model', () => {
   // with a person now) but the notice to the commercial is corrected, so the
   // operator panel shows the updated summary instead of losing the time.
   it('un turno posterior a la derivación muestra el resumen actualizado', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     await chat.send('Sí, llámame cuando queráis');
 
     const state = await chat.send('mañana a las 9:00');
@@ -194,14 +203,16 @@ describe('ui/chat view-model', () => {
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
     const summaryLines = diagnostics.filter((message) =>
-      message.text.startsWith('resumen para el comercial = '),
+      message.text.startsWith('resumen para el comercial'),
     );
     expect(summaryLines).toHaveLength(2);
     const updated = last(summaryLines);
     expect(updated.text).toContain('9:00');
     expect(updated.text).toContain('mañana a las 9:00');
-    // The handoff line is rendered again for the corrected notice.
-    expect(diagnostics.filter((message) => message.text.startsWith('aviso simulado = '))).toHaveLength(2);
+    // The notice is sent ONCE: the panel must not read as if Laura had been
+    // notified twice just because the summary was amended afterwards.
+    expect(updated.text).toContain('(actualizado)');
+    expect(diagnostics.filter((message) => message.text.startsWith('aviso simulado = '))).toHaveLength(1);
   });
 
   it('omite de forma limpia la destinataria si la configuración no la incluye', () => {
@@ -229,7 +240,7 @@ describe('ui/chat view-model', () => {
   // the rule-5 doubt path is exercised here with no ask pending. The real
   // profile keeps the opening as a TODO(decisión), so nothing is armed.
   it('registers a doubt for a question with no approved answer (rule 5)', async () => {
-    const chat = createChat({ profile: 'real' });
+    const chat = createChat();
     const state = await chat.send('¿hacéis envíos a Canarias?');
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
     expect(first(diagnostics).text).toBe(
@@ -240,7 +251,7 @@ describe('ui/chat view-model', () => {
   });
 
   it('stops the conversation when the lead asks to stop, with the CLI placeholder', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const stopState = await chat.send('no me escribáis más');
     expect(stopState.stopped).toBe(true);
 
@@ -253,7 +264,7 @@ describe('ui/chat view-model', () => {
   });
 
   it('reset restarts the conversation cleanly', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     await chat.send('hola, ¿qué tal?');
     await chat.send('no me escribáis más');
     expect(chat.getState().stopped).toBe(true);
@@ -264,40 +275,23 @@ describe('ui/chat view-model', () => {
     expect(state.stopped).toBe(false);
     expect(state.records).toHaveLength(0);
     expect(first(state.messages).text).toBe('conversation reset');
-    expect(at(state.messages, 1).text).toBe(DEMO_CONTENT.initialMessage);
-    expect(state.profile).toBe('demo');
-  });
-
-  it('the content-profile toggle swaps the content and restarts the conversation', async () => {
-    const chat = createChat({ profile: 'demo' });
-    await chat.send('cuéntame más');
-
-    const realState = chat.setProfile('real');
-    expect(realState.profile).toBe('real');
-    expect(realState.banner).toBe(CONTENT_BANNERS.real);
-    expect(first(realState.messages).text).toBe(OPENING_PLACEHOLDER);
-    expect(realState.turnCount).toBe(0);
-
-    const demoState = chat.setProfile('demo');
-    expect(demoState.profile).toBe('demo');
-    expect(demoState.banner).toBe(CONTENT_BANNERS.demo);
-    expect(first(demoState.messages).text).toBe(DEMO_CONTENT.initialMessage);
+    expect(at(state.messages, 1).text).toBe(APPROVED_CONTENT.initialMessage);
   });
 
   it('a real-profile turn reaches the approved answer with no LLM provider', async () => {
-    const chat = createChat({ profile: 'real' });
+    const chat = createChat();
     const state = await chat.send('¿qué es MUSK?');
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
     expect(first(diagnostics).text).toContain('intent = general');
-    // No qualification question is askable in the real profile (all are TODO).
+    // The unified profile asks its single qualification question next, in the
+    // same outbound message as the approved answer.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
-    expect(last(agentMessages).text).toBe(
-      first(APPROVED_CONTENT.faq).answer,
-    );
+    expect(last(agentMessages).text).toContain(first(APPROVED_CONTENT.faq).answer);
+    expect(last(agentMessages).text).toContain(first(APPROVED_CONTENT.qualificationQuestions).text);
   });
 
   it('never builds an agent with an LLM provider (deterministic UI)', () => {
-    const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null, lead: DEFAULT_LEAD });
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead: DEFAULT_LEAD });
     expect(agent.isStopped).toBe(false);
     expect(agent.records).toHaveLength(0);
   });
@@ -307,7 +301,7 @@ describe('ui/chat view-model', () => {
   // pending goal question. Leading the line with 'intent = kb' made the demo
   // look broken, so the effective disposition leads and the label follows.
   it('the diagnostic line leads with the disposition when an answer was received', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     // The UI asks the next question AFTER a turn, so the goal question is armed
     // by the second turn: this is the reproduced demo sequence.
     await chat.send('Si');
@@ -327,14 +321,14 @@ describe('ui/chat view-model', () => {
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     expect(last(agentMessages).text).toBe(
       'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.' +
-        ` ${DEMO_CONTENT.closingInvitation}`,
+        ` ${APPROVED_CONTENT.closingInvitation}`,
     );
   });
 
   // Same rule for the opening: it is received as the answer to the opening
   // message (questionId null), which the line must say explicitly.
   it('an answer to the opening reads as the opening, not as a missing id', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('Si');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
@@ -378,7 +372,7 @@ describe('ui/chat view-model', () => {
   // The knowledge-base provenance is operator-facing: the lead sees only the
   // answer, the operator sees which passage answered and with which score.
   it('a knowledge-base turn shows the provenance as a diagnostic line', async () => {
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('¿me dan certificado de la UE?');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
@@ -398,7 +392,7 @@ describe('ui/chat view-model', () => {
   // receive the approved text.
   it('a rejected rephrase shows the grounding verdict as a diagnostic line', async () => {
     const provider = new MockProvider('La formación es online, con clases en directo, y cuesta 500 euros.');
-    const chat = createChat({ profile: 'real', provider });
+    const chat = createChat({ provider });
     const state = await chat.send('¿la formación es online?');
 
     const diagnostics = state.messages.filter((message) => message.role === 'diagnostic');
@@ -410,7 +404,7 @@ describe('ui/chat view-model', () => {
     // The lead-facing transcript only carries the approved answer.
     const agentMessages = state.messages.filter((message) => message.role === 'agent');
     const approved = APPROVED_CONTENT.faq.find((entry) => entry.id === 'modalidad')?.answer ?? '';
-    expect(agentMessages.some((message) => message.text === approved)).toBe(true);
+    expect(agentMessages.some((message) => message.text.includes(approved))).toBe(true);
     expect(agentMessages.some((message) => message.text.includes('500'))).toBe(false);
   });
 });

@@ -9,14 +9,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { MuskAgent } from '../src/agent';
-import { DEMO_CONTENT } from '../src/content.demo';
+import { APPROVED_CONTENT } from '../src/content';
 import { composeTurnOutbound } from '../src/outbound';
 import { buildReply, guardReply } from '../src/rules';
 import { at } from './helpers';
 import { createChat } from '../ui/chat';
 
-const GOAL_QUESTION = DEMO_CONTENT.qualificationQuestions[0]!;
-const CATALOG_ANSWER = DEMO_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
+const GOAL_QUESTION = APPROVED_CONTENT.qualificationQuestions[0]!;
+const CATALOG_ANSWER = APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')!.answer;
 
 describe('un único mensaje saliente por turno (outbound)', () => {
   it('la respuesta y la pregunta viajan juntas, en ese orden', () => {
@@ -85,13 +85,13 @@ describe('un único mensaje saliente por turno (outbound)', () => {
   // agent exactly like this: runTurn, then nextQualificationQuestion, then
   // composeTurnOutbound. The UI must show that same single message.
   it('el CLI y la UI componen el mismo mensaje único', async () => {
-    const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null });
 
     const result = await agent.runTurn('Sí, me interesa. Dame información sobre los cursos.');
     const ask = agent.nextQualificationQuestion();
     const cliText = composeTurnOutbound(result.reply, ask).text;
 
-    const chat = createChat({ profile: 'demo' });
+    const chat = createChat();
     const state = await chat.send('Sí, me interesa. Dame información sobre los cursos.');
     const bubbles = state.messages.filter((message) => message.role === 'agent');
 
@@ -106,7 +106,7 @@ describe('un único mensaje saliente por turno (outbound)', () => {
   // The rule-5 doubt path keeps its behaviour: the doubt reply asks the lead
   // something, so no qualification question is stacked on top of it.
   it('tras una duda no se apila la pregunta de cualificación', async () => {
-    const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null });
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null });
 
     const result = await agent.runTurn('¿tienen piscina?');
     expect(result.reply).toBe(buildReply('doubt'));

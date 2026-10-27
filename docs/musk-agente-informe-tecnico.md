@@ -5,6 +5,10 @@ los 20 archivos del agente uno por uno.
 
 Fecha: 18 de octubre de 2026. Cifras y recuento de líneas actualizados el 21 de octubre de 2026, tras el rediseño de la interfaz y el cierre del MVP.
 
+Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
+pendiente de firma.
+
 Alcance: únicamente el agente conversacional de `musk/`. Queda fuera cualquier
 otro producto del repositorio.
 
@@ -25,12 +29,12 @@ dos ideas de diseño que lo gobiernan todo:
 
 | Cifra | Valor |
 |---|---|
-| Archivos TypeScript del agente | 20 |
-| Tests automáticos | 199 |
-| Casos en el banco de evaluación | 73 |
+| Archivos TypeScript del agente | 13 |
+| Tests automáticos | 335 |
+| Casos en el banco de evaluación | 79 (46 de la FAQ + 33 de la base de conocimiento) |
 | Reglas duras codificadas | 11 |
 | Familias de frases prohibidas en el guardián | 8 |
-| Contenidos pendientes de aprobación | 4 |
+| Huecos `TODO(decisión)` abiertos | 0 (el copy del perfil sigue pendiente de firma de MUSK) |
 
 ---
 
@@ -38,24 +42,33 @@ dos ideas de diseño que lo gobiernan todo:
 
 | Archivo | Líneas | Responsabilidad |
 |---|---|---|
-| `src/agent.ts` | 1294 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
-| `src/content.ts` | 283 | Contenido aprobado ("Curso de Desarrollo Full Stack") + detección de `TODO(decisión)` |
-| `src/rules.ts` | 378 | Reglas 1–11, disparadores, guardián, textos fijos |
-| `src/simulator.ts` | 184 | Consola interactiva (`--demo`, `--smoke`) |
-| `src/content.demo.ts` | 198 | Contenido de muestra (solo con `--demo`) |
-| `src/intent.ts` | 159 | Clasificador determinista en español |
-| `src/llm.ts` | 84 | Proveedor de IA opcional (compatible OpenAI) + doble para tests |
-| `src/eval.ts` | 607 | Medición de recuperación y métricas |
-| `src/eval.dataset.ts` | 683 | 43 casos de la FAQ (C01–C43) en 5 grupos + 31 casos de la base de conocimiento en un array aparte (`EVAL_KB_CASES`) |
-| `tests/rules.test.ts` | 748 | 49 tests |
-| `tests/reception.test.ts` | 1543 | 91 tests |
-| `tests/ui-chat.test.ts` | 257 | 14 tests |
-| `tests/eval.test.ts` | 184 | 12 tests |
-| `ui/chat.ts` | 267 | Modelo de vista del chat (sin DOM, testeable) |
-| `ui/main.ts` | 260 | Pintado en el navegador |
+| `src/agent.ts` | 1483 | Motor: un turno por llamada, estados, cualificación, traspaso, silencios, bitácora |
+| `src/content.ts` | 456 | Perfil único de contenido (FAQ, base de conocimiento y copy de cualificación); copy pendiente de firma de MUSK |
+| `src/rules.ts` | 414 | Reglas 1-11, disparadores, guardián, textos fijos |
+| `src/intent.ts` | 268 | Clasificador determinista en español; la FAQ gana a la base salvo que el lead nombre un programa |
+| `src/kb.ts` | 1029 | Base de conocimiento como datos: 35 pasajes con respuesta, términos y procedencia |
+| `src/retrieval.ts` | 411 | BM25 + cobertura de términos; los umbrales son constantes con nombre |
+| `src/entailment.ts` | 125 | Fuente de fundamentación del LLM y su comprobación |
+| `src/text.ts` | 25 | `normalizeEs`, el único normalizador |
+| `src/outbound.ts` | 69 | Un solo mensaje por turno (respuesta y pregunta unidas) |
+| `src/simulator.ts` | 192 | Consola interactiva (`--smoke`: un turno y salir) |
+| `src/llm.ts` | 100 | Proveedor de IA opcional (compatible OpenAI) + doble para tests |
+| `src/eval.ts` | 864 | Medición de recuperación y métricas |
+| `src/eval.dataset.ts` | 1192 | 46 casos de la FAQ (C01-C46), 33 de la base de conocimiento (`EVAL_KB_CASES`) y los conjuntos de paráfrasis con su hold-out |
+| `tests/rules.test.ts` | 916 | 58 tests |
+| `tests/reception.test.ts` | 2000 | 115 tests |
+| `tests/retrieval.test.ts` | 520 | 102 tests |
+| `tests/ui-chat.test.ts` | 432 | 23 tests |
+| `tests/eval.test.ts` | 183 | 12 tests |
+| `tests/entailment.test.ts` | 165 | 13 tests |
+| `tests/outbound.test.ts` | 118 | 8 tests |
+| `tests/pilot-gate.test.ts` | 53 | 4 tests |
+| `ui/chat.ts` | 302 | Modelo de vista del chat (sin DOM, testeable) |
+| `ui/main.ts` | 478 | Pintado en el navegador |
 | `ui/server.mjs` | 71 | Servidor estático local |
-| `ui/build.mjs` | 33 | Empaquetado a `ui/dist/app.js` |
+| `ui/build.mjs` | 40 | Empaquetado a `ui/dist/app.js` |
 | `ui/index.html` / `ui/styles.css` | 27 / 770 | Interfaz |
+
 
 ---
 
@@ -102,7 +115,7 @@ por `guardReply`** (en `src/rules.ts`), que normaliza el texto y bloquea:
 | `%`, "sin intereses", "interés cero", "cuotas fijas", "aplazado sin coste" | 3 — financiación sin condiciones |
 | "módulo N", "unidad N", "tema N", "semana N", "lección N" | 2 — nada de temario detallado |
 | "promoción", "descuento", "2x1", "oferta especial", "precio cerrado" | 4 — nada inventado |
-| "garantizamos", "empleo garantizado", "trabajo garantizado", "plaza garantizada" | 4 — sin promesas de empleo |
+| Cualquier forma de «garantiz*» («garantizamos», «garantizadas», «garantizado»…), además de las promesas de empleo | 4 — nada se promete como garantizado |
 
 Si el guardián detecta una violación, la respuesta se descarta y se usa el texto
 aprobado o se registra la duda. La consecuencia práctica: **el agente no puede
@@ -184,27 +197,31 @@ los comentarios del código).
 
 ## 7. Modelo de contenido
 
-Dos perfiles con el mismo contrato (`ApprovedContent`):
+Un único perfil, `APPROVED_CONTENT` (`src/content.ts`), con el contrato
+`ApprovedContent`: presentación de la empresa, descripción general, metodología,
+FAQ curada, preguntas de cualificación, mensaje inicial, cierre de llamada y la
+base de conocimiento (35 pasajes). Todo el copy es **copy unificado pendiente de
+firma de MUSK** (reglas 4 y 11): el agente solo puede emitir lo que está escrito
+aquí, y cada respuesta pasa por el guardián.
 
-- `src/content.ts` — **aprobado**: "Curso de Desarrollo Full Stack" con formación,
-  descripción, habilidades, salidas, metodología, 9 entradas de FAQ, preguntas de
-  cualificación y mensaje inicial.
-- `src/content.demo.ts` — **muestra**: contenido genérico, marcado como tal. Es el
-  perfil que corre la web publicada.
-
-**Cuatro contenidos están aún en `TODO(decisión)`** dentro de `src/content.ts`
-(`APPROVED_CONTENT`): la presentación de la empresa (`companyPresentation`), las
-dos preguntas de cualificación (`qualificationQuestions`) y el mensaje inicial
-(`initialMessage`).
-
-Estos huecos **no pueden llegar al lead**: `isPendingDecision()` (`src/content.ts`)
-los detecta por patrón, la apertura (`opening()` en `src/agent.ts`) devuelve
-`null` si es un hueco, y el getter `pendingDecisions` (en `MuskAgent`) los expone
-como pendientes para que la carencia quede visible.
+No queda ningún `TODO(decisión)` abierto en `src/content.ts`. La protección sigue
+armada para huecos futuros: `isPendingDecision()` los detecta por patrón, la
+apertura (`opening()` en `src/agent.ts`) devuelve `null` si es un hueco y el
+getter `pendingDecisions` (en `MuskAgent`) los expone para que la carencia quede
+visible. **Un `TODO(decisión)` nunca se envía.**
 
 El orden de la FAQ de `APPROVED_CONTENT` (`src/content.ts`) es de lo específico
 a lo general: `findApprovedAnswer()` (`src/intent.ts`) devuelve la **primera**
 coincidencia, así una pregunta concreta nunca cae en la respuesta genérica.
+
+Dos matices del enrutado importan para no tocar el copy por accidente:
+
+- **La FAQ gana a la base de conocimiento**, salvo cuando el lead **nombra un
+  programa** y la base ofrece un pasaje `-contenido`/`-salidas` de ese programa
+  (`isProgrammePassage` en `src/kb.ts`). El guard `mentionsProgramme` evita que
+  una familia («programación») se trate como programa.
+- **La pregunta pendiente gana al catálogo**: si el mensaje encaja con las
+  reacciones de la pregunta armada, se trata como respuesta y no como consulta.
 
 ---
 
@@ -228,11 +245,12 @@ coincidencia, así una pregunta concreta nunca cae en la respuesta genérica.
 
 ## 9. Simulador
 
-`npm run sim` (interactivo), `npm run sim:demo` (perfil de muestra),
-`--smoke` (un turno y salir). Muestra la apertura (o el hueco pendiente), cada
-turno con su intención, acción, silencios, dudas registradas, respuestas
-capturadas, traspaso y violaciones del guardián. Comandos: `/reset`, `/state`,
-`/exit`.
+`npm run sim` (interactivo, con el perfil único) y `npm run sim -- --smoke`
+(un turno y salir). Ya no existen `npm run sim:demo` ni el flag `--demo`. Muestra
+la apertura y, si apareciera un hueco futuro, lo señala sin enviarlo; también
+muestra cada turno con su intención, acción, silencios, dudas registradas,
+respuestas capturadas, traspaso y violaciones del guardián. Comandos: `/reset`,
+`/state`, `/exit`.
 
 ---
 
@@ -337,12 +355,12 @@ Nada de esto invalida el diseño: es que el agente está a un paso antes del can
 ## 15. Cómo trabajar con este agente
 
 ```bash
-npm test          # 269 tests
-npm run eval      # 74 casos con métricas (43 de la FAQ + 31 de la base de conocimiento) más 22 de grounding
-npm run sim:demo  # conversar con el agente (perfil de muestra)
-npm run sim       # conversar con el contenido aprobado (se ve el hueco)
+npm test          # 335 tests
+npm run eval      # 79 casos con métricas (46 de la FAQ + 33 de la base de conocimiento) más 22 de grounding
+npm run sim       # conversar con el agente (perfil único, copy pendiente de firma)
 npm run ui        # interfaz local en http://localhost:4173
 npm run typecheck # comprobación de tipos
+npm run pilot-gate # comprueba que no hay .env versionado
 ```
 
 Orden de lectura recomendado para entenderlo de verdad (unas 8.000 líneas de

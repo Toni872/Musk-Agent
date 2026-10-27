@@ -6,6 +6,9 @@ node_modules/
 .env.local
 *.env.local
 
+# Signed client documents: shared with MUSK, never published from this repo
+docs/aprobacion-nicolas.pdf
+
 # Build artifacts / deliverables
 *.zip
 musk-*.exe
@@ -14,6 +17,12 @@ ui/dist/
 
 # Scratch drivers used for non-interactive smoke runs
 tmp-*.mts
+probe-*.mts
+
+# Local server logs from `npm run ui`
+server.err.log
+server.out.log
+*.log
 
 # Test coverage
 coverage/

@@ -1,9 +1,9 @@
 import { MuskAgent } from '../src/agent';
-import { DEMO_CONTENT } from '../src/content.demo';
+import { APPROVED_CONTENT } from '../src/content';
 
 async function main() {
   const lead = { id: 'local-test', contact: '+34600000000', bucket: 'ilocalizable' as const };
-  const agent = new MuskAgent({ content: DEMO_CONTENT, provider: null, lead });
+  const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead });
 
   const msgs = [
     'Hola, me gustaría información sobre las formaciones',

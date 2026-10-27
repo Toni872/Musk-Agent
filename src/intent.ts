@@ -3,13 +3,17 @@
 // the mandatory rule tests deterministic and fully offline.
 
 import type { ApprovedContent, FaqEntry } from './content';
+import { mentionsProgramme } from './content';
 import {
   acceptanceConfirmed,
   ANSWER_TRIGGERS,
+  expressesInterest,
   HANDOFF_TRIGGERS,
+  isClosingRemark,
   matchesWholeMessage,
   STOP_TRIGGER,
 } from './rules';
+import { isProgrammePassage } from './kb';
 import { FORBIDDEN_TOPIC_PATTERNS, retrieve, type RetrievalMode } from './retrieval';
 import { normalizeEs } from './text';
 
@@ -82,6 +86,24 @@ const SOCIAL_GREETING =
 const SOCIAL_CHECK_IN = /^(sigues (?:por )?ahi|estas (?:por )?ahi|que pena|vaya|uf|lo siento)$/;
 const SOCIAL_ACK = /^(ok|vale|perfecto|entendido|genial|claro|si|no)$/;
 
+// A message that OPENS with a greeting. Used only as the last resort in
+// classify(), after every guarded intent, the FAQ and the knowledge base, to
+// keep a greeting-with-context ("hola, vi vuestro mensaje") out of the rule 5
+// doubt path when it asks nothing. It is deliberately not a whole-message
+// pattern: the point is a preamble the social trigger above cannot accept.
+const LEADING_GREETING =
+  /^(?:hola|buenas|buenos dias|buenas tardes|buenas noches|hey|que tal)\b/;
+
+// Interrogative shape: a question mark or an interrogative word. Kept small and
+// Spanish-centric on purpose; a false "question" only means the message stays
+// 'unknown' (the safe direction: rule 5 registers the doubt).
+const INTERROGATIVE_SHAPE =
+  /\?|\b(?:que|cual|cuales|como|cuanto|cuanta|cuantos|cuantas|cuando|donde|quien|quienes|hay|teneis|tienen|tienes|haceis|hacen|podeis|podemos|puedo|puedes|sabeis|sabes|sirve|sirven|vale la pena|se puede)\b/;
+
+function looksLikeQuestion(folded: string): boolean {
+  return INTERROGATIVE_SHAPE.test(folded);
+}
+
 // A bare acknowledgement ("si", "vale", "ok", "no") carries no question of its
 // own: it answers whatever the agent just offered. The engine has to tell it
 // apart from a real greeting, because answering a "si" with the social greeting
@@ -98,6 +120,10 @@ export function bareAcknowledgement(input: string): 'yes' | 'no' | null {
 export function findApprovedAnswer(content: ApprovedContent, message: string): FaqEntry | null {
   const folded = normalizeEs(message);
   for (const entry of content.faq) {
+    // A specific programme name changes who must answer: the generic "salidas"
+    // line is vetoed so the knowledge base can answer about THAT course. The
+    // veto is checked first, or first-match-wins would never reach it.
+    if (entry.avoidKeywords?.some((keyword) => folded.includes(normalizeEs(keyword)))) continue;
     if (entry.keywords.some((keyword) => folded.includes(normalizeEs(keyword)))) {
       return entry;
     }
@@ -174,26 +200,67 @@ export function classify(
   // 'unknown' is the existing rule 5 path (register the doubt, propose a
   // human), so no new intent is introduced.
   if (asksProtectedTopic(folded)) return 'unknown';
+  // The knowledge base is resolved once and reused below.
+  const kbOutcome =
+    content.kb !== undefined && content.kb.length > 0 && !isWholeMessageAnswer(folded)
+      ? retrieve(content.kb, message, retrievalMode)
+      : null;
+  // A passage that belongs to a specific programme outranks the generic FAQ,
+  // but ONLY when the lead actually named that kind of programme. The generic
+  // `informacion` line exists for questions that name NOTHING ("¿en qué
+  // consiste?", "¿de qué va el curso?"); when the lead names a course the same
+  // shape is asking about THAT course and the base holds the exact passage, so
+  // the brief explanation comes from the course and not from the school-wide
+  // blurb. The `mentionsProgramme` guard is what keeps "¿de qué trata el de
+  // programación?" in the curated catalogue answer: "programación" is a family,
+  // not a programme, and without the guard the base answered it with the video
+  // games master. Placed after asksProtectedTopic, so price, payment conditions
+  // and the other protected topics still escalate (rule 5), and before
+  // findApprovedAnswer, which would otherwise take it.
+  if (
+    mentionsProgramme(folded) &&
+    kbOutcome !== null &&
+    kbOutcome.match !== null &&
+    isProgrammePassage(kbOutcome.match.passage)
+  ) {
+    return 'kb';
+  }
   if (findApprovedAnswer(content, folded)) return 'general';
   if (INPUT_PATTERNS.decline.test(folded)) return 'decline';
+  // A positive interest statement is not a question: it advances to the call
+  // proposal (approved copy) instead of being registered as a false doubt.
+  // Checked AFTER decline, so "no me interesa" never reaches this line.
+  if (expressesInterest(folded)) return 'general';
+  // A closing remark ("gracias", "muchas gracias", "hasta luego") is social,
+  // not an unanswerable question: it must reach the closing template instead of
+  // the rule 5 doubt path.
+  if (isClosingRemark(folded)) return 'general';
   if (SOCIAL_GREETING.test(folded) || SOCIAL_CHECK_IN.test(folded) || SOCIAL_ACK.test(folded)) {
     return 'general';
   }
   // Knowledge base (Phase 0): the deterministic retrieval layer over the
-  // approved knowledge base (src/kb.ts). It is consulted LAST, right before
-  // the rule-5 fallback, so NO existing classification changes: the guarded
-  // intents win, the hand-written FAQ keeps priority over the knowledge
-  // base, and a soft decline or a greeting is never answered from it.
+  // approved knowledge base (src/kb.ts). Its first chance is above, BEFORE the
+  // FAQ, and it only takes it when the lead named a programme: there the base
+  // answers about that course while the generic FAQ would answer about the
+  // school. Here it is consulted LAST, right before the rule-5 fallback, so NO
+  // other classification changes: the guarded intents win, the hand-written FAQ
+  // keeps priority over the knowledge base for everything that names nothing,
+  // and a soft decline or a greeting is never answered from it.
   //
   // Only a profile that HAS a knowledge base can reach this branch
   // (ApprovedContent.kb); without one the behaviour is exactly as before.
   //
   // A whole-message answer to the pending ask is skipped on purpose: it is
   // the lead's ANSWER, not a query, and the knowledge base must not steal it
-  // (see isWholeMessageAnswer above).
-  if (content.kb !== undefined && content.kb.length > 0 && !isWholeMessageAnswer(folded)) {
-    const outcome = retrieve(content.kb, message, retrievalMode);
-    if (outcome.match !== null) return 'kb';
-  }
+  // (see isWholeMessageAnswer above). The outcome is the one already computed
+  // at the top, so a single retrieval runs per turn.
+  if (kbOutcome !== null && kbOutcome.match !== null) return 'kb';
+  // A greeting with a neutral preamble ("hola, vi vuestro mensaje") is still
+  // social: it must not register a doubt as if the lead had asked something
+  // unanswerable. Placed LAST - after every guarded intent, the FAQ and the
+  // knowledge base - and restricted to messages that open with a greeting AND
+  // carry no question, so "hola, ¿hacéis prácticas?" still falls through to the
+  // doubt path when no approved passage clears the retrieval thresholds.
+  if (LEADING_GREETING.test(folded) && !looksLikeQuestion(folded)) return 'general';
   return 'unknown';
 }

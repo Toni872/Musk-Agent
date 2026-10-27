@@ -6,9 +6,10 @@
 // NOT authorize sending it whole, so the document is never quoted: only the
 // per-passage `answer` is ever sent to the lead.
 //
-// Hard rules 4 and 11: this content is PENDING MUSK sign-off, so it lives
-// ONLY in the DEMO content profile (src/content.demo.ts). The approved
-// profile (src/content.ts) does not get it.
+// Hard rules 4 and 11: this content is PENDING MUSK sign-off. It now lives in
+// the single unified profile (src/content.ts) as part of APPROVED_CONTENT.kb,
+// alongside the FAQ and opening/cualification copy. The document is never sent
+// whole: only each passage's lead-facing `answer` is ever delivered.
 //
 // Two invariants are enforced by tests (tests/retrieval.test.ts):
 //  1. no lead-facing answer contains a single digit (no prices, no amounts,
@@ -329,7 +330,7 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
     id: 'kb-videojuegos-contenido',
     title: 'Videojuegos: para quién es y qué aprendes',
     answer:
-      'El máster de videojuegos: Unity y Unreal, y el proyecto final es un juego tuyo publicado en Steam. Se empieza desde cero, con mentores que te guide.',
+      'El máster de videojuegos: Unity y Unreal, con un proyecto final en el que construyes tu propio juego. Se empieza desde cero, con mentores que te guían.',
     terms: [
       'videojuegos',
       'master de videojuegos',
@@ -469,7 +470,7 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
     id: 'kb-practicas',
     title: 'Prácticas en empresa',
     answer:
-      'Las prácticas en empresa están garantizadas mediante un convenio, y el equipo de orientación laboral te pregunta tus preferencias y asigna la empresa. Las condiciones te las confirma una persona del equipo.',
+      'Las prácticas en empresa se gestionan mediante un convenio de colaboración. El equipo de orientación laboral te acompaña en la búsqueda de empresa y las condiciones concretas te las confirma una persona del equipo.',
     terms: [
       'practicas',
       'practicas en empresa',
@@ -485,7 +486,7 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
     id: 'kb-empleo-ayuda',
     title: 'Ayuda para encontrar trabajo',
     answer:
-      'Sí, te ayudan a encontrar trabajo: hay orientación laboral desde el primer día, con el CV de la escuela, el LinkedIn preparado, masterclasses, pruebas técnicas y contacto con reclutadoras.',
+      'Hay orientación laboral desde el primer día: el CV de la escuela, el LinkedIn preparado, masterclasses, pruebas técnicas y contacto con reclutadoras. El acompañamiento lo lleva una persona del equipo.',
     terms: [
       'me ayudan a encontrar trabajo',
       'ayudais',
@@ -571,7 +572,7 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
     id: 'kb-freelance',
     title: 'Trabajar por cuenta propia',
     answer:
-      'Sí, hay camino a freelance: en Back End se trabaja cómo publicar tu proyecto y buscar trabajo por cuenta propia, y en videojuegos publicas y vendes tu propio juego en Steam.',
+      'Hay contenido orientado a trabajar por cuenta propia: en Back End se trabaja cómo publicar tu proyecto y buscar trabajo por cuenta propia, y en videojuegos cómo publicar y vender tu propio juego en Steam.',
     terms: [
       'freelance',
       'trabajar por mi cuenta',
@@ -964,10 +965,65 @@ const DEVELOPMENT_EXAMPLE_QUERIES: Record<string, string[]> = {
   ],
 };
 
+// The question templates a lead uses to ask about a programme's content. They
+// are phrased the way the lead writes them on WhatsApp, because they are
+// retrieval terms (Folded and stopword-filtered): what matters is the content
+// words they contribute — "trata", "consiste", "hablame", "curso",
+// "informacion", "enseña" — not the courtesy wrapper.
+//
+// Hard rule 2 still holds: these templates only reach a `-contenido` passage,
+// whose answer is general content, skills and outcomes. No syllabus, no price.
+export const CONTENT_QUESTION_TERMS: readonly string[] = [
+  'de que trata',
+  'de que se trata',
+  'en que consiste',
+  'hablame de',
+  'que es el curso de',
+  'informacion de',
+  'que me enseñas en',
+  'de que va el curso',
+];
+
 export const KB_PASSAGES: KbPassage[] = KB_PASSAGE_SOURCE.map((passage) => {
   const exampleQueries = DEVELOPMENT_EXAMPLE_QUERIES[passage.id];
   if (exampleQueries === undefined) {
     throw new Error(`Missing synthetic development queries for ${passage.id}`);
   }
-  return { ...passage, exampleQueries };
+  // Programme-content passages also own the question templates a lead uses to
+  // ask "what is this course about". Without them the template words ("trata",
+  // "consiste", "hablame", "curso") count as unmatched query terms, which does
+  // two harmful things, both measured on 2026-10-27:
+  //
+  //  - the content passage loses the tie against its own "salidas" passage
+  //    (same single programme term, different answer), so "¿de qué trata el de
+  //    full stack?" answered with professional outcomes instead of content;
+  //  - a single-term query scores under MIN_BM25_SCORE for the rarest
+  //    programme, so "¿de qué trata el de videojuegos?" escalated to a human.
+  //
+  // The terms are data, not a threshold move: MIN_BM25_SCORE and
+  // MIN_TERM_COVERAGE stay untouched. They are shared by every `-contenido`
+  // passage (each passage keeps its own programme name in `terms`), so a new
+  // programme inherits the coverage and the regression test extends with it.
+  const contentQuestionTerms = passage.id.endsWith('-contenido') ? CONTENT_QUESTION_TERMS : [];
+  return {
+    ...passage,
+    terms: [...passage.terms, ...contentQuestionTerms],
+    exampleQueries,
+  };
 });
+
+// Passages that exist once per programme (content and professional outcomes).
+// They are the ones that can answer a question about a NAMED course, so
+// `classify` lets them outrank the generic FAQ entry that covers the same shape
+// without a programme ("¿en qué consiste?" vs "¿en qué consiste python?").
+// Expressed as a predicate here, next to the ids, so the intent layer never
+// parses slugs.
+const PROGRAMME_PASSAGE_IDS = new Set(
+  KB_PASSAGES.filter((passage) => /-(contenido|salidas)$/.test(passage.id)).map(
+    (passage) => passage.id,
+  ),
+);
+
+export function isProgrammePassage(passage: KbPassage): boolean {
+  return PROGRAMME_PASSAGE_IDS.has(passage.id);
+}

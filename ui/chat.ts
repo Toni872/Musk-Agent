@@ -19,11 +19,8 @@ import {
   type ApprovedContent,
   type QualificationQuestion,
 } from '../src/content';
-import { DEMO_CONTENT } from '../src/content.demo';
 import type { LLMProvider } from '../src/llm';
 import { composeTurnOutbound } from '../src/outbound';
-
-export type ContentProfile = 'real' | 'demo';
 
 export type ChatMessageRole = 'lead' | 'agent' | 'diagnostic' | 'info';
 
@@ -46,7 +43,6 @@ export interface TurnDiagnostic {
 }
 
 export interface ChatState {
-  profile: ContentProfile;
   banner: string;
   messages: ChatMessage[];
   stopped: boolean;
@@ -60,7 +56,9 @@ export interface ChatState {
 }
 
 export interface ChatOptions {
-  profile?: ContentProfile;
+  // Content injection seam (tests and experiments only): the shipped UI always
+  // uses APPROVED_CONTENT, there is no profile switch any more.
+  content?: ApprovedContent;
   lead?: LeadContact;
   // Optional LLM provider for the rephrase layer (Phase 1). Without it the UI
   // is fully deterministic, exactly as before; with it, the grounding verdict
@@ -68,11 +66,11 @@ export interface ChatOptions {
   provider?: LLMProvider | null;
 }
 
-// Mirrors src/simulator.ts printContentBanner().
-export const CONTENT_BANNERS: Record<ContentProfile, string> = {
-  real: 'Content: Curso de Desarrollo Full Stack (curated from MUSK dossier; final wording sign-off pending).',
-  demo: 'Content: DEMO SAMPLE (not approved by MUSK) — for flow demonstration only.',
-};
+// Mirrors src/simulator.ts printContentBanner(). One profile, one banner: the
+// demo/real split is gone, and the copy is curated from MUSK's material with the
+// final wording sign-off still pending.
+export const CONTENT_BANNER =
+  'Content: perfil único de Escuela Musk (contenido curado; firma final de redacción pendiente).';
 
 // Mirrors src/simulator.ts printOpening(): rule 4, a TODO(decisión) placeholder
 // is never sent, it is reported instead so the gap stays visible.
@@ -93,12 +91,6 @@ export const DEFAULT_LEAD: LeadContact = {
   lossReason: 'no respondió a los intentos de llamada',
 };
 
-// Content profile -> ApprovedContent. No environment access: the UI is fully
-// deterministic unless a provider is injected explicitly (provider: null by
-// default, so the browser demo never calls a model).
-export function contentFor(profile: ContentProfile): ApprovedContent {
-  return profile === 'demo' ? DEMO_CONTENT : APPROVED_CONTENT;
-}
 
 // Operator line of one turn. When the message was RECEIVED as the answer to the
 // pending ask, that disposition LEADS the line: the raw classifier label alone
@@ -128,12 +120,16 @@ export function formatHandoff(handoff: HandoffContext): string {
 
 // Operator-facing view of the commercial summary the agent built from the
 // conversation (spec §3.3). The demo has to show it, not hide it in the payload.
-export function formatHandoffSummary(handoff: HandoffContext): string {
-  return `resumen para el comercial = ${handoff.summary}`;
+// `updated` marks the re-render that happens when the lead writes after the
+// handoff: the summary is amended in place (the agreed moment often arrives
+// after the notice), and without the marker the panel looked like a second
+// notice had been sent to Laura.
+export function formatHandoffSummary(handoff: HandoffContext, updated = false): string {
+  return `resumen para el comercial${updated ? ' (actualizado)' : ''} = ${handoff.summary}`;
 }
 
 export class Chat {
-  private profile: ContentProfile;
+  private readonly content: ApprovedContent;
   private readonly lead: LeadContact;
   private readonly provider: LLMProvider | null;
   private agent: MuskAgent;
@@ -141,9 +137,7 @@ export class Chat {
   private turnCount = 0;
 
   constructor(options: ChatOptions = {}) {
-    // DEMO by default so the demo always has a greeting: src/content.ts keeps
-    // the real opening as a TODO(decisión) until MUSK decides its wording.
-    this.profile = options.profile ?? 'demo';
+    this.content = options.content ?? APPROVED_CONTENT;
     this.lead = options.lead ?? DEFAULT_LEAD;
     this.provider = options.provider ?? null;
     this.agent = this.buildAgent();
@@ -153,8 +147,7 @@ export class Chat {
   // Plain, serializable snapshot for the renderer and the tests.
   getState(): ChatState {
     return {
-      profile: this.profile,
-      banner: CONTENT_BANNERS[this.profile],
+      banner: CONTENT_BANNER,
       messages: this.messages.map((message) => ({ ...message })),
       stopped: this.agent.isStopped,
       records: this.agent.records.map((record) => ({ ...record })),
@@ -162,6 +155,19 @@ export class Chat {
       pendingDecisions: [...this.agent.pendingDecisions],
       turnCount: this.turnCount,
     };
+  }
+
+  // Commercial handoff of the session, if the agent already fired one. The
+  // exports (copy notice / JSON / report) need it, and reaching into the
+  // private agent from the DOM layer was a fragile cast: this is the public
+  // seam instead.
+  get handoff(): HandoffContext | undefined {
+    return this.agent.handoff;
+  }
+
+  // Qualification answers gathered so far, in arrival order (supervision only).
+  get qualificationAnswers(): { id: string; text: string }[] {
+    return this.agent.qualificationAnswers;
   }
 
   // One turn: register the lead message, run the guard, render the reply plus
@@ -191,19 +197,9 @@ export class Chat {
     return this.getState();
   }
 
-  // Switching the content profile restarts the conversation with the new
-  // profile, exactly as running the CLI with/without --demo would.
-  setProfile(profile: ContentProfile): ChatState {
-    if (profile !== this.profile) {
-      this.profile = profile;
-      this.restart();
-    }
-    return this.getState();
-  }
-
   private buildAgent(): MuskAgent {
     return new MuskAgent({
-      content: contentFor(this.profile),
+      content: this.content,
       provider: this.provider,
       lead: this.lead,
     });
@@ -219,7 +215,11 @@ export class Chat {
 
   private showOpening(): void {
     const opening = this.agent.opening();
-    this.messages.push({ role: 'agent', text: opening ?? OPENING_PLACEHOLDER });
+    // Rule 4: a TODO(decisión) placeholder is NEVER sent to the lead. When no
+    // approved opening exists there is no agent turn to show, so the gap is
+    // reported as an operator note - rendering it as an agent bubble made the
+    // lead's transcript claim the agent had written something it never wrote.
+    this.messages.push({ role: opening ? 'agent' : 'info', text: opening ?? OPENING_PLACEHOLDER });
     const pending = this.agent.pendingDecisions;
     if (pending.length > 0) {
       this.messages.push({ role: 'info', text: `pending : ${pending.join(', ')}` });
@@ -277,8 +277,16 @@ export class Chat {
       }),
     });
     if (result.handoff) {
-      this.messages.push({ role: 'diagnostic', text: formatHandoff(result.handoff) });
-      this.messages.push({ role: 'diagnostic', text: formatHandoffSummary(result.handoff) });
+      // The notice is sent ONCE, on the turn the handoff fires. Post-handoff
+      // turns keep returning the context (amended with the agreed moment), so
+      // re-printing the notice line made the panel read as if Laura had been
+      // notified twice. Only the summary is re-rendered, marked as updated.
+      if (result.action === 'handoff') {
+        this.messages.push({ role: 'diagnostic', text: formatHandoff(result.handoff) });
+        this.messages.push({ role: 'diagnostic', text: formatHandoffSummary(result.handoff) });
+      } else {
+        this.messages.push({ role: 'diagnostic', text: formatHandoffSummary(result.handoff, true) });
+      }
     }
     if (result.ruleViolations.length > 0) {
       this.messages.push({

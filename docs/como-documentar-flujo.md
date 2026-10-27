@@ -15,7 +15,7 @@ Añadir un botón "Exportar informe PDF/JSON" en la UI que genere un informe con
 
 | Sección | Contenido |
 |---|---|
-| Cabecera | Fecha/hora, perfil (DEMO/REAL), lead (id/contacto/bucket), URL |
+| Cabecera | Fecha/hora, lead (id/contacto/bucket), URL; no hay campo de perfil en la exportación |
 | Conversación completa | Todos los mensajes en orden: `LEAD: ...` / `AGENTE: ...` con timestamp si se añade |
 | Registros | Tabla cronológica: tipo, intent, acción, detalle |
 | Respuestas capturadas | Pregunta del agente -> respuesta del lead |

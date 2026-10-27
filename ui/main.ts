@@ -8,7 +8,6 @@ import {
   createChat,
   type ChatMessage,
   type ChatState,
-  type ContentProfile,
 } from './chat';
 import type { HandoffContext } from '../src/agent';
 
@@ -23,31 +22,7 @@ const INPUT_PLACEHOLDER = 'Escribe como el lead y pulsa Enviar';
 const INPUT_PLACEHOLDER_STOPPED =
   'Conversación detenida: escribe un mensaje o pulsa Reiniciar.';
 
-const STORAGE_KEY = 'musk-ui-session-v1';
-
-function loadPersisted(): { profile: ContentProfile } | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed.profile === 'demo' || parsed.profile === 'real') return { profile: parsed.profile };
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function persistState(): void {
-  try {
-    const state = chat.getState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile: state.profile, savedAt: new Date().toISOString() }));
-  } catch {
-    // ignore
-  }
-}
-
-const persisted = loadPersisted();
-const chat = createChat({ profile: persisted?.profile ?? 'real' });
+const chat = createChat();
 let busy = false;
 
 const root = document.getElementById('app');
@@ -91,17 +66,10 @@ root.innerHTML = `
             <span class="dot" aria-hidden="true"></span>
             <div>
               <h2 class="card__title">Agente MUSK</h2>
-              <p class="chat__status">En línea · respuestas aprobadas</p>
+              <p class="chat__status">En línea · simulación con contenido unificado</p>
             </div>
           </div>
-          <div classtag="chat__controls">
-            <label class="field">
-              <span class="field__label">Contenido</span>
-              <select id="profile">
-                <option value="real">Real (contenido aprobado del piloto)</option>
-                <option value="demo">DEMO (muestra, not approved)</option>
-              </select>
-            </label>
+          <div class="chat__controls">
             <button id="copy-handoff" class="btn btn--ghost btn--small" type="button">Copiar aviso</button>
             <button id="export-json" class="btn btn--ghost btn--small" type="button">Descargar JSON</button>
             <button id="export" class="btn btn--ghost btn--small" type="button">Descargar informe</button>
@@ -140,7 +108,8 @@ root.innerHTML = `
   </footer>
 `;
 
-// Perfil único: real. Se elimina el selector demo/real.
+// Element wiring. One content profile: the shipped UI and the CLI use the same\r
+// curated Escuela Musk content.
 const resetButton = getElement<HTMLButtonElement>('reset');
 const exportButton = getElement<HTMLButtonElement>('export');
 const exportJsonButton = getElement<HTMLButtonElement>('export-json');
@@ -163,7 +132,6 @@ function getElement<T extends HTMLElement>(id: string): T {
 // never be interpreted as markup.
 function render(state: ChatState): void {
   banner.textContent = state.banner;
-  // profileSelect.value = state.profile; // perfil único real
   document.body.dataset.stopped = String(state.stopped);
 
   if (state.messages.length === 0) {
@@ -253,7 +221,6 @@ async function handleSend(text: string): Promise<void> {
   try {
     const state = await chat.send(text);
     render(state);
-    persistState();
   } finally {
     busy = false;
     applyBusy(chat.getState());
@@ -295,33 +262,22 @@ composer.addEventListener('submit', (event) => {
   void handleSend(limited);
 });
 
-// Selector de perfil eliminado - solo contenido real
-
+// The conversation lives in memory only: reloading the page starts a fresh
+// session, which is what the reset copy promises.
 resetButton.addEventListener('click', () => {
   if (!confirm('¿Reiniciar la sesión? Se borrará la conversación actual.')) return;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
   render(chat.reset());
-  persistState();
   input.focus();
 });
 
 copyHandoffButton.addEventListener('click', async () => {
-  const agentState = (chat as any).agent;
-  const handoff: HandoffContext | undefined = agentState?.lastHandoffContext || undefined;
+  const handoff: HandoffContext | undefined = chat.handoff;
   if (!handoff) {
     alert('Aún no hay handoff generado en esta sesión.');
     return;
   }
 
-  const qa = [] as Array<{ questionId?: string; id?: string; answer?: string; text?: string }>;
-  if ((handoff as any).qualificationAnswers) qa.push(...(handoff as any).qualificationAnswers);
-  else if (agentState?.qualificationAnswers) {
-    qa.push(...agentState.qualificationAnswers.map((q: any) => ({ questionId: q.id, answer: q.text })));
-  }
+  const qa = chat.qualificationAnswers.map((q) => ({ questionId: q.id, answer: q.text }));
 
   const lines: string[] = [];
   lines.push('AVISO COMERCIAL - Escuela Musk');
@@ -341,13 +297,13 @@ copyHandoffButton.addEventListener('click', async () => {
   if (qa.length > 0) {
     lines.push('RESPUESTAS DE CUALIFICACIÓN:');
     for (const q of qa) {
-      lines.push(`- ${q.questionId || q.id || 'pregunta'}: ${q.answer || q.text || '-'}`);
+      lines.push(`- ${q.questionId}: ${q.answer}`);
     }
     lines.push('');
   }
 
   if (handoff.doubts && handoff.doubts.length > 0) {
-    lines.push('DUDA S INCLUIDAS:');
+    lines.push('DUDAS INCLUIDAS:');
     for (const d of handoff.doubts) {
       lines.push(`- ${d}`);
     }
@@ -382,19 +338,17 @@ copyHandoffButton.addEventListener('click', async () => {
 
 exportJsonButton.addEventListener('click', () => {
   const state = chat.getState();
-  const agentState = (chat as any).agent;
   const now = new Date();
   const payload = {
     generatedAt: now.toISOString(),
-    profile: state.profile,
     turnCount: state.turnCount,
     stopped: state.stopped,
     messages: state.messages,
     records: state.records,
     doubts: state.doubts,
     pendingDecisions: state.pendingDecisions,
-    handoff: agentState?.lastHandoffContext || null,
-    qualificationAnswers: agentState?.qualificationAnswers || [],
+    handoff: chat.handoff ?? null,
+    qualificationAnswers: chat.qualificationAnswers.map((q) => ({ questionId: q.id, answer: q.text })),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -412,13 +366,9 @@ exportButton.addEventListener('click', () => {
   const state = chat.getState();
   const now = new Date().toLocaleString('es-ES');
   const title = `Informe MUSK - ${now.replace(/[/:]/g, '-')}`;
-  const agentState = (chat as any).agent;
-  const handoff: HandoffContext | undefined = agentState?.lastHandoffContext || undefined;
-  const handedQualification = (): Array<{questionId?: string; id?: string; answer?: string; text?: string}> => {
-    if (handoff && (handoff as any).qualificationAnswers) return (handoff as any).qualificationAnswers;
-    if (agentState?.qualificationAnswers) return agentState.qualificationAnswers.map((qa: any) => ({ questionId: qa.id, answer: qa.text }));
-    return [];
-  };
+  const handoff: HandoffContext | undefined = chat.handoff;
+  const handedQualification = (): Array<{ questionId: string; answer: string }> =>
+    chat.qualificationAnswers.map((qa) => ({ questionId: qa.id, answer: qa.text }));
 
   const messages = state.messages
     .map((m, idx) => {
@@ -453,7 +403,7 @@ exportButton.addEventListener('click', () => {
         <tr><th>Resumen para el comercial</th><td>${escapeHtml(handoff.summary || '-')}</td></tr>
       </tbody>
     </table>
-    ${handedQualification().length > 0 ? `<h3>Respuestas de cualificación</h3><ul>${handedQualification().map((qa: any) => `<li><strong>${escapeHtml(qa.questionId || qa.id || '')}</strong>: ${escapeHtml(qa.answer || qa.text || '')}</li>`).join('')}</ul>` : ''}
+        ${handedQualification().length > 0 ? `<h3>Respuestas de cualificación</h3><ul>${handedQualification().map((qa) => `<li><strong>${escapeHtml(qa.questionId)}</strong>: ${escapeHtml(qa.answer)}</li>`).join('')}</ul>` : ''}
     ${handoff.doubts && handoff.doubts.length > 0 ? `<h3>Dudas en el momento del aviso</h3><ul>${handoff.doubts.map((d: string) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}
     ${handoff.afterHandoff && handoff.afterHandoff.length > 0 ? `<h3>Mensajes del lead tras el aviso</h3><ul>${handoff.afterHandoff.map((m: string) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>` : ''}
   </div>`
