@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 335 tests en 8 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 348 tests en 9 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 46 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 33 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo con el perfil único y el flujo completo (modo determinista sin LLM; ver configuración abajo).
@@ -52,7 +52,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `ui/build.mjs` | Empaqueta `ui/main.ts` + `ui/chat.ts` + `src/*` en `ui/dist/app.js` con esbuild (salida minificada, sin `process.env`) |
 | `ui/server.mjs` | Servidor estático sin dependencias para `ui/dist` en `http://localhost:4173` |
 | `tests/rules.test.ts` | 49 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores + cobertura de información (routing a contenido aprobado) |
-| `tests/reception.test.ts` | 91 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas, `reset` y fundamentación de la reformulación del LLM (incluida la fuente: contexto del perfil sí, nombre de la formación no) |
+| `tests/reception.test.ts` | 119 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas, `reset` y fundamentación de la reformulación del LLM (incluida la fuente: contexto del perfil sí, nombre de la formación no) |
 | `tests/entailment.test.ts` | 13 tests de la comprobación de fundamentación: reformulación fiel, número inventado, palabra de otra entrada, palabras vacías, candidata vacía, la misma candidata contra una fuente que sí la respalda y la composición de la fuente (respuesta casada + contexto del perfil, sin nombre de formación ni otras entradas) |
 | `tests/ui-chat.test.ts` | 14 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil, reinicio y la línea de fundamentación |
 | `tests/eval.test.ts` | 12 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión + la puerta propia de la base de conocimiento (0 falsos positivos en el grupo que debe escalar) + la puerta de fundamentación (0 violaciones) |
@@ -143,16 +143,32 @@ El enrutado de respuestas aprobadas (`classify` → `findApprovedAnswer`) se mid
 
 ## Configuración del LLM (opcional)
 
-Copia `.env.example` y define las variables si quieres reformulación LLM en el REPL:
+Copia `.env.example` a `.env`, pon la clave y arranca el REPL. `npm run sim` lee
+`.env` automáticamente si existe (si no existe, no pasa nada):
+
+```powershell
+Copy-Item .env.example .env
+# edita .env y rellena MUSK_LLM_API_KEY
+npm run sim
+```
 
 | Variable | Descripción |
 |---|---|
-| `MUSK_LLM_BASE_URL` | Endpoint compatible con OpenAI (p. ej. `https://api.openai.com/v1`) |
+| `MUSK_LLM_BASE_URL` | Endpoint compatible con OpenAI, **con https** y con el segmento de versión. El cliente añade `/chat/completions` |
 | `MUSK_LLM_API_KEY` | Clave del proveedor |
 | `MUSK_LLM_MODEL` | Modelo (por defecto `gpt-4o-mini`) |
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
 
-Sin estas variables, el agente funciona igual en modo determinista con las respuestas aprobadas. Todo lo protegido por reglas ignora el LLM siempre.
+Hacen falta **las dos** primeras: con solo una, el proveedor no se activa y el
+arnés sigue determinista. Una variable exportada en la sesión gana sobre `.env`,
+así que puedes sobreescribir un valor para una ejecución concreta.
+
+**Groq** es compatible sin tocar código: `https://api.groq.com/openai/v1` con
+`openai/gpt-oss-120b` (el más capaz) o `openai/gpt-oss-20b` (más barato y rápido).
+No uses `llama-3.3-70b-versatile` ni `llama-3.1-8b-instant`: Groq los retiró el
+16 de agosto de 2026.
+
+Sin estas variables, el agente funciona igual en modo determinista con las respuestas aprobadas. Todo lo protegido por reglas ignora el LLM siempre. `.env` está en `.gitignore`: la clave nunca se commitea, y el proveedor solo se usa en local, nunca en la web publicada.
 
 ### El contrato del LLM: solo redactar, nunca añadir
 
@@ -202,7 +218,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 335 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 348 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe del bucle de evaluación (46 casos de la FAQ + 31 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
@@ -210,7 +226,7 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 335 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 348 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

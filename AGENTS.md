@@ -200,7 +200,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (335 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (348 tests) y `npm run eval`
   (46 casos etiquetados del bucle de evaluación de la FAQ + 33 de la base de
   conocimiento + 22 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre

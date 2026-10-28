@@ -18,6 +18,16 @@ import { APPROVED_CONTENT, type ApprovedContent, type QualificationQuestion } fr
 import { loadLLMConfigFromEnv, OpenAICompatibleLLM, type LLMProvider } from './llm';
 import { composeTurnOutbound } from './outbound';
 
+// Local convenience only: `.env` is git-ignored and optional. Without this, the
+// documented "copy .env.example to .env" step would have no effect, because
+// nothing else reads the file. Variables already exported in the shell win.
+// Missing file is not an error: the harness runs deterministically.
+try {
+  process.loadEnvFile('.env');
+} catch {
+  // No .env: deterministic mode, nothing to load.
+}
+
 const args = process.argv.slice(2);
 // Single unified profile: no flag, no alternate sample to drift out of sync.
 const CONTENT: ApprovedContent = APPROVED_CONTENT;
@@ -137,10 +147,12 @@ async function runSmoke(): Promise<void> {
 async function runRepl(): Promise<void> {
   console.log('MUSK simulation harness — standalone: no real channel, no real leads, no CRM.');
   printContentBanner();
-  const provider = buildProvider();
+  const config = loadLLMConfigFromEnv();
+  const provider = config ? new OpenAICompatibleLLM(config) : null;
   console.log(
-    provider
-      ? 'LLM provider: OpenAI-compatible (configured via MUSK_LLM_* environment variables).'
+    config
+      ? // Model and host only: the API key must never be printed.
+        `LLM provider: ${config.model} at ${config.baseUrl} (temperature ${config.temperature}). Guarded intents stay deterministic.`
       : 'LLM provider: none — deterministic approved replies only. Set MUSK_LLM_BASE_URL and MUSK_LLM_API_KEY to enable.',
   );
   console.log('Commands: /reset (new conversation), /state (records), /exit');
