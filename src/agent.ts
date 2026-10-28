@@ -2,17 +2,22 @@
 // runs one conversation turn, and applies the deterministic rules guard
 // (intent classification + rules.guardReply) before any reply reaches the lead.
 //
-// Guarded intents (stop, human, price, temario, financiacion, unknown) are
-// fully deterministic and never call the LLM. The LLM is only consulted for
-// 'general' turns that match an approved FAQ entry, and its output is always
-// validated by guardReply AND by the grounding check (src/entailment.ts): the
-// model may only use the content it was SHOWN — the approved answer of the
-// matched entry plus the approved profile context (fallback:
-// approved text, then registered doubt).
+// Guarded intents (stop, human, price, temario, financiacion, decline) and the
+// rule-5 doubt path are fully deterministic and never call the LLM. The LLM is
+// only consulted for an approved FAQ answer, a matched knowledge-base passage,
+// or the fear reassurance template. Its output is always validated by
+// guardReply AND by the grounding check (src/entailment.ts): the model may only
+// use the content it was SHOWN — the approved text plus the approved profile
+// context (fallback: approved text, then registered doubt).
 
 import type { ApprovedContent, FaqEntry, QualificationQuestion, QualificationReaction } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
-import { checkEntailment, composeGroundingSource, groundingProfileContext } from './entailment';
+import {
+  checkEntailment,
+  composeGroundingSource,
+  composeGroundingSourceFromText,
+  groundingProfileContext,
+} from './entailment';
 import type { LLMProvider } from './llm';
 import {
   bareAcknowledgement,
@@ -528,10 +533,9 @@ export class MuskAgent {
           this.push({ kind: 'handoff', intent, detail: 'reason=call_accepted' });
           break;
         }
-        // The knowledge base answered it (deterministic retrieval, no LLM).
-        // The passage answer IS the reply: it is the approved copy, and the
-        // shared guard at the end of this method validates it before it
-        // reaches the lead (defense in depth, no second guard call here).
+        // Retrieval stays deterministic. Only a matched passage's approved
+        // answer can be rephrased; a miss keeps the rule-5 doubt path and never
+        // calls the provider.
         const outcome = retrieve(this.content.kb ?? [], message);
         if (outcome.match === null) {
           // Unreachable in practice (classify only returns 'kb' on a match),
@@ -544,7 +548,16 @@ export class MuskAgent {
           break;
         }
         const match = outcome.match;
-        reply = match.passage.answer;
+        const fromKb = await this.rephraseApproved(
+          message,
+          match.passage.answer,
+          composeGroundingSourceFromText(match.passage.answer, this.content),
+          `kb/${match.passage.id}`,
+          intent,
+        );
+        reply = fromKb.reply;
+        localViolations = fromKb.violations;
+        grounding = fromKb.grounding;
         // It answers the lead, so the anti-repeat mechanism must not replace
         // it with the invitation (see the tail of runTurn).
         answersLead = true;
@@ -567,12 +580,24 @@ export class MuskAgent {
         // and stays out of the doubt register, which feeds the pilot metric.
         // Everything else keeps the rule 5 path: register it, propose a human.
         const feared = expressesFear(normalizeEs(message));
-        if (!feared) {
+        if (feared) {
+          const approvedText = buildReply('reassurance');
+          const fromReassurance = await this.rephraseApproved(
+            message,
+            approvedText,
+            composeGroundingSourceFromText(approvedText, this.content),
+            'reassurance',
+            intent,
+          );
+          reply = fromReassurance.reply;
+          localViolations = fromReassurance.violations;
+          grounding = fromReassurance.grounding;
+        } else {
           registeredDoubts.push(message);
           this.recordDoubtMessage(message);
           this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
+          reply = buildReply('doubt');
         }
-        reply = buildReply(feared ? 'reassurance' : 'doubt');
         // Escalation with context: what came closest in the knowledge base
         // and how far it was from the thresholds. The operator sees WHY the
         // knowledge base did not answer, without the lead ever seeing it.
@@ -727,12 +752,11 @@ export class MuskAgent {
     return result;
   }
 
-  // Optional LLM phrasing for approved FAQ answers (Phase 1).
+  // Optional LLM phrasing for approved answers (Phase 1).
   //
   // The contract is narrow: the model may only WORD the approved source it was
-  // given — the approved answer of the MATCHED entry plus the approved profile
-  // context — never add content. Two checks decide whether its answer
-  // reaches the lead:
+  // given — the approved text plus the approved profile context — never add
+  // content. Two checks decide whether its answer reaches the lead:
   //
   //   1. the output guard (rules.ts): no amounts, no promotions, no promises;
   //   2. the grounding check (src/entailment.ts): every content token of the
@@ -751,14 +775,34 @@ export class MuskAgent {
     violations: string[];
     grounding?: { ok: boolean; unsupported: string[] };
   }> {
+    return this.rephraseApproved(
+      question,
+      entry.answer,
+      composeGroundingSource(entry, this.content),
+      `faq/${entry.id}`,
+      intent,
+    );
+  }
+
+  private async rephraseApproved(
+    question: string,
+    approvedText: string,
+    groundingSource: string,
+    provenanceLabel: string,
+    intent: Intent,
+  ): Promise<{
+    reply: string;
+    violations: string[];
+    grounding?: { ok: boolean; unsupported: string[] };
+  }> {
     if (!this.provider) {
-      return { reply: entry.answer, violations: [] };
+      return { reply: approvedText, violations: [] };
     }
     let raw: string;
     try {
       raw = (
         await this.provider.complete({
-          system: this.buildRequestPrompt(entry),
+          system: this.buildRequestPrompt(approvedText),
           messages: [{ role: 'user', content: question }],
         })
       ).trim();
@@ -770,7 +814,7 @@ export class MuskAgent {
         intent,
         detail: `rephrase not produced (provider failed): used the approved text`,
       });
-      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
+      return { reply: approvedText, violations: [], grounding: { ok: false, unsupported: [] } };
     }
     if (!raw) {
       this.push({
@@ -778,7 +822,7 @@ export class MuskAgent {
         intent,
         detail: `rephrase not produced (empty answer): used the approved text`,
       });
-      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
+      return { reply: approvedText, violations: [], grounding: { ok: false, unsupported: [] } };
     }
     if (raw.length <= 4) {
       this.push({
@@ -786,22 +830,22 @@ export class MuskAgent {
         intent,
         detail: `rephrase not produced (too short/empty-like): used the approved text`,
       });
-      return { reply: entry.answer, violations: [], grounding: { ok: false, unsupported: [] } };
+      return { reply: approvedText, violations: [], grounding: { ok: false, unsupported: [] } };
     }
     const guard = guardReply(raw);
-    // The source is EVERYTHING the model was shown for this call: the
-    // approved answer of the matched entry PLUS the profile context
-    // (generalDescription + methodology). The prompt is built from the same
-    // pieces (see buildRequestPrompt / buildSystemPrompt), so the check and
-    // the prompt can never disagree about what was allowed.
-    const entailment = checkEntailment(raw, composeGroundingSource(entry, this.content));
+    // The source is EVERYTHING the model was shown for this call: the approved
+    // text PLUS the profile context (generalDescription + methodology). The
+    // prompt is built from the same pieces (see buildRequestPrompt /
+    // buildSystemPrompt), so the check and the prompt can never disagree about
+    // what was allowed.
+    const entailment = checkEntailment(raw, groundingSource);
     const guardViolations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
     const accepted = guard.ok && entailment.ok;
     if (accepted) {
       this.push({
         kind: 'grounding',
         intent,
-        detail: `grounded rephrase of faq/${entry.id}`,
+        detail: `grounded rephrase of ${provenanceLabel}`,
       });
       return { reply: raw, violations: [], grounding: { ok: true, unsupported: [] } };
     }
@@ -816,7 +860,7 @@ export class MuskAgent {
       detail: `rephrase rejected (${reasons.join('; ')}): used the approved text`,
     });
     return {
-      reply: entry.answer,
+      reply: approvedText,
       violations: guardViolations,
       grounding: { ok: false, unsupported: entailment.unsupported },
     };
@@ -1471,18 +1515,18 @@ export class MuskAgent {
   }
 
   // VOLATILE part of the LLM request: the per-call instruction plus the ONE
-  // approved answer of the matched entry. The other FAQ answers of the profile
+  // approved answer for this turn. The other approved answers of the profile
   // are deliberately absent: the model must not be able to copy them.
   //
   // The instruction is written to the MODEL (not to the lead), in Spanish, as
   // the rest of the prompt.
-  private buildRequestPrompt(entry: FaqEntry): string {
+  private buildRequestPrompt(approvedAnswer: string): string {
     return [
       this.systemPrompt,
       'Instrucción de esta llamada: reformula la respuesta aprobada usando solo la información de la fuente.',
       'No añadas números, precios, porcentajes, fechas, promesas ni hechos nuevos.',
       'Si la fuente no responde a la pregunta, dilo claramente sin inventar nada.',
-      `Respuesta aprobada de esta pregunta (la única de la FAQ que puedes usar): ${entry.answer}`,
+      `Respuesta aprobada de esta pregunta (la única de la FAQ que puedes usar): ${approvedAnswer}`,
     ].join('\n');
   }
 }

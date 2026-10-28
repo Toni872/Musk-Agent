@@ -11,7 +11,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { APPROVED_CONTENT } from '../src/content';
-import { checkEntailment, composeGroundingSource, ENTAILMENT_STOPWORDS } from '../src/entailment';
+import {
+  checkEntailment,
+  composeGroundingSource,
+  composeGroundingSourceFromText,
+  ENTAILMENT_STOPWORDS,
+} from '../src/entailment';
 
 // A real approved answer (the 'modalidad' entry of the approved profile).
 const SOURCE =
@@ -115,6 +120,7 @@ describe('composición de la fuente de fundamentación', () => {
   // 1. The source carries the matched answer and the profile context.
   it('la fuente lleva la respuesta casada y el contexto del perfil', () => {
     const source = composeGroundingSource(entry, APPROVED_CONTENT);
+    expect(source).toBe(composeGroundingSourceFromText(entry.answer, APPROVED_CONTENT));
     expect(source).toContain(entry.answer);
     expect(source).toContain(APPROVED_CONTENT.generalDescription);
     expect(source).toContain(APPROVED_CONTENT.methodology);

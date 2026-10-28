@@ -90,9 +90,10 @@ export interface ApprovedContent {
   // invitation, so no unapproved copy reaches the lead (rules 4, 11).
   doubtFollowup?: string;
   // Knowledge base for the deterministic retrieval layer (src/retrieval.ts). A
-  // passage is the only thing that can be sent as a knowledge-base answer, and
-  // it is sent verbatim after the output guard. This is what answers questions
-  // about one specific programme ("¿qué se aprende en Python?").
+  // matched passage is the only approved source for a knowledge-base answer;
+  // the optional guarded rephrase uses that answer, and deterministic mode
+  // sends it verbatim. This answers questions about one specific programme
+  // ("¿qué se aprende en Python?").
   kb?: KbPassage[];
 }
 

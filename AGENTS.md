@@ -152,17 +152,23 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   del programa correcto, no un fallo. "En qué consiste…" y "de qué va…" sin
   programa siguen en la FAQ `informacion`, que es la que gana al KB por diseño.
 - **Fuente de la fundamentación del LLM.** La regla es: el modelo solo puede usar
-  lo que se le mostró. La fuente de una llamada es la respuesta aprobada de la
-  entrada casada **más el contexto aprobado del perfil** (`generalDescription` y
-  `methodology`), y se compone en un solo sitio
-  (`composeGroundingSource`, en `src/entailment.ts`) para que el prompt y la
-  comprobación nunca discrepen. Quedan **fuera** de la fuente y del prompt: el
-  nombre de la formación (en el perfil único es un dato interno para el resumen
-  comercial, no texto que pueda llegar al lead), las listas de habilidades y
-  salidas (son largas y desvían al modelo del tema de la pregunta) y las demás
+  lo que se le mostró. La fuente de una llamada es el texto aprobado que va a
+  reformular **más el contexto aprobado del perfil** (`generalDescription` y
+  `methodology`), y se compone en un solo sitio (`composeGroundingSource` para una
+  entrada de FAQ y `composeGroundingSourceFromText` para un pasaje o una plantilla,
+  en `src/entailment.ts`) para que el prompt y la comprobación nunca discrepen.
+  Solo se reformulan tres cosas: la respuesta de la FAQ casada, el pasaje de la base
+  de conocimiento que respondió y la plantilla `reassurance`. **Nunca** `price`,
+  `financiacion`, `temario`, `stop`, `human` ni `decline`, y **nunca** la plantilla
+  `doubt`: el motor la reconoce por igualdad de texto (`asksForContact`,
+  `isDoubtReply` en `src/agent.ts`) para armar la derivación a humano, así que
+  reformularla rompería el handoff duda → «sí». Quedan **fuera** de la fuente y del
+  prompt: el nombre de la formación (en el perfil único es un dato interno para el
+  resumen comercial, no texto que pueda llegar al lead), las listas de habilidades
+  y salidas (son largas y desvían al modelo del tema de la pregunta) y las demás
   entradas de la FAQ (la fuga entre entradas se mantiene cerrada). El contexto del
   perfil va en la parte estable del prompt (no cambia entre llamadas, se cachea);
-  la respuesta casada, en la parte volátil.
+  el texto aprobado de la llamada, en la parte volátil.
 - **Un miedo no es una duda.** Cuando el lead dice que no se ve capaz («no sé si
   sirvo», «no tengo base», «soy mayor para estudiar»), la duda va por dos caminos
   y en ese orden: primero el enganche léxico, que lleva esos términos al pasaje
@@ -200,9 +206,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (348 tests) y `npm run eval`
+- Antes de tocar nada: `npm run typecheck`, `npm test` (358 tests) y `npm run eval`
   (46 casos etiquetados del bucle de evaluación de la FAQ + 33 de la base de
-  conocimiento + 22 de fundamentación, que comprueban que la reformulación del
+  conocimiento + 23 de fundamentación, que comprueban que la reformulación del
   LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
   también en cada push (`.github/workflows/ci.yml`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de

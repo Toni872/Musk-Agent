@@ -1835,6 +1835,119 @@ describe('fundamentación de la reformulación del LLM (regla 4)', () => {
   });
 });
 
+const approvedRephraseCases = [
+  {
+    name: 'knowledge-base answer',
+    message: '¿en qué consiste python?',
+    intent: 'kb',
+    approvedText: passageAnswer('kb-python-contenido'),
+    rephrase: 'Python parte de cero y sirve para automatizar tu trabajo, con web, bases de datos y análisis de datos.',
+    provenanceLabel: 'kb/kb-python-contenido',
+    kbPassageId: 'kb-python-contenido',
+  },
+  {
+    name: 'fear reassurance',
+    message: 'no soy capaz',
+    intent: 'unknown',
+    approvedText: buildReply('reassurance'),
+    rephrase: 'Tienes un tutor personal detrás y todas las formaciones parten de cero. ¿Qué es lo que más te preocupa?',
+    provenanceLabel: 'reassurance',
+    kbPassageId: null,
+  },
+];
+
+describe('guarded rephrase of knowledge-base and reassurance answers', () => {
+  it.each(approvedRephraseCases)('$name: delivers a faithful rephrase', async (testCase) => {
+    const provider = new MockProvider(testCase.rephrase);
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(testCase.message);
+
+    expect(result.intent).toBe(testCase.intent);
+    expect(result.reply).toBe(testCase.rephrase);
+    expect(result.grounding).toEqual({ ok: true, unsupported: [] });
+    expect(result.ruleViolations).toEqual([]);
+    expect(provider.calls).toHaveLength(1);
+    expect(first(provider.calls).system).toContain(testCase.approvedText);
+    expect(agent.records.some((record) =>
+      record.kind === 'grounding' && record.detail === `grounded rephrase of ${testCase.provenanceLabel}`,
+    )).toBe(true);
+    if (testCase.kbPassageId !== null) {
+      expect(agent.records.some((record) => record.kb?.passageId === testCase.kbPassageId)).toBe(true);
+    }
+  });
+
+  it.each(approvedRephraseCases)('$name: rejects an unsupported token and uses the approved text', async (testCase) => {
+    const provider = new MockProvider(`${testCase.rephrase} 500.`);
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(testCase.message);
+
+    expect(result.reply).toBe(testCase.approvedText);
+    expect(result.grounding?.ok).toBe(false);
+    expect(result.grounding?.unsupported).toContain('500');
+    expect(provider.calls).toHaveLength(1);
+    expect(agent.records.some((record) =>
+      record.kind === 'grounding' && record.detail.includes('rephrase rejected'),
+    )).toBe(true);
+  });
+
+  it.each(approvedRephraseCases)('$name: falls back to the approved text when the provider throws', async (testCase) => {
+    const provider = new MockProvider(() => {
+      throw new Error('provider down');
+    });
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn(testCase.message);
+
+    expect(result.reply).toBe(testCase.approvedText);
+    expect(result.grounding).toEqual({ ok: false, unsupported: [] });
+    expect(provider.calls).toHaveLength(1);
+    expect(agent.records.some((record) =>
+      record.kind === 'grounding' && record.detail.includes('rephrase not produced (provider failed)'),
+    )).toBe(true);
+  });
+
+  it.each(approvedRephraseCases)('$name: stays byte-identical without a provider', async (testCase) => {
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn(testCase.message);
+
+    expect(result.intent).toBe(testCase.intent);
+    expect(result.reply).toBe(testCase.approvedText);
+    expect(result.grounding).toBeUndefined();
+    expect(agent.records.some((record) => record.kind === 'grounding')).toBe(false);
+  });
+
+  it('makes zero provider calls for doubt and preserves the doubt-to-human handoff', async () => {
+    const provider = new MockProvider('This rephrase must never be requested.');
+    const agent = makeGroundedAgent(provider);
+
+    const doubt = await agent.runTurn('¿tienen piscina?');
+    expect(doubt.intent).toBe('unknown');
+    expect(doubt.reply).toBe(buildReply('doubt'));
+    expect(provider.calls).toHaveLength(0);
+
+    const accepted = await agent.runTurn('sí');
+    expect(accepted.action).toBe('handoff');
+    expect(accepted.handoff?.reason).toBe('call_accepted');
+    expect(accepted.reply).toBe(buildReply('callAccepted'));
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('makes zero provider calls for price', async () => {
+    const provider = new MockProvider('This rephrase must never be requested.');
+    const agent = makeGroundedAgent(provider);
+
+    const result = await agent.runTurn('¿cuánto cuesta la formación?');
+
+    expect(result.intent).toBe('price');
+    expect(result.reply).toBe(APPROVED_CONTENT.priceReply ?? buildReply('price'));
+    expect(result.grounding).toBeUndefined();
+    expect(provider.calls).toHaveLength(0);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The SOURCE of the grounding check: everything the model was shown
 // ---------------------------------------------------------------------------

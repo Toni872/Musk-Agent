@@ -8,7 +8,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 348 tests en 9 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
+3. `npm test` → 358 tests en 9 ficheros (reglas y recepción de respuestas, base de conocimiento y recuperación, fundamentación del LLM, vista de la interfaz, disparador del canal real y bucle de evaluación de retrieval), sin red ni API key.
 4. `npm run eval` → informe del **bucle de evaluación**: 46 casos etiquetados de la FAQ (recall, precisión, aciertos de intent y violaciones del guard sobre el enrutado real), 33 casos de la base de conocimiento (recall y falsos positivos, medidos aparte) y 22 casos de fundamentación (0 violaciones, medidos aparte).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo con el perfil único y el flujo completo (modo determinista sin LLM; ver configuración abajo).
@@ -21,10 +21,10 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | Canal WhatsApp | No conectado: simulación local |
 | Leads y CRM | Datos simulados en memoria (`LeadContact` de prueba) |
 | Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
-| LLM | Opcional; solo para **reformular** la respuesta aprobada de la FAQ casada (usando también el contexto aprobado del perfil). La salida pasa el guard de salida y la comprobación de fundamentación contra exactamente lo que se le mostró al modelo; si falla cualquiera, el lead recibe el texto aprobado |
-| Intents protegidos (precio, temario, financiación, parada, humano, desconocido) | Deterministas; nunca llaman al LLM |
+| LLM | Opcional; solo para **reformular** texto ya aprobado: la respuesta de la FAQ casada, el pasaje de la base de conocimiento que respondió y la plantilla de consuelo ante un miedo (usando también el contexto aprobado del perfil). La salida pasa el guard de salida y la comprobación de fundamentación contra exactamente lo que se le mostró al modelo; si falla cualquiera, el lead recibe el texto aprobado |
+| Intents protegidos (precio, temario, financiación, parada, humano) y la duda de la regla 5 | Deterministas; nunca llaman al LLM. La duda no se reformula porque el motor la reconoce por igualdad de texto para armar la derivación a humano |
 | Contenido de la formación | Las cinco formaciones pueden presentarse a nivel general. El perfil único incluye mensaje inicial, presentación de MUSK, una pregunta de objetivo `goal`, cierre, FAQ y base de conocimiento; todo el copy unificado sigue pendiente de firma de MUSK |
-| Cobertura de dudas del lead | Las FAQ actúan como tabla de enrutado (palabra clave → contenido aprobado), de lo específico a lo general: información general, qué se aprende, salidas, metodología, modalidad, acompañamiento, requisitos y duración. Encima de ellas, la **capa de base de conocimiento** (recuperación determinista, sin LLM) responde lo que la base de conocimiento cubre; lo que no está aprobado cae en la regla 5 |
+| Cobertura de dudas del lead | Las FAQ actúan como tabla de enrutado (palabra clave → contenido aprobado), de lo específico a lo general: información general, qué se aprende, salidas, metodología, modalidad, acompañamiento, requisitos y duración. Encima de ellas, la **capa de base de conocimiento** (recuperación determinista, sin LLM) responde lo que la base de conocimiento cubre; lo que no está aprobado cae en la regla 5. La recuperación nunca usa el LLM: este solo puede reformular el pasaje que ya respondió |
 | Base de conocimiento | 35 pasajes en el perfil único, con recuperación determinista (BM25 + cobertura) y umbrales con nombre. El copy sigue pendiente de firma salvo el plazo confirmado de dos años, escrito con palabras. Horas, fechas de inicio y condiciones de pago siguen escalando; la FAQ escrita a mano conserva prioridad |
 | Apertura y cualificación | El agente abre con el mensaje inicial y hace una pregunta breve sobre el objetivo para conducir a la llamada. No es examen ni filtro. El flujo completo se prueba con `npm run sim` |
 | Aviso al equipo | La destinataria configurada es Laura, que decide a quién asignarlo. El aviso es simulado: no envía WhatsApp ni integra CRM; muestra el contacto y la bolsa de origen |
@@ -52,7 +52,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El único com
 | `ui/build.mjs` | Empaqueta `ui/main.ts` + `ui/chat.ts` + `src/*` en `ui/dist/app.js` con esbuild (salida minificada, sin `process.env`) |
 | `ui/server.mjs` | Servidor estático sin dependencias para `ui/dist` en `http://localhost:4173` |
 | `tests/rules.test.ts` | 49 tests: obligatorios + estructurales + apertura/cualificación + regresiones de disparadores + cobertura de información (routing a contenido aprobado) |
-| `tests/reception.test.ts` | 119 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas, `reset` y fundamentación de la reformulación del LLM (incluida la fuente: contexto del perfil sí, nombre de la formación no) |
+| `tests/reception.test.ts` | 129 tests del mecanismo de recepción: la respuesta tras una pregunta se captura y no es duda; precio, parada, aceptación de llamada y pregunta real (regla 5) no se capturan y dejan la pregunta pendiente; cada respuesta envía silencio (nada de acuse) salvo la última, que cierra proponiendo la llamada con la frase **ya aprobada** del precio; flujo demo completo sin dudas, `reset` y fundamentación de la reformulación del LLM (incluida la fuente: contexto del perfil sí, nombre de la formación no) |
 | `tests/entailment.test.ts` | 13 tests de la comprobación de fundamentación: reformulación fiel, número inventado, palabra de otra entrada, palabras vacías, candidata vacía, la misma candidata contra una fuente que sí la respalda y la composición de la fuente (respuesta casada + contexto del perfil, sin nombre de formación ni otras entradas) |
 | `tests/ui-chat.test.ts` | 14 tests del modelo de vista de la UI (`ui/chat.ts`), sin DOM: mensajes, diagnóstico por turno, banner de perfil, apertura, cambio de perfil, reinicio y la línea de fundamentación |
 | `tests/eval.test.ts` | 12 tests que convierten el bucle de evaluación en puerta: invariantes absolutos (0 falsos positivos, 0 violaciones del guard, enrutado exacto de temas prohibidos C23-C31, cobertura de las 9 FAQ) + suelos medidos de recall y precisión + la puerta propia de la base de conocimiento (0 falsos positivos en el grupo que debe escalar) + la puerta de fundamentación (0 violaciones) |
@@ -172,12 +172,14 @@ Sin estas variables, el agente funciona igual en modo determinista con las respu
 
 ### El contrato del LLM: solo redactar, nunca añadir
 
-El modelo **no responde**: **redacta**. Su trabajo es dar forma a la respuesta
-aprobada de la entrada de FAQ que ha casado con la pregunta del lead, y nada
-más.
+El modelo **no responde**: **redacta**. Su trabajo es dar forma a un texto ya
+aprobado, y nada más. Solo se reformulan tres cosas: la respuesta de la FAQ que
+casó con la pregunta del lead, el pasaje de la base de conocimiento que respondió
+y la plantilla `reassurance` (el consuelo ante un miedo). Precio, financiación,
+temario, parada, humano y la duda de la regla 5 **nunca** pasan por el modelo.
 
-1. **La fuente es una sola**: la petición lleva la respuesta aprobada de la
-   entrada casada, y nada más. El prompt ya **no incluye la FAQ entera** (antes
+1. **La fuente es una sola**: la petición lleva el texto aprobado de esa llamada,
+   y nada más. El prompt ya **no incluye la FAQ entera** (antes
    sí, y por eso el modelo podía copiar el contenido de otra entrada a la
    respuesta de otra, o inventar un dato plausible que no incumplía ningún
    patrón prohibido). La parte estable del prompt (rol, tono y las once reglas
@@ -197,7 +199,7 @@ más.
    los registros de la conversación (tipo `grounding`), también cuando la
    reformulación se rechaza.
 4. **Medido, no supuesto**: `npm run eval` incluye una sección de
-   fundamentación que pasa las 22 preguntas casables de la FAQ por el agente
+   fundamentación que pasa las 23 preguntas casables de la FAQ por el agente
    con un proveedor que siempre responde con contenido no fundamentado, y
    comprueba que el lead recibe siempre el texto aprobado (0 violaciones, suelo
    absoluto).
@@ -218,15 +220,15 @@ Las cifras de las reuniones del 18/09/2026 — "6 intentos", ~3 % de conversión
 
 - [ ] `npm install` completa sin errores.
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 348 tests, cero fallos, sin red.
-- [ ] `npm run eval` imprime el informe del bucle de evaluación (46 casos de la FAQ + 31 de la base de conocimiento + 22 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
+- [ ] `npm test` pasa: 358 tests, cero fallos, sin red.
+- [ ] `npm run eval` imprime el informe del bucle de evaluación (46 casos de la FAQ + 33 de la base de conocimiento + 23 de fundamentación) sin regresar por debajo de los suelos de recall/precisión.
 - [ ] `npm run sim -- --smoke` sale con código 0 e imprime un intercambio de un turno.
 - [ ] Ningún archivo de este arnés contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)
 
 `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada pull request:
-`npm ci` → `npm run typecheck` → `npm test` (la puerta: 348 tests, incluidos los
+`npm ci` → `npm run typecheck` → `npm test` (la puerta: 358 tests, incluidos los
 suelos del bucle de evaluación) → `npm run eval` (informe para el registro) →
 `npm run build:ui`. El comando `eval` siempre sale con código 0: los suelos los
 exige `tests/eval.test.ts`, no el informe.

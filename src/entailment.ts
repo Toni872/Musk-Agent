@@ -47,12 +47,18 @@ export function groundingProfileContext(content: ApprovedContent): string {
     .join('\n');
 }
 
-// The full source of one call: the approved answer of the MATCHED entry plus
-// the profile context. Both the prompt and the grounding check use this.
-export function composeGroundingSource(entry: FaqEntry, content: ApprovedContent): string {
-  return [entry.answer, groundingProfileContext(content)]
+// The full source of one call: approved lead-facing text plus the profile
+// context. Both the prompt and the grounding check use this.
+export function composeGroundingSourceFromText(approvedText: string, content: ApprovedContent): string {
+  return [approvedText, groundingProfileContext(content)]
     .filter((part) => part.trim() !== '')
     .join('\n');
+}
+
+// FAQ calls use the same composition as knowledge-base and template calls, so
+// the prompt and the grounding check can never disagree about their source.
+export function composeGroundingSource(entry: FaqEntry, content: ApprovedContent): string {
+  return composeGroundingSourceFromText(entry.answer, content);
 }
 
 // Function words, articles, prepositions, pronouns, auxiliaries and openers.
