@@ -163,6 +163,17 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   entradas de la FAQ (la fuga entre entradas se mantiene cerrada). El contexto del
   perfil va en la parte estable del prompt (no cambia entre llamadas, se cachea);
   la respuesta casada, en la parte volátil.
+- **Un miedo no es una duda.** Cuando el lead dice que no se ve capaz («no sé si
+  sirvo», «no tengo base», «soy mayor para estudiar»), la duda va por dos caminos
+  y en ese orden: primero el enganche léxico, que lleva esos términos al pasaje
+  `kb-sin-experiencia` (`src/kb.ts`) y responde con el dato aprobado; después, si
+  el mensaje es `unknown` pero casa con `expressesFear()` (`src/rules.ts`), la
+  plantilla `reassurance` responde y **no** se registra la duda. Registrar una duda
+  ahí ensuciaría la métrica del piloto (una regla 5 falsa) y el motor contestaría
+  «no tengo respuesta aprobada» a algo que sí cubre. El cierre para agendar sigue
+  pidiendo día y hora (`closingInvitation`), porque es el dato que necesita el aviso
+  a Laura; las opciones cerradas se usan al abrir y al preguntar el objetivo, no
+  cuando hace falta un momento concreto.
 - **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee `normalizeEs`
   (minúsculas, sin acentos, puntuación a espacios, espacios colapsados). Vive
   aparte para que la capa de disparadores (`src/rules.ts`) y la capa de intents
@@ -211,6 +222,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 |---|---|
 | `README.md` | Qué hace el arnés, comandos y verificación |
 | `GUION_DEMO.md` | Guion de demo con las respuestas observadas |
+| `docs/guion-neuroventas.md` | Guion por momento conversacional: texto real, objetivo y mecanismo |
 | `INSTRUCCIONES.md` | Guía para que el equipo de MUSK lo pruebe en su equipo |
 | `docs/musk-mvp-spec.md` | Especificación completa del MVP |
 | `docs/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |

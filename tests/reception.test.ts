@@ -76,7 +76,7 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(findApprovedAnswer(APPROVED_CONTENT, catalogQuestion)?.id).toBe('catalogo-formaciones');
     expect(catalog.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
     expect(agent.nextQualificationQuestion()?.text).toBe(
-      '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
+      'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?',
     );
 
     const choice = await agent.runTurn('el curso de full stack');
@@ -368,7 +368,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
     const goalQuestion = agent.nextQualificationQuestion();
     expect(goalQuestion).toMatchObject({
       id: 'goal',
-      text: '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.',
+      text: 'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?',
     });
     const goal = await agent.runTurn('Quiero cambiar de sector');
     expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: 'Quiero cambiar de sector' });
@@ -383,7 +383,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
       { question: goalQuestion?.text, answer: 'Quiero cambiar de sector' },
     ]);
     expect(call.handoff?.summary).toContain(
-      '¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada. → Quiero cambiar de sector',
+      'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente? → Quiero cambiar de sector',
     );
     expect(call.handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
     expect(call.handoff?.summary).toContain('Último mensaje del lead: mañana a las nueve');
@@ -1186,6 +1186,80 @@ describe('la pregunta que el agente hace se queda escuchando (ask invariante)', 
     expect(agent.doubts).toHaveLength(0);
     expect(result.ruleViolations).toHaveLength(0);
     expect(Object.values(REPLY_TEMPLATES)).toContain(result.reply);
+  });
+
+  // A fear is NOT an unanswered question. Before this, "no sé si sirvo" reached
+  // the rule 5 reply ("no tengo una respuesta aprobada"), which reads like a form
+  // to someone admitting a fear, and counted a FALSE doubt in the pilot KPI. The
+  // approved passage already covered it: only the wording the lead uses was
+  // missing from its retrieval terms.
+  it('un miedo responde con el dato aprobado y no se registra como duda', async () => {
+    const passage = KB_PASSAGES.find((item) => item.id === 'kb-sin-experiencia');
+    // Phrasings taken from the failure list this change fixes, one per form:
+    // self-doubt, missing technical base, age and plain fear.
+    const fearMessages = [
+      'no se si sirvo',
+      'no tengo base tecnica',
+      'soy mayor para estudiar',
+      'me da miedo programar',
+    ];
+
+    for (const message of fearMessages) {
+      const agent = makeDemoAgent();
+      const result = await agent.runTurn(message);
+
+      expect(result.intent).toBe('kb');
+      expect(result.reply).toBe(passage?.answer);
+      expect(result.registeredDoubts).toHaveLength(0);
+      expect(agent.doubts).toHaveLength(0);
+      expect(result.ruleViolations).toHaveLength(0);
+    }
+  });
+
+  // The time objection is a real constraint, not a doubt: the approved two-year
+  // flexibility answers it. Without the terms, this exact sentence fell below the
+  // BM25 threshold and ended in the rule 5 path.
+  it('la falta de tiempo responde con el plazo aprobado y no se registra como duda', async () => {
+    const passage = KB_PASSAGES.find((item) => item.id === 'kb-obj-no-tiempo');
+    const agent = makeDemoAgent();
+
+    const result = await agent.runTurn('no tengo tiempo, trabajo todo el dia');
+
+    expect(result.intent).toBe('kb');
+    expect(result.reply).toBe(passage?.answer);
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.doubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
+  });
+
+  // The control pair of the test above: an unanswerable question WITHOUT a fear
+  // signal still follows rule 5 verbatim. The fear branch must not swallow it.
+  it('una pregunta sin respuesta aprobada y sin miedo sigue la ruta de la regla 5', async () => {
+    const agent = makeDemoAgent();
+    const message = '¿Cuánto cobran en las prácticas?';
+
+    const result = await agent.runTurn(message);
+
+    expect(result.registeredDoubts).toEqual([message]);
+    expect(agent.doubts).toEqual([message]);
+    expect(result.reply).toBe(buildReply('doubt'));
+  });
+
+  // The safety net, not the main road: a fear the knowledge base does not match
+  // still reaches the reassurance template instead of the rule 5 reply, and is
+  // not counted as a doubt. Without this case the reassurance branch could be
+  // deleted and the suite above would stay green.
+  it('un miedo que la base no cubre usa reassurance y no cuenta como duda', async () => {
+    const agent = makeDemoAgent();
+    const message = 'no soy capaz';
+
+    const result = await agent.runTurn(message);
+
+    expect(result.intent).toBe('unknown');
+    expect(result.reply).toBe(buildReply('reassurance'));
+    expect(result.registeredDoubts).toHaveLength(0);
+    expect(agent.doubts).toHaveLength(0);
+    expect(result.ruleViolations).toHaveLength(0);
   });
 
   it('una pregunta de precio tras la duda conserva su respuesta y no roba el ask', async () => {

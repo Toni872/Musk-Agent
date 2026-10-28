@@ -23,7 +23,7 @@ import {
   type Intent,
 } from './intent';
 import { retrieve } from './retrieval';
-import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, expressesInterest, extractSpanishPhone, FAREWELL_FRAMES, guardReply, isClosingRemark, momentConfirmed, RULES } from './rules';
+import { acceptanceConfirmed, ANSWER_TRIGGERS, buildReply, expressesFear, expressesInterest, extractSpanishPhone, FAREWELL_FRAMES, guardReply, isClosingRemark, momentConfirmed, RULES } from './rules';
 
 export type LeadBucket = 'ilocalizable' | 'no_comprador';
 
@@ -563,11 +563,16 @@ export class MuskAgent {
         break;
       }
       case 'unknown': {
-        // Rule 5: register the doubt, propose human contact, invent nothing.
-        registeredDoubts.push(message);
-        reply = buildReply('doubt');
-        this.recordDoubtMessage(message);
-        this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
+        // A fear is not an unanswered question: it gets the reassurance template
+        // and stays out of the doubt register, which feeds the pilot metric.
+        // Everything else keeps the rule 5 path: register it, propose a human.
+        const feared = expressesFear(normalizeEs(message));
+        if (!feared) {
+          registeredDoubts.push(message);
+          this.recordDoubtMessage(message);
+          this.push({ kind: 'doubt', intent, detail: `registered: "${message}"` });
+        }
+        reply = buildReply(feared ? 'reassurance' : 'doubt');
         // Escalation with context: what came closest in the knowledge base
         // and how far it was from the thresholds. The operator sees WHY the
         // knowledge base did not answer, without the lead ever seeing it.

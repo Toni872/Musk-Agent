@@ -10,7 +10,7 @@ import { MuskAgent, type LeadContact } from '../src/agent';
 import { APPROVED_CONTENT } from '../src/content';
 import { normalizeEs } from '../src/intent';
 import { MockProvider } from '../src/llm';
-import { ANSWER_TRIGGERS, acceptanceConfirmed, buildReply, extractSpanishPhone, guardReply, momentConfirmed, NEGATED_ACCEPTANCE, PHONE_CUE, REPLY_TEMPLATES, RULES, TRAILING_NEGATOR } from '../src/rules';
+import { ANSWER_TRIGGERS, acceptanceConfirmed, buildReply, expressesFear, extractSpanishPhone, guardReply, momentConfirmed, NEGATED_ACCEPTANCE, PHONE_CUE, REPLY_TEMPLATES, RULES, TRAILING_NEGATOR } from '../src/rules';
 
 const lead: LeadContact = {
   id: 'lead-test-001',
@@ -385,6 +385,32 @@ describe('apertura y cualificación (MVP spec §4)', () => {
     expect(opening).toBe(APPROVED_CONTENT.initialMessage);
     expect(guardReply(opening as string).ok).toBe(true);
     expect(agent.pendingDecisions).toHaveLength(0);
+    // WhatsApp opening: brief enough to read on a phone, and one ask only.
+    expect((opening as string).length).toBeLessThan(300);
+    expect(((opening as string).match(/\?/g) ?? [])).toHaveLength(1);
+  });
+
+  // The fear detector is the door of the reassurance path, so its boundaries are
+  // part of the contract: identity forms in, the comparative "mayor" out ("el
+  // mayor problema" is an objection, not a fear about oneself).
+  it('expressesFear reconoce las formas de identidad y descarta el comparativo', () => {
+    expect(expressesFear(normalizeEs('no sé si sirvo'))).toBe(true);
+    expect(expressesFear(normalizeEs('no tengo base técnica'))).toBe(true);
+    expect(expressesFear(normalizeEs('soy mayor para estudiar'))).toBe(true);
+    expect(expressesFear(normalizeEs('me da miedo programar'))).toBe(true);
+    expect(expressesFear(normalizeEs('el mayor problema es el horario'))).toBe(false);
+    expect(expressesFear(normalizeEs('quiero cambiar de sector'))).toBe(false);
+  });
+
+  // Reassurance states only approved facts (starts from scratch, personal tutor),
+  // so it must pass the same guard as every other lead-facing template, and keep
+  // the one-question-per-message rule.
+  it('la plantilla de reassurance cumple el guardián y hace una sola pregunta', () => {
+    const reassurance = buildReply('reassurance');
+
+    expect(guardReply(reassurance).ok).toBe(true);
+    expect((reassurance.match(/\?/g) ?? [])).toHaveLength(1);
+    expect(reassurance).not.toMatch(/\d/);
   });
 
   it('la pregunta y el cierre son breves, configurables y plantean una pregunta cada vez', () => {
@@ -393,7 +419,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
     expect(APPROVED_CONTENT.qualificationQuestions).toHaveLength(1);
     expect(APPROVED_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
-    expect(question).toBe('¿Tienes ya alguna formación en mente o qué te gustaría conseguir? Así el equipo puede orientarte en una llamada.');
+    expect(question).toBe('Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?');
     expect(closing).toBe('¿Qué día y a qué hora te viene bien que el equipo te llame?');
     expect(closing.length).toBeLessThanOrEqual(200);
     expect((question.match(/\?/g) ?? [])).toHaveLength(1);

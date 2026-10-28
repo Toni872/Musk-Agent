@@ -331,15 +331,14 @@ export function guardReply(reply: string): GuardResult {
 // Approved reply templates (lead-facing, Spanish es-ES, tuteo)
 // ---------------------------------------------------------------------------
 
-// Already-approved invitation to the call, reused VERBATIM in two places: the
-// tail of the price answer and the closing of the qualification. One constant,
-// so the approved sentence cannot drift between the two.
+// Already-approved invitation to the call, reused VERBATIM wherever the agent
+// asks for contact details. One constant, so the approved sentence cannot drift.
 const CALL_INVITATION =
   '¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?';
 
 export const REPLY_TEMPLATES = {
   // Rule 1: approved response + invitation to the call. No amounts, no digits.
-  price: `No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}`,
+  price: `El precio prefiero que te lo explique una persona del equipo. Sí existen opciones de financiación y puedes completar la formación en dos años con flexibilidad. ${CALL_INVITATION}`,
   // Rule 2: no detailed syllabus; general content and call redirect only.
   syllabus:
     'No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general: las habilidades que trabajas, lo que aprendes y las salidas profesionales. Si te encaja, lo vemos con más detalle en una llamada.',
@@ -361,9 +360,9 @@ export const REPLY_TEMPLATES = {
   callAccepted:
     'Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle.',
   // Closing of the brief qualification: with no question left, the agent is the
-  // one who proposes the call (AGENTS.md flow). It reuses the wording already
-  // approved for the price answer, so no NEW lead-facing copy is phrased here
-  // (rule 11) — it is the very sentence the lead can already receive.
+  // one who proposes the call (AGENTS.md flow). It is the same approved sentence
+  // the price answer already ships, so no NEW lead-facing copy is phrased here
+  // (rule 11) and the two cannot drift apart.
   callProposal: CALL_INVITATION,
   // Rule 7: stop acknowledgement, registered as "no continuar".
   stop:
@@ -376,7 +375,13 @@ export const REPLY_TEMPLATES = {
   // new commercial copy is introduced: it only acknowledges and leaves the door
   // open to a human, without pressure (rule 8) and without promising anything.
   closing:
-    'Gracias a ti. Si en algún momento quieres retomarlo, tienes una duda o prefieres hablar con una persona del equipo, aquí estoy.',
+    'Gracias a ti. Si te surge alguna duda, me lo dices y lo vemos.',
+  // Fear/insecurity: empathise before informing. Every fact it states is already
+  // approved copy (training starts from scratch, personal tutor), so it invents
+  // nothing; it only changes how the same truth is said. The closing question is
+  // the only one allowed per message.
+  reassurance:
+    'Es de lo que más se escucha, y no significa que no sirvas. Todas las formaciones parten de cero y tienes un tutor personal detrás. ¿Qué es lo que más te preocupa?',
 } as const;
 
 // A pure thanks or goodbye carries no question and no interest signal. Answering
@@ -390,6 +395,17 @@ export const CLOSING_REMARK =
 
 export function isClosingRemark(folded: string): boolean {
   return CLOSING_REMARK.test(folded);
+}
+
+// Fear/insecurity detector. It exists because such a message used to reach the
+// rule 5 doubt reply ("no tengo una respuesta aprobada"), which reads like a
+// form to someone admitting they are scared. It narrows the phrase set on
+// purpose: the generic word "mayor" is NOT here (it would match "el mayor
+// problema"), only the identity forms.
+export function expressesFear(folded: string): boolean {
+  return /\b(?:no se si sirvo|no soy capaz|me da miedo|tengo miedo|no tengo base|soy mayor|mi edad|no valgo para esto|se me da mal)\b/.test(
+    folded,
+  );
 }
 
 // A positive interest statement ("me interesa", "me interesa mucho") is not a

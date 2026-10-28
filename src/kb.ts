@@ -412,6 +412,14 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
       'nunca he programado',
       'me da miedo',
       'matematicas',
+      // Fear and self-doubt phrasings a lead actually writes. Without them the
+      // retrieval missed the passage and the agent answered with the rule 5
+      // doubt reply, which is the wrong register for someone admitting a fear.
+      'sirvo',
+      'no se si sirvo',
+      'base tecnica',
+      'mi edad',
+      'mayor para estudiar',
     ],
     source: 'escuela-musk-base-conocimiento.md §6, §7',
   },
@@ -602,6 +610,11 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
       'plazo para completar la formacion',
       'dos anos para terminar',
       'completar la formacion en dos anos',
+      // The natural wording of the objection, not the tidy one: "no tengo tiempo
+      // ahora mismo" already matched, but "no tengo tiempo, trabajo todo el día"
+      // fell below the threshold and ended in the doubt path.
+      'trabajo todo el dia',
+      'tengo hijos',
     ],
     source: 'Nicolás, respuesta inline al correo de Miguel (financiación y plazo de finalización)',
   },
