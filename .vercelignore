@@ -1,0 +1,11 @@
+# Never upload local secrets to a deployment.
+.env
+.env.*
+!.env.example
+
+# Local tooling and scratch files.
+node_modules
+.git
+.atl
+tmp-*.mts
+probe-*.mts
