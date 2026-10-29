@@ -1,8 +1,5 @@
 // GENERATED FILE - do not edit. Source: src/api-entry.ts. Regenerate with `npm run build:api`.
 
-// src/rephrase-endpoint.ts
-import { createHash, timingSafeEqual } from "node:crypto";
-
 // src/llm.ts
 function loadLLMConfigFromEnv(env = process.env) {
   const baseUrl = env.MUSK_LLM_BASE_URL?.trim();
@@ -64,29 +61,14 @@ function isRateLimited(ip, now) {
   entry.count += 1;
   return false;
 }
-function hashToBuffer(value) {
-  return createHash("sha256").update(value).digest();
-}
-function tokensMatch(provided, expected) {
-  const providedHash = hashToBuffer(provided);
-  const expectedHash = hashToBuffer(expected);
-  try {
-    return timingSafeEqual(providedHash, expectedHash);
-  } catch {
-    return false;
-  }
-}
 function loadServerConfigFromEnv(env) {
-  const token = env.MUSK_DEMO_TOKEN?.trim();
-  if (!token) return null;
   const llm = loadLLMConfigFromEnv(env);
   if (!llm) return null;
   return {
     apiKey: llm.apiKey,
     baseUrl: llm.baseUrl,
     model: llm.model,
-    temperature: llm.temperature,
-    token
+    temperature: llm.temperature
   };
 }
 function errorBody(code) {
@@ -111,19 +93,6 @@ function isValidBody(body) {
   }
   return true;
 }
-function getHeader(headers, name) {
-  const lower = name.toLowerCase();
-  for (const key of Object.keys(headers)) {
-    if (key.toLowerCase() === lower) {
-      const value = headers[key];
-      if (Array.isArray(value)) {
-        return typeof value[0] === "string" ? value[0] : void 0;
-      }
-      return typeof value === "string" ? value : void 0;
-    }
-  }
-  return void 0;
-}
 async function handleRephrase(request, deps) {
   if (request.method !== "POST") {
     return { status: 405, body: errorBody("method_not_allowed") };
@@ -131,15 +100,6 @@ async function handleRephrase(request, deps) {
   const config = loadServerConfigFromEnv(deps.env);
   if (!config) {
     return { status: 503, body: errorBody("service_unavailable") };
-  }
-  if (deps.bypassAuth !== true) {
-    const demoToken = getHeader(request.headers, "x-demo-token");
-    if (typeof demoToken !== "string" || demoToken.length === 0) {
-      return { status: 401, body: errorBody("unauthorized") };
-    }
-    if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
-      return { status: 401, body: errorBody("unauthorized") };
-    }
   }
   if (!isValidBody(request.body)) {
     return { status: 400, body: errorBody("bad_request") };

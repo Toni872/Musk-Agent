@@ -1,14 +1,15 @@
 // Tests for the server-side rephrase proxy (src/rephrase-endpoint.ts).
 //
 // The endpoint must never leak secrets in responses and must enforce the
-// approved security controls.
+// approved controls. Access control (who may reach the function at all) is
+// delegated to the deployment (Vercel Password Protection), so there is no
+// token check inside the function.
 
 import { describe, expect, it } from 'vitest';
 
 import { handleRephrase } from '../src/rephrase-endpoint';
 
 const GROQ_ENV = {
-  MUSK_DEMO_TOKEN: 'demo-token-123',
   MUSK_LLM_BASE_URL: 'https://api.groq.com/openai/v1',
   MUSK_LLM_API_KEY: 'super-secret-key',
   MUSK_LLM_MODEL: 'openai/gpt-oss-120b',
@@ -38,56 +39,16 @@ describe('rephrase endpoint', () => {
 
   it('returns 503 when config missing', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'x' }, body: { system: 's', messages: [] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [] } },
       { env: {}, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(503);
     expect(result.body).toEqual({ error: 'service_unavailable' });
   });
 
-  it('returns 401 when token missing', async () => {
-    const result = await handleRephrase(
-      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
-      { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
-    );
-    expect(result.status).toBe(401);
-    expect(result.body).toEqual({ error: 'unauthorized' });
-  });
-
-  it('returns 401 for wrong token', async () => {
-    const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'wrong' }, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
-      { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
-    );
-    expect(result.status).toBe(401);
-    expect(result.body).toEqual({ error: 'unauthorized' });
-  });
-
-  it('returns 401 for token with different length', async () => {
-    const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'short' }, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
-      { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
-    );
-    expect(result.status).toBe(401);
-    expect(result.body).toEqual({ error: 'unauthorized' });
-  });
-
-  it('skips the token check when bypassAuth is set (local dev)', async () => {
-    const result = await handleRephrase(
-      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
-      {
-        env: GROQ_ENV,
-        fetchImpl: makeFetch(200, { choices: [{ message: { content: 'ok' } }] }),
-        bypassAuth: true,
-      },
-    );
-    expect(result.status).toBe(200);
-    expect(result.body).toEqual({ text: 'ok' });
-  });
-
   it('returns 400 when body missing system', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { messages: [{ role: 'user', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { messages: [{ role: 'user', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(400);
@@ -96,7 +57,7 @@ describe('rephrase endpoint', () => {
 
   it('returns 400 when messages empty', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: [] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(400);
@@ -109,7 +70,7 @@ describe('rephrase endpoint', () => {
       content: String(i),
     }));
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: msgs } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: msgs } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(400);
@@ -118,7 +79,7 @@ describe('rephrase endpoint', () => {
 
   it('returns 400 for bad role', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: [{ role: 'tool', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'tool', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(400);
@@ -128,14 +89,14 @@ describe('rephrase endpoint', () => {
   it('returns 413 when serialized body too large', async () => {
     const long = 'a'.repeat(30005);
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: long, messages: [{ role: 'user', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { system: long, messages: [{ role: 'user', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
     );
     expect(result.status).toBe(413);
     expect(result.body).toEqual({ error: 'payload_too_large' });
   });
 
-  it('happy path posts to upstream and returns text without leaking secrets', async () => {
+  it('happy path posts to upstream and returns text without leaking the API key', async () => {
     let calledUrl = '';
     let calledInit: RequestInit | undefined;
     const fetchImpl: typeof fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -153,7 +114,7 @@ describe('rephrase endpoint', () => {
     const result = await handleRephrase(
       {
         method: 'POST',
-        headers: { 'x-demo-token': 'demo-token-123' },
+        headers: {},
         body: { system: 'Sistema', messages: [{ role: 'user', content: 'Hola' }] },
       },
       { env: GROQ_ENV, fetchImpl },
@@ -167,12 +128,11 @@ describe('rephrase endpoint', () => {
     expect(parsed.max_tokens).toBe(700);
     const bodyStr = JSON.stringify(result.body);
     expect(bodyStr.includes('super-secret-key')).toBe(false);
-    expect(bodyStr.includes('demo-token-123')).toBe(false);
   });
 
   it('returns 502 when upstream returns non-ok', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(500, {}, { ok: false }) },
     );
     expect(result.status).toBe(502);
@@ -181,7 +141,7 @@ describe('rephrase endpoint', () => {
 
   it('returns 502 when upstream returns no string content', async () => {
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, { choices: [{ message: { content: 123 } }] }) },
     );
     expect(result.status).toBe(502);
@@ -191,7 +151,7 @@ describe('rephrase endpoint', () => {
   it('refuses http baseUrl', async () => {
     const envHttp = { ...GROQ_ENV, MUSK_LLM_BASE_URL: 'http://api.groq.com/openai/v1' };
     const result = await handleRephrase(
-      { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
+      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
       { env: envHttp, fetchImpl: makeFetch(200, { choices: [{ message: { content: 'ok' } }] }) },
     );
     expect(result.status).toBe(502);

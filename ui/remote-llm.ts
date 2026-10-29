@@ -1,15 +1,14 @@
-// Browser LLM provider that talks to the protected server-side rephrase proxy.
-// On any non-200 response the provider throws so the agent falls back to
-// approved text, exactly as requested.
+// Browser LLM provider that talks to the server-side rephrase proxy. Access
+// control lives at the deployment (Vercel Password Protection), so no token is
+// sent from the client. On any non-200 response the provider throws so the
+// agent falls back to approved text, exactly as requested.
 
 import type { LLMProvider, LLMRequest } from '../src/llm';
 
 export class RemoteRephraseLLM implements LLMProvider {
-  private readonly token: string;
   private readonly timeoutMs: number;
 
-  constructor(token: string, timeoutMs = 15000) {
-    this.token = token;
+  constructor(timeoutMs = 15000) {
     this.timeoutMs = timeoutMs;
   }
 
@@ -21,7 +20,6 @@ export class RemoteRephraseLLM implements LLMProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-demo-token': this.token,
         },
         body: JSON.stringify({
           system: request.system,

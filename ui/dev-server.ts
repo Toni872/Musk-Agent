@@ -95,7 +95,7 @@ async function serveRephrase(request: IncomingMessage, response: ServerResponse)
 
   const result = await handleRephrase(
     { method: request.method ?? 'GET', headers, body },
-    { env: process.env, fetchImpl: fetch, bypassAuth: true },
+    { env: process.env, fetchImpl: fetch },
   );
 
   response.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });

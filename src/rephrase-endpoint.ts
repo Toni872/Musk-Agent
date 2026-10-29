@@ -1,8 +1,10 @@
 // Server-side rephrase proxy logic. Pure, testable: no Node HTTP, no Vercel
 // types, only an injected fetch. Business rules live here so the thin Vercel
 // adapter cannot leak them.
-
-import { createHash, timingSafeEqual } from 'node:crypto';
+//
+// Access control is delegated to the deployment (Vercel Password Protection):
+// whoever reaches this function already passed the site-wide password, so the
+// function itself carries no token check.
 
 import { loadLLMConfigFromEnv } from './llm';
 
@@ -60,31 +62,14 @@ function isRateLimited(ip: string, now: number): boolean {
   return false;
 }
 
-function hashToBuffer(value: string): Buffer {
-  return createHash('sha256').update(value).digest();
-}
-
-function tokensMatch(provided: string, expected: string): boolean {
-  const providedHash = hashToBuffer(provided);
-  const expectedHash = hashToBuffer(expected);
-  try {
-    return timingSafeEqual(providedHash, expectedHash);
-  } catch {
-    return false;
-  }
-}
-
 export interface ServerConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
   temperature: number;
-  token: string;
 }
 
 export function loadServerConfigFromEnv(env: Record<string, string | undefined>): ServerConfig | null {
-  const token = env.MUSK_DEMO_TOKEN?.trim();
-  if (!token) return null;
   const llm = loadLLMConfigFromEnv(env as NodeJS.ProcessEnv);
   if (!llm) return null;
   return {
@@ -92,7 +77,6 @@ export function loadServerConfigFromEnv(env: Record<string, string | undefined>)
     baseUrl: llm.baseUrl,
     model: llm.model,
     temperature: llm.temperature,
-    token,
   };
 }
 
@@ -105,9 +89,6 @@ export interface RephraseRequest {
 export interface RephraseDeps {
   env: Record<string, string | undefined>;
   fetchImpl: typeof fetch;
-  // Local-only escape hatch: the dev server binds to 127.0.0.1, so it may skip
-  // the demo-token check to avoid the ?k= dance. Production never sets this.
-  bypassAuth?: boolean;
 }
 
 type ErrorBody = { error: string };
@@ -139,20 +120,6 @@ function isValidBody(
   return true;
 }
 
-function getHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
-  const lower = name.toLowerCase();
-  for (const key of Object.keys(headers)) {
-    if (key.toLowerCase() === lower) {
-      const value = headers[key];
-      if (Array.isArray(value)) {
-        return typeof value[0] === 'string' ? value[0] : undefined;
-      }
-      return typeof value === 'string' ? value : undefined;
-    }
-  }
-  return undefined;
-}
-
 export async function handleRephrase(request: RephraseRequest, deps: RephraseDeps): Promise<{ status: number; body: unknown }> {
   if (request.method !== 'POST') {
     return { status: 405, body: errorBody('method_not_allowed') };
@@ -161,16 +128,6 @@ export async function handleRephrase(request: RephraseRequest, deps: RephraseDep
   const config = loadServerConfigFromEnv(deps.env);
   if (!config) {
     return { status: 503, body: errorBody('service_unavailable') };
-  }
-
-  if (deps.bypassAuth !== true) {
-    const demoToken = getHeader(request.headers, 'x-demo-token');
-    if (typeof demoToken !== 'string' || demoToken.length === 0) {
-      return { status: 401, body: errorBody('unauthorized') };
-    }
-    if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
-      return { status: 401, body: errorBody('unauthorized') };
-    }
   }
 
   if (!isValidBody(request.body)) {

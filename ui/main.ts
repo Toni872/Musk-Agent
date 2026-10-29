@@ -23,45 +23,9 @@ const INPUT_PLACEHOLDER = 'Escribe como el lead y pulsa Enviar';
 const INPUT_PLACEHOLDER_STOPPED =
   'Conversación detenida: escribe un mensaje o pulsa Reiniciar.';
 
-const DEMO_TOKEN_STORAGE_KEY = 'musk-demo-token';
-
-function getDemoToken(): string | null {
-  try {
-    const url = new URL(window.location.href);
-    const fromUrl = url.searchParams.get('k');
-    if (typeof fromUrl === 'string' && fromUrl.trim().length > 0) {
-      const token = fromUrl.trim();
-      try {
-        window.sessionStorage.setItem(DEMO_TOKEN_STORAGE_KEY, token);
-      } catch {
-        // Ignore storage failures.
-      }
-      return token;
-    }
-  } catch {
-    // Ignore URL parsing failures.
-  }
-  try {
-    const fromStorage = window.sessionStorage.getItem(DEMO_TOKEN_STORAGE_KEY);
-    if (typeof fromStorage === 'string' && fromStorage.trim().length > 0) {
-      return fromStorage.trim();
-    }
-  } catch {
-    // Ignore storage failures.
-  }
-  return null;
-}
-
-const demoToken = getDemoToken();
-const isLocalHost =
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-// In production the proxy requires the demo token; locally the dev server is
-// bound to 127.0.0.1 and skips the check, so no ?k= dance is needed.
-const chat = demoToken
-  ? createChat({ provider: new RemoteRephraseLLM(demoToken) })
-  : isLocalHost
-    ? createChat({ provider: new RemoteRephraseLLM('local') })
-    : createChat();
+// Access control lives at the deployment (Vercel Password Protection), so the
+// client always uses the server-side model: no demo token is required here.
+const chat = createChat({ provider: new RemoteRephraseLLM() });
 let busy = false;
 
 const root = document.getElementById('app');

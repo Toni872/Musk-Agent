@@ -77,7 +77,6 @@ Copia `.env.example` a `.env` y rellena:
 | `MUSK_LLM_API_KEY` | Clave del proveedor |
 | `MUSK_LLM_MODEL` | Modelo (por defecto `gpt-4o-mini`) |
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
-| `MUSK_DEMO_TOKEN` | Token de la demo: protege el proxy `/api/rephrase` en producción |
 
 Hacen falta `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY` para activar el modelo; sin ellas, modo determinista. **Groq** funciona sin tocar código: `https://api.groq.com/openai/v1` con `openai/gpt-oss-120b` (más capaz) o `openai/gpt-oss-20b` (más barato).
 
@@ -87,12 +86,14 @@ Hacen falta `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY` para activar el modelo; sin
 
 - `npm run ui` → construye `ui/dist` y levanta `ui/dev-server.ts` en `http://localhost:4173`.
 - El navegador no puede llamar a Groq directamente (CORS + la clave quedaría en el cliente), así que habla con `POST /api/rephrase`.
-- En local, `ui/dev-server.ts` responde `/api/rephrase` con el **mismo** handler puro de producción (`src/rephrase-endpoint.ts`) y omite el token (enlazado a `127.0.0.1`).
-- En producción, la función `api/rephrase.js` valida `x-demo-token` contra `MUSK_DEMO_TOKEN`.
+- En local, `ui/dev-server.ts` responde `/api/rephrase` con el **mismo** handler puro de producción (`src/rephrase-endpoint.ts`).
+- En producción, la función `api/rephrase.js` sirve el mismo handler. El **acceso al despliegue** lo protege Vercel Password Protection (contraseña), no un token.
 
 ## Despliegue (Vercel)
 
 Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El repositorio no despliega solo. `vercel.json` recompila el API y la UI desde el código fuente; `api/rephrase.js` es un bundle commiteado que debe regenerarse con `npm run build:api` cuando cambia `src/rephrase-endpoint.ts`.
+
+**Protección por contraseña:** en el proyecto de Vercel, activa **Settings → Deployment Protection → Password Protection** para que el despliegue entero (UI y `/api/rephrase`) quede detrás de una contraseña. Es lo que protege tu clave de Groq de un uso externo.
 
 ## Verificación
 
