@@ -89,7 +89,7 @@ root.innerHTML = `
       <p class="hero__kicker">Agente conversacional · MVP</p>
       <h1 class="hero__title">Simulador del agente</h1>
       <p class="hero__lead">Comprueba cómo responde el agente de MUSK a un lead real, paso a paso.</p>
-      <p class="hero__note">Respuestas deterministas: el mismo mensaje devuelve siempre la misma respuesta. Sin canal real, sin leads reales, sin CRM y sin servicios externos.</p>
+      <p class="hero__note">Motor conversacional con LLM y base de conocimiento aprobada. Sin canal real, sin leads reales y sin CRM.</p>
       <div class="hero__actions">
         <button class="btn btn--primary" type="button" data-scroll="simulador">Empezar la demo</button>
         <button class="btn btn--ghost" type="button" data-scroll="estado">Ver estado</button>
@@ -143,7 +143,7 @@ root.innerHTML = `
   </main>
 
   <footer class="footer">
-    <p>Entorno de simulación: sin canal real, sin leads reales, sin CRM. No se envía información a ningún servicio externo.</p>
+    <p>Entorno de simulación: sin canal real, sin leads reales, sin CRM. Con el modelo LLM activo, el texto de la conversación se envía al proveedor para generar la respuesta.</p>
   </footer>
 `;
 

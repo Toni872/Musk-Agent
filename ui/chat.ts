@@ -111,7 +111,9 @@ export class Chat {
 
   getState(): ChatState {
     return {
-      banner: CONTENT_BANNER,
+      banner: this.provider
+        ? CONTENT_BANNER
+        : `${CONTENT_BANNER} — modo determinista (sin modelo LLM: abre la URL con ?k=<token>)`,
       messages: this.messages.map((message) => ({ ...message })),
       stopped: this.agent.isStopped,
       records: this.agent.records.map((record) => ({ ...record })),
