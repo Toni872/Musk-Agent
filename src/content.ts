@@ -155,7 +155,7 @@ export const APPROVED_CONTENT: ApprovedContent = {
   companyPresentation:
     'Escuela Musk es la escuela de formación tecnológica que imparte esta formación, con un método práctico y acompañado.',
   priceReply:
-    'No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada.',
+    'El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada.',
   financingReply:
     'Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada.',
   // Simulated notification destination only; no WhatsApp message is sent.
@@ -393,7 +393,7 @@ export const APPROVED_CONTENT: ApprovedContent = {
   qualificationQuestions: [
     {
       id: 'goal',
-      text: 'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?',
+      text: 'Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?',
       purpose: 'A brief conversation prompt to understand the lead’s goal and move toward a call; not an exam or screening.',
       reactions: [
         // Course selections add ONE brief clause about what the programme is,
@@ -457,5 +457,5 @@ export const APPROVED_CONTENT: ApprovedContent = {
   // permission in the same breath as it lowers the pressure, and leaves exactly
   // one question for the lead to answer.
   initialMessage:
-    'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación. ¿Te pillo en buen momento? Si no, dímelo y no insisto. Si te interesa, te cuento en qué consiste y, si encaja, te paso con una persona del equipo, sin compromiso.',
+    'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación. ¿Te pillo en buen momento? Si no, dímelo y no insisto.',
 };

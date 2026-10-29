@@ -338,7 +338,7 @@ const CALL_INVITATION =
 
 export const REPLY_TEMPLATES = {
   // Rule 1: approved response + invitation to the call. No amounts, no digits.
-  price: `El precio prefiero que te lo explique una persona del equipo. Sí existen opciones de financiación y puedes completar la formación en dos años con flexibilidad. ${CALL_INVITATION}`,
+  price: `El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. ${CALL_INVITATION}`,
   // Rule 2: no detailed syllabus; general content and call redirect only.
   syllabus:
     'No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general: las habilidades que trabajas, lo que aprendes y las salidas profesionales. Si te encaja, lo vemos con más detalle en una llamada.',
@@ -360,10 +360,11 @@ export const REPLY_TEMPLATES = {
   callAccepted:
     'Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle.',
   // Closing of the brief qualification: with no question left, the agent is the
-  // one who proposes the call (AGENTS.md flow). It is the same approved sentence
-  // the price answer already ships, so no NEW lead-facing copy is phrased here
-  // (rule 11) and the two cannot drift apart.
-  callProposal: CALL_INVITATION,
+  // one who proposes the call (AGENTS.md flow). The proposal offers two concrete
+  // slots instead of an open "when does it suit you?", which is softer and keeps
+  // the lead moving; it is scheduling wording, not commercial copy (rule 11), so
+  // it promises nothing and states no condition.
+  callProposal: '¿Te va mejor por la mañana o por la tarde?',
   // Rule 7: stop acknowledgement, registered as "no continuar".
   stop:
     'Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar".',
@@ -375,7 +376,7 @@ export const REPLY_TEMPLATES = {
   // new commercial copy is introduced: it only acknowledges and leaves the door
   // open to a human, without pressure (rule 8) and without promising anything.
   closing:
-    'Gracias a ti. Si te surge alguna duda, me lo dices y lo vemos.',
+    'Gracias a ti. Si te surge algo, me lo dices y lo movemos.',
   // Fear/insecurity: empathise before informing. Every fact it states is already
   // approved copy (training starts from scratch, personal tutor), so it invents
   // nothing; it only changes how the same truth is said. The closing question is

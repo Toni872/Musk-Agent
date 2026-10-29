@@ -596,7 +596,7 @@ const KB_PASSAGE_SOURCE: Omit<KbPassage, 'exampleQueries'>[] = [
     id: 'kb-obj-no-tiempo',
     title: 'Objeción: no tengo tiempo',
     answer:
-      'Si ahora no es el momento, no pasa nada: puedes completar la formación en dos años con flexibilidad. El equipo puede orientarte en una llamada.',
+      'Tiene sentido. Si ahora no es el momento, no pasa nada: puedes completar la formación en dos años con flexibilidad. El equipo puede orientarte en una llamada.',
     terms: [
       'no tengo tiempo',
       'ahora no es el momento',

@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-28, 348/348 tests.
+Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-29, 372/372 tests.
 
 > **Apertura y cualificación**: el perfil único ya incluye `initialMessage` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
@@ -30,12 +30,12 @@ Al arrancar muestra `Content: Escuela Musk unified profile (curated from MUSK ma
 |---|---|---|---|
 | 1 | `Hola` | ¡Hola! Soy el asistente de MUSK. ¿En qué puedo ayudarte? Si prefieres, puedes hablar con una persona del equipo cuando quieras. | Saludo |
 | 2 | `¿es online o presencial?` | Todo es online: campus virtual, comunidad y tutores personales que te acompañan. No hay horarios fijos de conexión, así que puedes compaginarlo con tu rutina. | FAQ modalidad (contenido curado) |
-| 3 | `¿cuánto cuesta?` | No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada. | Regla 1 (precio; sin importes) |
+| 3 | `¿cuánto cuesta?` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. | Regla 1 (precio; sin importes) |
 | 4 | `¿hay financiación?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3 (financiación y tiempo) |
 | 5 | `¿me pasáis el temario?` | No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general: las habilidades que trabajas, lo que aprendes y las salidas profesionales. Si te encaja, lo vemos con más detalle en una llamada. | Regla 2 (temario) |
 | 6 | `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda) — PIVOTE** |
 | 7 | `¿necesito experiencia previa?` | No necesitas conocimientos previos: la metodología es progresiva y práctica, pensada para empezar desde la base. | FAQ requisitos |
-| 8 | `me parece muy caro` | No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada. | Objeción de dinero (sin la palabra "precio"): misma respuesta del perfil que el turno 3 |
+| 8 | `me parece muy caro` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. | Objeción de dinero (sin la palabra "precio"): misma respuesta del perfil que el turno 3 |
 | 9 | `bueno, me va bien una llamada` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | **Handoff `call_accepted` — objetivo** |
 
 Estado final observado de la conversación 1: `stopped=false records=13 doubts=1`.
@@ -44,17 +44,17 @@ Estado final observado de la conversación 1: `stopped=false records=13 doubts=1
 
 Cada frase se comprobó contra el agente real (`provider=null`), **una sesión nueva por frase**. Todas alcanzan **contenido ya aprobado** del perfil: no se inventa nada.
 
-Desde el perfil único, toda respuesta de la FAQ viaja en el mismo mensaje que la pregunta `goal` (una sola pregunta por turno, ver `src/outbound.ts`), así que estas filas terminan con el mismo cierre: **"Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?"**. Se escribe completo en la primera fila y en el resto se abrevia como `+ pregunta` `goal` para no repetirlo ocho veces.
+Desde el perfil único, toda respuesta de la FAQ viaja en el mismo mensaje que la pregunta `goal` (una sola pregunta por turno, ver `src/outbound.ts`), así que estas filas terminan con el mismo cierre: **"Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?"**. Se escribe completo en la primera fila y en el resto se abrevia como `+ pregunta` `goal` para no repetirlo ocho veces.
 
 | Escribe el lead | El agente responde (observado) | Ruta |
 |---|---|---|
-| `hola, dame información sobre Musk` | Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras. Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente? | FAQ identidad (general) |
+| `hola, dame información sobre Musk` | Te escribimos desde Escuela Musk. Por aquí puedo contarte todo sobre la formación: en qué consiste, qué se trabaja y qué salidas tiene. Cualquier detalle sobre el equipo te lo confirma una persona cuando quieras. Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente? | FAQ identidad (general) |
 | `¿de qué va el curso?` | Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo. + pregunta `goal` | FAQ `informacion` (genérica) |
 | `¿qué voy a aprender?` | Trabajas fundamentos sólidos de programación, proyectos con metodologías ágiles y resolución de problemas reales en equipo. + pregunta `goal` | FAQ `contenido` (regla 2: habilidades sí) |
 | `¿qué salidas tiene?` | La formación prepara perfiles junior para incorporarse a un equipo real, construir su propio portafolio y especializarte en el área que elijas. El encaje concreto lo ves con el equipo. + pregunta `goal` | FAQ `salidas` (sin promesa de empleo) |
 | `¿cómo son las clases?` | Se aprende con proyectos guiados y clases en directo, con acompañamiento y tutorías durante todo el programa. + pregunta `goal` | FAQ `metodologia` |
 | `¿cuánto dura el curso?` | Tienes dos años para completarla con flexibilidad, a tu ritmo entre sesiones. El calendario y las fechas de inicio los concretamos contigo en una llamada. Por aquí no puedo darte cifras. + pregunta `goal` | FAQ `duracion` (plazo aprobado; fechas siguen escalando) |
-| `quiero información sobre los precios` | No puedo compartir precios por aquí. Sí hay opciones de financiación y tienes dos años para completar la formación con flexibilidad. El equipo te lo explica en una llamada. + pregunta `goal` | Precisión: sigue siendo **regla 1** (precio) |
+| `quiero información sobre los precios` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. + pregunta `goal` | Precisión: sigue siendo **regla 1** (precio) |
 | `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda)** — lo no aprobado sigue derivando y **no** arrastra la pregunta `goal` |
 
 ## Conversación 2 — el lead pide parar (regla 7)
@@ -72,7 +72,7 @@ Esta traza reproduce el texto compartido para la demo. La pregunta `goal` admite
 
 | # | Escribe el lead | El agente responde (observado) | Mecanismo |
 |---|---|---|---|
-| 1 | `Si, me interesa. Dame informacion sobre los cursos` | Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos. Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente? | FAQ `catalogo-formaciones` + pregunta `goal` **en el mismo mensaje** (un único mensaje saliente por turno) |
+| 1 | `Si, me interesa. Dame informacion sobre los cursos` | Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos. Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente? | FAQ `catalogo-formaciones` + pregunta `goal` **en el mismo mensaje** (un único mensaje saliente por turno) |
 | 2 | `el curso de full stack` | Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web. ¿Qué día y a qué hora te viene bien que el equipo te llame? | Elección capturada bajo `goal` + reacción específica del programa + cierre configurable |
 | 3 | `los cursos pueden finanaciarse?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3: alias estrecho del error tipográfico; respuesta de financiación del perfil |
 
@@ -141,7 +141,7 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 
 ```powershell
 npm run typecheck   # cero errores
-npm test             # 348 tests, sin red
+npm test             # 372 tests, sin red
 npm run eval        # 46 casos de FAQ + 33 de KB + 23 de fundamentación
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador

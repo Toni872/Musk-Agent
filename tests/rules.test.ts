@@ -419,7 +419,7 @@ describe('apertura y cualificación (MVP spec §4)', () => {
 
     expect(APPROVED_CONTENT.qualificationQuestions).toHaveLength(1);
     expect(APPROVED_CONTENT.qualificationQuestions[0]?.id).toBe('goal');
-    expect(question).toBe('Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?');
+    expect(question).toBe('Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?');
     expect(closing).toBe('¿Qué día y a qué hora te viene bien que el equipo te llame?');
     expect(closing.length).toBeLessThanOrEqual(200);
     expect((question.match(/\?/g) ?? [])).toHaveLength(1);

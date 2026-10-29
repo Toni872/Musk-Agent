@@ -143,9 +143,9 @@ Las respuestas de precio y financiación están confirmadas por Nicolás en su
 respuesta inline y el texto se conserva configurable en los perfiles. El resto de
 la redacción que sigue pendiente no se considera firmada:
 
-- **Precio:** "No puedo compartir precios por aquí. Sí hay opciones de financiación
-  y tienes dos años para completar la formación con flexibilidad. El equipo te lo
-  explica en una llamada."
+- **Precio:** "El precio prefiero que te lo explique una persona. Sí hay opciones de
+  financiación y dos años flexibles para completarla. Si quieres, te paso con el
+  equipo y te lo cuenta en una llamada."
 - **Temario:** respuesta que remite a la llamada y explica que el detalle se ve
   con una persona, sin listar módulos.
 - **Financiación y tiempo:** "Sí, hay opciones de

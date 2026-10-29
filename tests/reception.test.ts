@@ -76,7 +76,7 @@ describe('recepción de respuestas (answer reception)', () => {
     expect(findApprovedAnswer(APPROVED_CONTENT, catalogQuestion)?.id).toBe('catalogo-formaciones');
     expect(catalog.reply).toBe(APPROVED_CONTENT.faq.find((entry) => entry.id === 'catalogo-formaciones')?.answer);
     expect(agent.nextQualificationQuestion()?.text).toBe(
-      'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?',
+      'Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?',
     );
 
     const choice = await agent.runTurn('el curso de full stack');
@@ -368,7 +368,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
     const goalQuestion = agent.nextQualificationQuestion();
     expect(goalQuestion).toMatchObject({
       id: 'goal',
-      text: 'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente?',
+      text: 'Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?',
     });
     const goal = await agent.runTurn('Quiero cambiar de sector');
     expect(goal.capturedAnswer).toEqual({ questionId: 'goal', text: 'Quiero cambiar de sector' });
@@ -383,7 +383,7 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
       { question: goalQuestion?.text, answer: 'Quiero cambiar de sector' },
     ]);
     expect(call.handoff?.summary).toContain(
-      'Primero cuéntame qué buscas: si no encaja, te lo digo yo. ¿Tienes algo en mente? → Quiero cambiar de sector',
+      'Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente? → Quiero cambiar de sector',
     );
     expect(call.handoff?.summary).toContain('Bolsa de origen: ilocalizables.');
     expect(call.handoff?.summary).toContain('Último mensaje del lead: mañana a las nueve');
@@ -464,8 +464,8 @@ expect(result.capturedAnswer).toEqual({ questionId: 'goal', text: answer });
       text: 'Quiero cambiar de sector',
     });
     expect(result.reply).toBe(demoGoalReply());
-    // The fallback sentence is still the tail the price answer already ships.
-    expect(buildReply('price').endsWith(buildReply('callProposal'))).toBe(true);
+    // Rule 1: the price template still carries the approved call invitation.
+    expect(buildReply('price')).toMatch(/llamada|contacto/i);
     const replies = agent.records.filter((record) => record.kind === 'reply');
     // The last outbound message is the call-oriented closing.
     expect(last(replies).detail).toBe(result.reply);
