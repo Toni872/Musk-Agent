@@ -78,12 +78,11 @@ para los avisos · configuración del canal WhatsApp · base legal / privacidad 
 transparencia del lote real · umbrales de éxito.
 
 Ya no queda ningún `TODO(decisión)` en `src/content.ts`. El mensaje inicial, la
-presentación de MUSK, la pregunta de cualificación `goal`, la FAQ y los 35 pasajes
-de la base de conocimiento están escritos y se usan en el perfil único, pero todo
-ello sigue siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11),
-no contenido aprobado. La protección se mantiene para futuros huecos: **un
-`TODO(decisión)` nunca se envía**, se informa como decisión abierta de MUSK. Ver
-`docs/pedido-nicolas.md`.
+presentación de MUSK, la FAQ y los 35 pasajes de la base de conocimiento están
+escritos y se usan en el perfil único, pero todo ello sigue siendo **copy unificado
+pendiente de firma de MUSK** (reglas 4 y 11), no contenido aprobado. La protección
+se mantiene para futuros huecos: **un `TODO(decisión)` nunca se envía**, se informa
+como decisión abierta de MUSK. Ver `docs/pedido-nicolas.md`.
 
 Importante: los "6 intentos" de la reunión del 18/09 NO son una regla del MVP. El
 ~3 % de conversión, el coste (>300 €) y los volúmenes (12-15 / 35 al mes) son
@@ -91,101 +90,50 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Convenciones técnicas
 
-- **Capa de base de conocimiento (Fase 0).** `src/kb.ts` guarda la base de
-  conocimiento como datos (pasajes con id, título, respuesta para el lead,
-  términos de recuperación y procedencia) y `src/retrieval.ts` la consulta de
-  forma determinista (BM25 + cobertura de términos, sin LLM, sin embeddings ni
-  dependencias). Reglas de la capa: la base de conocimiento decide si una pregunta
-  puede responderse y con qué pasaje; **el umbral vive en el código, como
-  constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`), nunca en un
-  prompt; los temas prohibidos (precio, condiciones de pago, horas, fechas de
-  inicio, devoluciones, becas, ubicación, requisitos) se rechazan siempre y
-  escalan (regla 5), con la excepción expresa del plazo aprobado de dos años para
-  completar la formación con flexibilidad. Los 35 pasajes viajan en el perfil
-  único (`APPROVED_CONTENT.kb`, en `src/content.ts`) y forman parte del **copy
-  unificado pendiente de firma de MUSK** (reglas 4 y 11). Ninguna respuesta de la
-  base de conocimiento puede contener una cifra (lo fija un test). La FAQ escrita
-  a mano conserva prioridad sobre la base de conocimiento.
-- **Un programa nombrado gana a la FAQ genérica.** La entrada `informacion` existe
-  para las formas que no nombran nada ("¿en qué consiste?", "¿de qué va el
-  curso?"). Cuando el lead escribe el curso ("¿en qué consiste python?"), la
-  misma forma pregunta por ESE curso, así que `classify()` deja pasar antes al
-  pasaje `*-contenido`/`*-salidas` del programa (`isProgrammePassage` en
-  `src/kb.ts`, guardado por `mentionsProgramme`). El guard es lo que mantiene
-  "¿de qué trata el de programación?" en la FAQ `programacion`: "programación"
-  es una familia, no un programa, y sin él la base contestaba con el máster de
-  videojuegos. Un tema prohibido sigue escalando (regla 5) aunque nombre curso.
-  Si el pasaje del programa no supera el umbral (una consulta de un solo
-  término), la FAQ genérica responde: nunca silencio.
-- **La pregunta pendiente gana al catálogo.** `isReceivableAnswer` recibe como
-  respuesta del lead cualquier mensaje que case con las reacciones de la pregunta
-  armada, **antes** de mirar la FAQ. Sin esa prioridad, "quiero cambiar de sector"
-  (que es a la vez palabra clave del catálogo de orientación y respuesta válida a
-  la pregunta de objetivo) se respondía desde la FAQ y la respuesta del lead se
-  perdía. Corolario para el copy: una palabra clave del catálogo puede ser una
-  frase que el lead use al abrir; si además es una respuesta legítima a una
-  pregunta de cualificación, la regla de prioridad la resuelve, no el orden del
-  array.
-- **Orientación sin tocar los umbrales.** La FAQ lleva una entrada `orientacion`
-  (`no sé por dónde empezar`, `cuál me conviene`, `orientadme`, `cambio
-  profesional`, `cambiar de carrera`, `cambio de sector`…) porque la base de
-  conocimiento ya lista esos términos pero BM25 **no puede** aceptar una consulta
-  cuyo contenido se reduce a un solo término: se queda en ~2.4 y el umbral de 3.5
-  la rechaza. Los umbrales son una decisión calibrada y validada con hold-out, así
-  que la respuesta se da en la capa de catálogo curada y la barra **no se mueve**.
-  La respuesta de orientación no termina en pregunta: el motor ya pregunta el
-  objetivo en el mismo turno (`src/outbound.ts`).
-- **Plantillas de pregunta de contenido.** Las formas con las que el lead pide
-  contenido de un programa ("de qué trata…", "qué es el curso de…", "de qué va
-  el curso de…", "háblame de…", "en qué consiste…", "qué se aprende en…") están
-  como términos extra en los pasajes `*-contenido` (`CONTENT_QUESTION_TERMS` en
-  `src/kb.ts`), no como carril propio ni como umbral aparte. Medido el
-  2026-10-27: sin ellas, "¿de qué trata el de python?" se respondía con el
-  pasaje de **otra** certificación y "¿de qué trata el de videojuegos?" quedaba
-  por debajo del umbral (3.43 frente a 3.5). El contrato que fijan los tests no
-  es "siempre gana `-contenido`", sino: **con un programa nombrado, la respuesta
-  es de ese programa o la capa genérica, nunca de otro programa y nunca silencio
-  cuando la base sí cubre el tema**; y las plantillas con palabra de contenido
-  ("trata", "curso") llegan al pasaje `-contenido`. El duelo `-contenido` contra
-  `-salidas` del mismo programa lo decide BM25, y en los programas de dos
-  palabras ("full stack") gana el pasaje corto: es preferencia de ranking dentro
-  del programa correcto, no un fallo. "En qué consiste…" y "de qué va…" sin
-  programa siguen en la FAQ `informacion`, que es la que gana al KB por diseño.
-- **Fuente de la fundamentación del LLM.** La regla es: el modelo solo puede usar
-  lo que se le mostró. La fuente de una llamada es el texto aprobado que va a
-  reformular **más el contexto aprobado del perfil** (`generalDescription` y
-  `methodology`), y se compone en un solo sitio (`composeGroundingSource` para una
-  entrada de FAQ y `composeGroundingSourceFromText` para un pasaje o una plantilla,
-  en `src/entailment.ts`) para que el prompt y la comprobación nunca discrepen.
-  Solo se reformulan tres cosas: la respuesta de la FAQ casada, el pasaje de la base
-  de conocimiento que respondió y la plantilla `reassurance`. **Nunca** `price`,
-  `financiacion`, `temario`, `stop`, `human` ni `decline`, y **nunca** la plantilla
-  `doubt`: el motor la reconoce por igualdad de texto (`asksForContact`,
-  `isDoubtReply` en `src/agent.ts`) para armar la derivación a humano, así que
-  reformularla rompería el handoff duda → «sí». Quedan **fuera** de la fuente y del
-  prompt: el nombre de la formación (en el perfil único es un dato interno para el
-  resumen comercial, no texto que pueda llegar al lead), las listas de habilidades
-  y salidas (son largas y desvían al modelo del tema de la pregunta) y las demás
-  entradas de la FAQ (la fuga entre entradas se mantiene cerrada). El contexto del
-  perfil va en la parte estable del prompt (no cambia entre llamadas, se cachea);
-  el texto aprobado de la llamada, en la parte volátil.
-- **Un miedo no es una duda.** Cuando el lead dice que no se ve capaz («no sé si
-  sirvo», «no tengo base», «soy mayor para estudiar»), la duda va por dos caminos
-  y en ese orden: primero el enganche léxico, que lleva esos términos al pasaje
-  `kb-sin-experiencia` (`src/kb.ts`) y responde con el dato aprobado; después, si
-  el mensaje es `unknown` pero casa con `expressesFear()` (`src/rules.ts`), la
-  plantilla `reassurance` responde y **no** se registra la duda. Registrar una duda
-  ahí ensuciaría la métrica del piloto (una regla 5 falsa) y el motor contestaría
-  «no tengo respuesta aprobada» a algo que sí cubre. El cierre para agendar sigue
-  pidiendo día y hora (`closingInvitation`), porque es el dato que necesita el aviso
-  a Laura; las opciones cerradas se usan al abrir y al preguntar el objetivo, no
-  cuando hace falta un momento concreto.
-- **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee `normalizeEs`
-  (minúsculas, sin acentos, puntuación a espacios, espacios colapsados). Vive
-  aparte para que la capa de disparadores (`src/rules.ts`) y la capa de intents
-  (`src/intent.ts`) la usen sin ciclo de importación. `src/intent.ts` la
-  reexporta, de modo que los importadores existentes no cambian. `foldForGuard`
-  en `src/rules.ts` es deliberadamente distinta: no quita puntuación.
+- **Motor LLM con RAG.** `src/agent.ts` dirige la conversación: cada turno
+  recupera los pasajes más cercanos (`retrieveTopK`, BM25) y los pasa al modelo
+  como contexto, anclando siempre la presentación de la escuela (`kb-escuela`)
+  para que una pregunta corta («¿qué formación?») no se conteste con un pasaje
+  suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
+  catálogo cerrado, la descripción y la metodología aprobadas y las respuestas de
+  la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
+  y termina con una sola pregunta.
+- **Guard de salida (`src/rules.ts`).** `guardReply` descarta cualquier respuesta
+  con importes, promesas de empleo, promociones o temario no aprobado. Distingue
+  una negación honesta («no garantizamos empleo») de una promesa: el patrón
+  `garantiz*` se revisa mirando la negación inmediatamente anterior (sin
+  lookbehind, que rompería Safari antiguo). Parada, petición de humano, teléfono
+  y aceptación de llamada son deterministas y no pasan por el modelo.
+- **Capa de base de conocimiento (Fase 0).** `src/kb.ts` guarda los pasajes como
+  datos (id, título, respuesta para el lead, términos de recuperación y
+  procedencia) y `src/retrieval.ts` los consulta de forma determinista (BM25 +
+  cobertura, sin LLM, sin embeddings ni dependencias). Reglas: **el umbral vive en
+  el código, como constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`),
+  nunca en un prompt; los temas prohibidos (precio, compensación, financiación,
+  horas, fechas de inicio, devoluciones, becas, ubicación, requisitos, condiciones
+  de prácticas) se rechazan siempre y escalan (regla 5), con la excepción expresa
+  del plazo aprobado de dos años para completar la formación con flexibilidad.
+  Ninguna respuesta de la base de conocimiento puede contener una cifra (lo fija
+  un test). La FAQ escrita a mano conserva prioridad.
+- **Dos recuperadores, un contrato.** `retrieve()` es la puerta con umbrales y
+  gate de temas prohibidos: la usa el **modo determinista** (sin modelo o si el
+  proveedor falla) para responder solo con un pasaje que supera ambos umbrales, o
+  escalar a la regla 5 si nada lo hace. `retrieveTopK()` es el ranking sin umbral
+  que alimenta el contexto del LLM; la seguridad se aplica después (prompt +
+  guard), no retirando contexto. El modo determinista nunca recita un pasaje débil
+  (p. ej. «no es el momento» ante «¿cómo funciona la formación?»): eso escalaría
+  de forma deshonesta.
+- **Fuente de la respuesta del LLM.** El modelo solo puede usar lo que se le
+  mostró: los pasajes recuperados más el contexto aprobado del perfil. Si el
+  guard rechaza la salida, el lead recibe la duda (regla 5); si el proveedor
+  falla o devuelve vacío, se cae al modo determinista. La duda y la plantilla de
+  duda **no** se reformulan: el motor las reconoce por igualdad de texto para
+  armar la derivación a humano.
+- **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee
+  `normalizeEs` (minúsculas, sin acentos, puntuación a espacios, espacios
+  colapsados). Lo usan la capa de disparadores (`src/rules.ts`) y la recuperación
+  (`src/retrieval.ts`) sin ciclo de importación. `foldForGuard` en `src/rules.ts`
+  es deliberadamente distinta: no quita puntuación.
 - Las etiquetas conversacionales del asistente son distintas de los estados del CRM
   (nuevo, pendiente, beca, perdido…). No las mezcles ni las mapees por API en esta
   fase.
@@ -206,21 +154,21 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (358 tests) y `npm run eval`
-  (46 casos etiquetados del bucle de evaluación de la FAQ + 33 de la base de
-  conocimiento + 23 de fundamentación, que comprueban que la reformulación del
-  LLM se mantiene fundamentada en la fuente aprobada). La comprobación automática corre
-  también en cada push (`.github/workflows/ci.yml`).
+- Antes de tocar nada: `npm run typecheck`, `npm test` (129 tests en 6 ficheros) y
+  `npm run eval` (bucle de evaluación de la base de conocimiento: recall, falsos
+  positivos y ablación léxica held-out). La comprobación automática corre también
+  en cada push (`.github/workflows/ci.yml`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.
 - Si falta una decisión de las listadas arriba, propón una opción por defecto
   configurable y márcala `TODO(decisión)`; no la presentes como acordada.
 - Mantén simple: registro básico y supervisión básica antes que automatización.
 - El arnés no está conectado a WhatsApp, ni a leads reales, ni a ningún CRM. Laura
-  aparece únicamente como destinataria simulada. El LLM es opcional y solo
-  reformula respuestas ya aprobadas.
-- El deploy a Vercel es **manual** (`vercel deploy --prod`): el repositorio no
-  despliega solo.
+  aparece únicamente como destinataria simulada. El LLM es opcional y dirige la
+  conversación con RAG; sin él, el agente cae al modo determinista con los pasajes
+  aprobados.
+- El deploy a Vercel es **manual** (`npm run deploy`, que ejecuta `pilot-gate` y
+  `vercel deploy --prod`): el repositorio no despliega solo.
 
 ## Mapa de documentación
 

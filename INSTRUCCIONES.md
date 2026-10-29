@@ -2,7 +2,7 @@
 
 Esto es el **motor conversacional del MVP**: todavía no está conectado a WhatsApp. Es una ventana de terminal en la que escribes frases como las escribiría un alumno y ves responder al asistente de MUSK.
 
-Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, no usa vuestros leads reales, todo es simulado.
+Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no sale nada a internet; con el LLM configurado, el texto de la conversación se envía al proveedor (Groq) para que el agente responda.
 
 ---
 
@@ -26,7 +26,7 @@ Funciona **100 % local y offline**: no envía ni recibe datos de ningún sitio, 
    npm test
    ```
 
-    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **270 passed**, todo está correcto y ya puedes arrancar el simulador.
+    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **129 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
@@ -36,7 +36,7 @@ npm run sim
 
 Al arrancar verás primero una nota técnica y el bloque `--- opening ---` con el mensaje de apertura. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
 
-Este comando ya muestra el flujo **completo** por defecto: mensaje de apertura, una pregunta breve sobre el objetivo y propuesta de llamada. Usa el perfil único de `src/content.ts`, con **copy unificado pendiente de firma de MUSK**; ya no existe un modo `sim:demo` ni un contenido de ejemplo alternativo.
+Este comando muestra el flujo **completo**: mensaje de apertura, conversación libre (el asistente responde y hace una pregunta por turno) y propuesta de llamada cuando hay interés. Usa el perfil único de `src/content.ts`, con **copy unificado pendiente de firma de MUSK**; ya no existe un modo `sim:demo` ni un contenido de ejemplo alternativo.
 
 Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor y el mismo perfil único, con una interfaz de chat y sin selector de perfiles. Para cerrarlo, pulsa `Ctrl+C` en la terminal.
 
@@ -64,7 +64,7 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 5. "no me interesa" → trato amable y sin presión; no se confunde con una parada.
 6. "no me escribáis más" → respeta el rechazo y detiene el seguimiento.
 7. El flujo completo termina en una llamada humana (nunca vende por WhatsApp).
-8. La DEMO pregunta una vez qué quiere conseguir el lead, guarda su respuesta y propone directamente la llamada. Es una pregunta de conversación, no un examen ni un filtro. El cierre pide un día y una hora convenientes; el texto se puede cambiar en el perfil.
+8. La conversación es libre y empática: el asistente hace una pregunta por turno (sin examen ni filtro) y propone la llamada cuando hay interés real. El cierre pide un día y una hora convenientes.
 
 Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumno real); todas deben caer en alguno de los comportamientos anteriores.
 
@@ -76,7 +76,7 @@ Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumn
 
 ## 7. Notas
 
-- Todo es **local y simulado**: no hay canal real, no hay leads reales, no se sube nada a internet.
+- Todo es **local y simulado**: no hay canal real, no hay leads reales. Sin clave de LLM no sale nada a internet; con ella, la conversación se envía al proveedor para que responda el modelo.
 - La presentación general puede incluir las cinco formaciones; no hace falta ahora un catálogo detallado. La DEMO conserva otros textos de muestra, que siguen pendientes de validación.
 - Si algo falla o aparece un error, **copiad el mensaje de error** y enviádselo a Script9 tal cual.
 - Si ves un error `EPERM` o una ruta que empieza por `C:\WINDOWS\system32`, es que la terminal se abrió fuera de la carpeta del proyecto (habitualmente porque se abrió como administrador). Cierra esa ventana y repite el paso 2.

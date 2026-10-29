@@ -1,5 +1,12 @@
 # Informe técnico — Agente de Musk (`musk/`)
 
+> **NOTA (octubre 2026):** este informe describe el **motor determinista
+> anterior** (clasificador de intents `src/intent.ts`, fundamentación
+> `src/entailment.ts`, mensaje único `src/outbound.ts` y cualificación). Ese
+> motor se sustituyó por un **motor LLM-driven con RAG** (`src/agent.ts` +
+> `src/retrieval.ts` + `src/rules.ts`). Para el estado actual, consulta
+> `README.md` y `AGENTS.md`. Este documento se conserva como registro histórico.
+
 Estado: **descriptivo del código actual** (no propone cambios). Verificado leyendo
 los 20 archivos del agente uno por uno.
 
