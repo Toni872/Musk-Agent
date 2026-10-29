@@ -56,3 +56,10 @@ jobs:
 
       - name: Build browser simulator
         run: npm run build:ui
+
+      # api/rephrase.js is a generated, self-contained bundle of src/api-entry.ts.
+      # Vercel keeps relative import specifiers verbatim when it compiles api/*.ts,
+      # and Node's ESM loader cannot resolve them without an extension at runtime.
+      # Shipping the bundle avoids that failure; this step keeps it from drifting.
+      - name: API bundle is up to date
+        run: npm run build:api && git diff --exit-code -- api/rephrase.js

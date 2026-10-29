@@ -1,4 +1,4 @@
-import { handleRephrase } from '../src/rephrase-endpoint';
+import { handleRephrase } from './rephrase-endpoint';
 
 // Minimal structural types for the Vercel Node function signature. Declaring
 // them here keeps `@vercel/node` (only needed at build time by the platform)

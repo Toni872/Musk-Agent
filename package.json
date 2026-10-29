@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/simulator.ts",
     "eval": "tsx src/eval.ts",
+    "build:api": "node scripts/build-api.mjs",
     "build:ui": "node ui/build.mjs",
     "pilot-gate": "tsx scripts/pilot-gate.ts",
     "deploy": "npm run pilot-gate && vercel deploy --prod",
