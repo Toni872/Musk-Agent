@@ -182,5 +182,4 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 | `docs/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
 | `docs/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
 | `docs/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
-| `docs/musk-agente-informe-tecnico.md` | Informe técnico del motor |
 | `docs/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo (fase 2) |
