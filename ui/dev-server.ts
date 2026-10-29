@@ -95,7 +95,7 @@ async function serveRephrase(request: IncomingMessage, response: ServerResponse)
 
   const result = await handleRephrase(
     { method: request.method ?? 'GET', headers, body },
-    { env: process.env, fetchImpl: fetch },
+    { env: process.env, fetchImpl: fetch, bypassAuth: true },
   );
 
   response.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -137,11 +137,11 @@ server.on('listening', () => {
   const address = server.address();
   const actual = typeof address === 'object' && address !== null ? address.port : port;
   console.log(`MUSK UI: http://localhost:${actual}/`);
-  if (process.env.MUSK_DEMO_TOKEN !== undefined) {
-    console.log(`With the real model: http://localhost:${actual}/?k=<el valor de MUSK_DEMO_TOKEN en .env>`);
-  } else {
-    console.log('No MUSK_DEMO_TOKEN in .env: the UI runs in deterministic mode (no model).');
-  }
+  console.log(
+    process.env.MUSK_LLM_API_KEY !== undefined
+      ? 'Model enabled (local, bound to 127.0.0.1): just open the URL, no token needed.'
+      : 'No MUSK_LLM_API_KEY in .env: the UI runs in deterministic mode (no model).',
+  );
   console.log('Ctrl+C para detener el servidor.');
 });
 

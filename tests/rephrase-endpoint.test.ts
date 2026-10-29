@@ -72,6 +72,19 @@ describe('rephrase endpoint', () => {
     expect(result.body).toEqual({ error: 'unauthorized' });
   });
 
+  it('skips the token check when bypassAuth is set (local dev)', async () => {
+    const result = await handleRephrase(
+      { method: 'POST', headers: {}, body: { system: 's', messages: [{ role: 'user', content: 'hi' }] } },
+      {
+        env: GROQ_ENV,
+        fetchImpl: makeFetch(200, { choices: [{ message: { content: 'ok' } }] }),
+        bypassAuth: true,
+      },
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ text: 'ok' });
+  });
+
   it('returns 400 when body missing system', async () => {
     const result = await handleRephrase(
       { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { messages: [{ role: 'user', content: 'hi' }] } },

@@ -53,7 +53,15 @@ function getDemoToken(): string | null {
 }
 
 const demoToken = getDemoToken();
-const chat = demoToken ? createChat({ provider: new RemoteRephraseLLM(demoToken) }) : createChat();
+const isLocalHost =
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// In production the proxy requires the demo token; locally the dev server is
+// bound to 127.0.0.1 and skips the check, so no ?k= dance is needed.
+const chat = demoToken
+  ? createChat({ provider: new RemoteRephraseLLM(demoToken) })
+  : isLocalHost
+    ? createChat({ provider: new RemoteRephraseLLM('local') })
+    : createChat();
 let busy = false;
 
 const root = document.getElementById('app');

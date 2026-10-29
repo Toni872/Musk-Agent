@@ -105,6 +105,9 @@ export interface RephraseRequest {
 export interface RephraseDeps {
   env: Record<string, string | undefined>;
   fetchImpl: typeof fetch;
+  // Local-only escape hatch: the dev server binds to 127.0.0.1, so it may skip
+  // the demo-token check to avoid the ?k= dance. Production never sets this.
+  bypassAuth?: boolean;
 }
 
 type ErrorBody = { error: string };
@@ -160,12 +163,14 @@ export async function handleRephrase(request: RephraseRequest, deps: RephraseDep
     return { status: 503, body: errorBody('service_unavailable') };
   }
 
-  const demoToken = getHeader(request.headers, 'x-demo-token');
-  if (typeof demoToken !== 'string' || demoToken.length === 0) {
-    return { status: 401, body: errorBody('unauthorized') };
-  }
-  if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
-    return { status: 401, body: errorBody('unauthorized') };
+  if (deps.bypassAuth !== true) {
+    const demoToken = getHeader(request.headers, 'x-demo-token');
+    if (typeof demoToken !== 'string' || demoToken.length === 0) {
+      return { status: 401, body: errorBody('unauthorized') };
+    }
+    if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
+      return { status: 401, body: errorBody('unauthorized') };
+    }
   }
 
   if (!isValidBody(request.body)) {
