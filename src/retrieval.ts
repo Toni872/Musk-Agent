@@ -240,6 +240,37 @@ export interface RetrievalResult {
   matchedTerms: string[];
 }
 
+export interface RankedPassage {
+  passage: KbPassage;
+  score: number;
+  coverage: number;
+}
+
+// Ranked retrieval for the RAG conversation layer: returns the top-k passages
+// by BM25 score (no thresholds, no forbidden-topic gate) so the LLM can read the
+// closest approved content and answer naturally. Safety is enforced elsewhere
+// (the system prompt plus the output guard), not by withholding context.
+export function retrieveTopK(
+  passages: KbPassage[],
+  query: string,
+  k = 4,
+  mode: RetrievalMode = PRODUCTION_RETRIEVAL_MODE,
+): RankedPassage[] {
+  const documents = prepare(passages, mode);
+  const queryTerms = Array.from(new Set(contentTokens(query)));
+  if (documents.length === 0 || queryTerms.length === 0) return [];
+  const { scores, coverage } = bm25(documents, queryTerms);
+  return documents
+    .map((document, index) => ({
+      passage: document.passage,
+      score: scores[index] ?? 0,
+      coverage: coverage[index] ?? 0,
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || b.coverage - a.coverage)
+    .slice(0, k);
+}
+
 export interface RetrievalOutcome {
   match: RetrievalResult | null; // null when nothing clears the thresholds
   best: RetrievalResult | null; // closest passage even when it does NOT clear

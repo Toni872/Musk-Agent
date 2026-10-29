@@ -5,7 +5,7 @@
 // renderer. The DOM layer (ui/main.ts) is a thin consumer of getState().
 //
 // Functional parity target: src/simulator.ts (banner, opening handling,
-// per-turn line, handoff line, qualification question, /state records, reset).
+// per-turn line, handoff line, /state records, reset).
 
 import {
   MuskAgent,
@@ -14,13 +14,8 @@ import {
   type LeadContact,
   type TurnResult,
 } from '../src/agent';
-import {
-  APPROVED_CONTENT,
-  type ApprovedContent,
-  type QualificationQuestion,
-} from '../src/content';
+import { APPROVED_CONTENT, type ApprovedContent } from '../src/content';
 import type { LLMProvider } from '../src/llm';
-import { composeTurnOutbound } from '../src/outbound';
 
 export type ChatMessageRole = 'lead' | 'agent' | 'diagnostic' | 'info';
 
@@ -37,9 +32,6 @@ export interface TurnDiagnostic {
   suppressed: boolean;
   registeredDoubts: number;
   ruleViolations: string[];
-  // Present when the turn was RECEIVED as the answer to the ask the agent had
-  // just made (questionId null for the opening). Mirrors src/simulator.ts.
-  capturedAnswer?: { questionId: string | null };
 }
 
 export interface ChatState {
@@ -47,9 +39,7 @@ export interface ChatState {
   messages: ChatMessage[];
   stopped: boolean;
   records: ConversationRecord[];
-  // The lead's questions with no approved answer, deduplicated (spec 6). The
-  // operator panel counts them and the records list keeps the wording, which is
-  // what turns "we should measure before adding embeddings" into a number.
+  // The lead's questions the agent could not answer, deduplicated (spec 6).
   doubts: string[];
   pendingDecisions: string[];
   turnCount: number;
@@ -57,31 +47,22 @@ export interface ChatState {
 
 export interface ChatOptions {
   // Content injection seam (tests and experiments only): the shipped UI always
-  // uses APPROVED_CONTENT, there is no profile switch any more.
+  // uses APPROVED_CONTENT.
   content?: ApprovedContent;
   lead?: LeadContact;
-  // Optional LLM provider for the rephrase layer (Phase 1). Without it the UI
-  // is fully deterministic, exactly as before; with it, the grounding verdict
-  // of the turn becomes visible in the operator lines.
+  // Optional LLM provider that drives the conversation. Without it the UI falls
+  // back to the closest approved passage.
   provider?: LLMProvider | null;
 }
 
-// Mirrors src/simulator.ts printContentBanner(). One profile, one banner: the
-// demo/real split is gone, and the copy is curated from MUSK's material with the
-// final wording sign-off still pending.
 export const CONTENT_BANNER =
   'Content: perfil único de Escuela Musk (contenido curado; firma final de redacción pendiente).';
 
-// Mirrors src/simulator.ts printOpening(): rule 4, a TODO(decisión) placeholder
-// is never sent, it is reported instead so the gap stays visible.
 export const OPENING_PLACEHOLDER =
   '(none: decision still open with MUSK — a TODO placeholder is never sent)';
 
-// Mirrors src/simulator.ts printTurn() when the conversation is stopped.
 export const STOPPED_REPLY_PLACEHOLDER = '(no message sent: conversation stopped)';
 
-// Same, once the handoff fired: the agent deliberately goes silent because the
-// conversation is in a person's hands now.
 export const HANDOFF_REPLY_PLACEHOLDER = '(no message sent: the conversation is with a person)';
 
 export const DEFAULT_LEAD: LeadContact = {
@@ -91,22 +72,12 @@ export const DEFAULT_LEAD: LeadContact = {
   lossReason: 'no respondió a los intentos de llamada',
 };
 
-
-// Operator line of one turn. When the message was RECEIVED as the answer to the
-// pending ask, that disposition LEADS the line: the raw classifier label alone
-// is misleading (a course name classifies as 'kb' while no passage was used at
-// all, which made the demo look broken), so it is kept only as a secondary
-// note. Same information and same order as src/simulator.ts printTurn().
 export function formatDiagnostic(diagnostic: TurnDiagnostic): string {
-  const classifier =
+  return (
     `intent = ${diagnostic.intent} | action = ${diagnostic.action}` +
     ` | suppressed = ${diagnostic.suppressed}` +
-    ` | registered doubts = ${diagnostic.registeredDoubts}`;
-  if (!diagnostic.capturedAnswer) return classifier;
-  const received =
-    `received = answer to ${diagnostic.capturedAnswer.questionId ?? 'opening message'}` +
-    ` (no doubt registered)`;
-  return `${received} | ${classifier}`;
+    ` | registered doubts = ${diagnostic.registeredDoubts}`
+  );
 }
 
 export function formatHandoff(handoff: HandoffContext): string {
@@ -118,12 +89,6 @@ export function formatHandoff(handoff: HandoffContext): string {
   );
 }
 
-// Operator-facing view of the commercial summary the agent built from the
-// conversation (spec §3.3). The demo has to show it, not hide it in the payload.
-// `updated` marks the re-render that happens when the lead writes after the
-// handoff: the summary is amended in place (the agreed moment often arrives
-// after the notice), and without the marker the panel looked like a second
-// notice had been sent to Laura.
 export function formatHandoffSummary(handoff: HandoffContext, updated = false): string {
   return `resumen para el comercial${updated ? ' (actualizado)' : ''} = ${handoff.summary}`;
 }
@@ -144,7 +109,6 @@ export class Chat {
     this.showOpening();
   }
 
-  // Plain, serializable snapshot for the renderer and the tests.
   getState(): ChatState {
     return {
       banner: CONTENT_BANNER,
@@ -157,26 +121,14 @@ export class Chat {
     };
   }
 
-  // Commercial handoff of the session, if the agent already fired one. The
-  // exports (copy notice / JSON / report) need it, and reaching into the
-  // private agent from the DOM layer was a fragile cast: this is the public
-  // seam instead.
   get handoff(): HandoffContext | undefined {
     return this.agent.handoff;
   }
 
-  // Qualification answers gathered so far, in arrival order (supervision only).
   get qualificationAnswers(): { id: string; text: string }[] {
     return this.agent.qualificationAnswers;
   }
 
-  // One turn: register the lead message, run the guard, render the reply plus
-  // the diagnostics, then ask the next approved qualification question (if any).
-  // The lead receives ONE outbound message: the question asked here travels
-  // inside the reply when both exist (src/outbound.ts, the same helper the CLI
-  // uses). Asking before rendering changes nothing in the agent — the ask is
-  // armed exactly as before, so the lead's next message is still RECEIVED as the
-  // answer to that question.
   async send(text: string): Promise<ChatState> {
     const message = text.trim();
     if (!message) return this.getState();
@@ -184,14 +136,11 @@ export class Chat {
     const recordsBefore = this.agent.records.length;
     const result = await this.agent.runTurn(message);
     this.turnCount += 1;
-    const question = this.agent.nextQualificationQuestion();
-    this.pushTurn(result, question);
+    this.pushTurn(result);
     this.pushKbProvenance(recordsBefore);
-    this.pushGrounding(recordsBefore);
     return this.getState();
   }
 
-  // Mirrors the CLI /reset: a brand-new MuskAgent and a fresh conversation.
   reset(): ChatState {
     this.restart('conversation reset');
     return this.getState();
@@ -215,10 +164,6 @@ export class Chat {
 
   private showOpening(): void {
     const opening = this.agent.opening();
-    // Rule 4: a TODO(decisión) placeholder is NEVER sent to the lead. When no
-    // approved opening exists there is no agent turn to show, so the gap is
-    // reported as an operator note - rendering it as an agent bubble made the
-    // lead's transcript claim the agent had written something it never wrote.
     this.messages.push({ role: opening ? 'agent' : 'info', text: opening ?? OPENING_PLACEHOLDER });
     const pending = this.agent.pendingDecisions;
     if (pending.length > 0) {
@@ -226,11 +171,6 @@ export class Chat {
     }
   }
 
-  // Knowledge-base provenance of the turn, in the operator style of the other
-  // diagnostic lines: "kb = kb-catalogo (score 4.21, coverage 0.75)". It shows
-  // the passage that answered, or the closest one when nothing cleared the
-  // thresholds (the escalation context). The lead-facing transcript is
-  // untouched: the lead only ever sees the answer text.
   private pushKbProvenance(recordsBefore: number): void {
     const records = this.agent.records.slice(recordsBefore).filter((record) => record.kind === 'kb');
     for (const record of records) {
@@ -238,27 +178,9 @@ export class Chat {
     }
   }
 
-  // Grounding verdict of the turn, in the operator style of the other
-  // diagnostic lines: "grounding = grounded rephrase of faq/modalidad" or
-  // "grounding = rephrase rejected (unsupported: "500"): used the approved
-  // text". A rejected rephrase must be visible in the demo. The lead-facing
-  // transcript is untouched: the lead only ever sees the answer text.
-  private pushGrounding(recordsBefore: number): void {
-    const records = this.agent.records.slice(recordsBefore).filter((record) => record.kind === 'grounding');
-    for (const record of records) {
-      this.messages.push({ role: 'diagnostic', text: `grounding = ${record.detail}` });
-    }
-  }
-
-  private pushTurn(result: TurnResult, question: QualificationQuestion | null): void {
-    // ONE outbound message per turn (src/outbound.ts): the reply and the
-    // qualification question compose into a single bubble, unless the reply
-    // already asks something (one question at a time) — then the question is the
-    // turn's own message, which is also the case when a received answer sends no
-    // reply of its own. Only a suppressed turn keeps a visible placeholder.
-    const outbound = composeTurnOutbound(result.reply, question);
-    if (outbound.text !== '') {
-      this.messages.push({ role: 'agent', text: outbound.text });
+  private pushTurn(result: TurnResult): void {
+    if (result.reply !== '') {
+      this.messages.push({ role: 'agent', text: result.reply });
     } else if (result.suppressed) {
       this.messages.push({
         role: 'agent',
@@ -273,14 +195,9 @@ export class Chat {
         suppressed: result.suppressed,
         registeredDoubts: result.registeredDoubts.length,
         ruleViolations: result.ruleViolations,
-        capturedAnswer: result.capturedAnswer,
       }),
     });
     if (result.handoff) {
-      // The notice is sent ONCE, on the turn the handoff fires. Post-handoff
-      // turns keep returning the context (amended with the agreed moment), so
-      // re-printing the notice line made the panel read as if Laura had been
-      // notified twice. Only the summary is re-rendered, marked as updated.
       if (result.action === 'handoff') {
         this.messages.push({ role: 'diagnostic', text: formatHandoff(result.handoff) });
         this.messages.push({ role: 'diagnostic', text: formatHandoffSummary(result.handoff) });

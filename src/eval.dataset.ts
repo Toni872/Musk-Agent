@@ -9,7 +9,11 @@
 //
 // Data only: importing this module has no side effects.
 
-import type { Intent } from './intent';
+// The deterministic intent classifier is gone (the engine is LLM-driven now).
+// `Intent` survives only as a label on the historical labelled data; it is no
+// longer compared at runtime.
+export type Intent = string;
+
 import { KB_PASSAGES } from './kb';
 
 export interface EvalCase {

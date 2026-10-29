@@ -6,11 +6,11 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { loadLLMConfigFromEnv } from './llm';
 
-const MAX_BODY_CHARS = 8000;
-const MAX_MESSAGES = 4;
+const MAX_BODY_CHARS = 30000;
+const MAX_MESSAGES = 60;
 const MAX_CALLS_PER_MINUTE = 30;
-const UPSTREAM_TIMEOUT_MS = 15000;
-const MAX_TOKENS = 320;
+const UPSTREAM_TIMEOUT_MS = 30000;
+const MAX_TOKENS = 700;
 
 type RateLimitEntry = {
   count: number;

@@ -19,11 +19,11 @@ function loadLLMConfigFromEnv(env = process.env) {
 }
 
 // src/rephrase-endpoint.ts
-var MAX_BODY_CHARS = 8e3;
-var MAX_MESSAGES = 4;
+var MAX_BODY_CHARS = 3e4;
+var MAX_MESSAGES = 60;
 var MAX_CALLS_PER_MINUTE = 30;
-var UPSTREAM_TIMEOUT_MS = 15e3;
-var MAX_TOKENS = 320;
+var UPSTREAM_TIMEOUT_MS = 3e4;
+var MAX_TOKENS = 700;
 var rateLimitMap = /* @__PURE__ */ new Map();
 function getClientIp(headers) {
   const forwarded = headers["x-forwarded-for"];

@@ -36,28 +36,6 @@ export interface FaqEntry {
   answer: string;
 }
 
-export interface QualificationReaction {
-  // What the lead's own words are matched against (normalized, accent-folded).
-  keywords: string[];
-  // Optional negations that prevent a keyword mention from being read as a
-  // positive selection (also normalized, accent-folded).
-  avoidKeywords?: string[];
-  // Short reply to THAT answer (rule 11: MUSK copy). Its job is to make the next
-  // question read as a conversation instead of a form. Every reaction is
-  // answer-specific on purpose: one fixed courtesy line repeated on every answer
-  // is the robot tell the engine avoids (see MuskAgent.receiveAnswer).
-  say: string;
-}
-
-export interface QualificationQuestion {
-  id: string;
-  text: string;
-  purpose: string;
-  // Optional per-answer reactions: first keyword match wins. No match means no
-  // reaction, which is the safe default (silence beats filler).
-  reactions?: QualificationReaction[];
-}
-
 export interface ApprovedContent {
   formationName: string;
   generalDescription: string;
@@ -69,31 +47,16 @@ export interface ApprovedContent {
   // detail and promises.
   companyPresentation: string;
   faq: FaqEntry[];
-  qualificationQuestions: QualificationQuestion[];
   initialMessage: string;
-  // Lead-facing close used once the qualification runs out and the agent asks
-  // for the call. When it is missing or still a TODO(decisión), the agent falls
-  // back to the sentence already approved for that moment
-  // (REPLY_TEMPLATES.callProposal), so a profile can sharpen the close without
-  // inventing copy at runtime (rule 11).
-  closingInvitation?: string;
-  // Operator-approved, profile-configurable copy for guarded commercial intents.
-  // These are complete responses, not amounts or payment-condition data; every
-  // emitted value is still checked by guardReply (rules 1, 3, 4 and 11).
+  // Operator-approved, profile-configurable copy for the guarded commercial
+  // intents. These are complete responses, not amounts or payment-condition
+  // data; every emitted value is still checked by guardReply (rules 1, 3, 4).
   priceReply?: string;
   financingReply?: string;
   // Simulation target for the handoff notice. This does not send a real message.
   handoffRecipient?: string;
-  // Profile-specific second acknowledgement of a rule-5 doubt, used when the
-  // same doubt reply would be sent twice in a row. It is NEVER sent unless the
-  // profile provides it: a profile without it falls back to the bare approved
-  // invitation, so no unapproved copy reaches the lead (rules 4, 11).
-  doubtFollowup?: string;
-  // Knowledge base for the deterministic retrieval layer (src/retrieval.ts). A
-  // matched passage is the only approved source for a knowledge-base answer;
-  // the optional guarded rephrase uses that answer, and deterministic mode
-  // sends it verbatim. This answers questions about one specific programme
-  // ("¿qué se aprende en Python?").
+  // Knowledge base for the RAG retrieval layer (src/retrieval.ts). Its passages
+  // are the approved grounding source the model reads to answer naturally.
   kb?: KbPassage[];
 }
 
@@ -107,10 +70,6 @@ export function isPendingDecision(value: string): boolean {
 // answer a question about ONE programme, or "¿qué salidas tiene videojuegos?"
 // is answered with the outcomes of another course. Kept next to the entries it
 // protects so the two cannot drift.
-// The programmes the pilot presents. Also used as a veto list by the generic
-// FAQ entries and by `mentionsProgramme` in the intent layer, because naming a
-// course is what turns a generic question ("¿en qué consiste?") into a question
-// about that course.
 export const PROGRAMME_NAMES = [
   'python',
   'front end',
@@ -126,8 +85,7 @@ export const PROGRAMME_NAMES = [
 ];
 
 // True when the lead names a programme in the message. Expects the folded form
-// (normalizeEs), same as findApprovedAnswer. Kept here, next to the list, so the
-// intent layer does not need to know how a programme is spelled.
+// (normalizeEs). Kept as a helper for future retrieval work.
 export function mentionsProgramme(foldedMessage: string): boolean {
   return PROGRAMME_NAMES.some((name) => foldedMessage.includes(name));
 }
@@ -390,72 +348,13 @@ export const APPROVED_CONTENT: ApprovedContent = {
         'Las formaciones son online y prácticas: aprendes con proyectos reales y acompañamiento. Hay programas de programación, videojuegos e IA; el equipo puede orientarte sobre cuál encaja contigo.',
     },
   ],
-  qualificationQuestions: [
-    {
-      id: 'goal',
-      text: 'Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?',
-      purpose: 'A brief conversation prompt to understand the lead’s goal and move toward a call; not an exam or screening.',
-      reactions: [
-        // Course selections add ONE brief clause about what the programme is,
-        // with the wording drafted in docs/matriz-validacion-cursos.md
-        // ("Respuestas breves propuestas para el lead"). No digits, prices,
-        // certificates, internship promises or syllabus detail (rules 1, 2, 4),
-        // so the acknowledgement stays safe under guardReply.
-        {
-          keywords: ['python'],
-          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
-          say: 'Entiendo, te interesa Python: programación con aplicaciones en software y análisis de datos.',
-        },
-        {
-          keywords: ['front end', 'frontend'],
-          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
-          say: 'Entiendo, te interesa Front End: diseño y desarrollo de interfaces web.',
-        },
-        {
-          keywords: ['back end', 'backend'],
-          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
-          say: 'Entiendo, te interesa Back End: la lógica del servidor, los datos y las APIs.',
-        },
-        {
-          keywords: ['full stack'],
-          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
-          say: 'Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.',
-        },
-        {
-          keywords: ['videojuegos', 'videojuego', 'crear juegos', 'crear videojuegos'],
-          avoidKeywords: ['no me interesa', 'no quiero', 'no me gusta', 'no busco'],
-          say: 'Entiendo, te interesa videojuegos: diseño y programación para crear experiencias interactivas.',
-        },
-        {
-          keywords: ['optar a una plaza', 'plaza'],
-          say: 'Entiendo: quieres ampliar conocimientos para optar a una plaza.',
-        },
-        {
-          keywords: ['cambiar de sector', 'cambiar de trabajo'],
-          say: 'Entiendo: buscas prepararte para cambiar de sector.',
-        },
-        {
-          keywords: ['conocimientos', 'aprender'],
-          say: 'Entiendo: quieres ampliar tus conocimientos en el área tecnológica.',
-        },
-      ],
-    },
-  ],
-  // Short call-first wording, stored in the profile so it remains easy to revise.
-  closingInvitation: '¿Qué día y a qué hora te viene bien que el equipo te llame?',
-  // Profile-specific second acknowledgement of a rule-5 doubt (see
-  // MuskAgent.neverRepeat): it lives here and not in the shared templates so the
-  // wording can be revised without touching the engine.
-  doubtFollowup:
-    'Eso también lo anoto como duda para que te lo confirmen. Si te encaja, una persona del equipo te contacta y lo veis todo con calma. ¿Te viene bien?',
   // The knowledge base is what answers per-programme questions. It is filtered
   // by the output guard like every other answer, and no passage may contain a
   // figure (asserted by tests).
   kb: KB_PASSAGES,
   // The lead already interacted with MUSK, so the opening acknowledges that
-  // ("retomo el contacto") instead of pretending this is a cold message. It asks
-  // permission in the same breath as it lowers the pressure, and leaves exactly
-  // one question for the lead to answer.
+  // ("retomo el contacto") instead of pretending this is a cold message. It is
+  // warm and lowers the pressure, and leaves one open question for the lead.
   initialMessage:
-    'Hola, soy el asistente de Escuela Musk. Retomo el contacto sobre la formación. ¿Te pillo en buen momento? Si no, dímelo y no insisto.',
+    'Hola, soy el asistente de Escuela Musk. Te escribo sobre la formación, pero sin prisa: si ahora no es buen momento, me lo dices y hablamos otro día. ¿Cómo llevas la semana?',
 };

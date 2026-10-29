@@ -91,13 +91,10 @@ describe('rephrase endpoint', () => {
   });
 
   it('returns 400 when too many messages', async () => {
-    const msgs = [
-      { role: 'user', content: '1' },
-      { role: 'assistant', content: '2' },
-      { role: 'user', content: '3' },
-      { role: 'assistant', content: '4' },
-      { role: 'user', content: '5' },
-    ] as any;
+    const msgs = Array.from({ length: 61 }, (_, i) => ({
+      role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: String(i),
+    }));
     const result = await handleRephrase(
       { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: 's', messages: msgs } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
@@ -116,7 +113,7 @@ describe('rephrase endpoint', () => {
   });
 
   it('returns 413 when serialized body too large', async () => {
-    const long = 'a'.repeat(8005);
+    const long = 'a'.repeat(30005);
     const result = await handleRephrase(
       { method: 'POST', headers: { 'x-demo-token': 'demo-token-123' }, body: { system: long, messages: [{ role: 'user', content: 'hi' }] } },
       { env: GROQ_ENV, fetchImpl: makeFetch(200, {}) },
@@ -154,7 +151,7 @@ describe('rephrase endpoint', () => {
     const headers = (calledInit?.headers || {}) as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer super-secret-key');
     const parsed = JSON.parse(calledInit?.body as string);
-    expect(parsed.max_tokens).toBe(320);
+    expect(parsed.max_tokens).toBe(700);
     const bodyStr = JSON.stringify(result.body);
     expect(bodyStr.includes('super-secret-key')).toBe(false);
     expect(bodyStr.includes('demo-token-123')).toBe(false);
