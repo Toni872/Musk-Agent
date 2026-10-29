@@ -13,7 +13,7 @@
     "build:ui": "node ui/build.mjs",
     "pilot-gate": "tsx scripts/pilot-gate.ts",
     "deploy": "npm run pilot-gate && vercel deploy --prod",
-    "ui": "node ui/build.mjs && node ui/server.mjs"
+    "ui": "node ui/build.mjs && tsx ui/dev-server.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
