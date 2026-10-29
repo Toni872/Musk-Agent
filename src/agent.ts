@@ -14,7 +14,7 @@
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMChatMessage, LLMProvider } from './llm';
-import { retrieveTopK } from './retrieval';
+import { retrieve, retrieveTopK } from './retrieval';
 import {
   acceptanceConfirmed,
   ANSWER_TRIGGERS,
@@ -338,7 +338,7 @@ export class MuskAgent {
     this.history.push({ role: 'lead', text: message });
 
     if (!this.provider) {
-      return this.deterministicReply(message, ranked);
+      return this.deterministicReply(message);
     }
 
     let raw: string;
@@ -351,13 +351,13 @@ export class MuskAgent {
       ).trim();
     } catch {
       this.push({ kind: 'grounding', intent: 'conversation', detail: 'provider failed: used fallback' });
-      return this.deterministicReply(message, ranked);
+      return this.deterministicReply(message);
     }
 
     raw = this.cleanReply(raw);
     if (!raw) {
       this.push({ kind: 'grounding', intent: 'conversation', detail: 'empty reply: used fallback' });
-      return this.deterministicReply(message, ranked);
+      return this.deterministicReply(message);
     }
 
     const guard = guardReply(raw);
@@ -395,14 +395,14 @@ export class MuskAgent {
     return [{ passage: overview, score: 0, coverage: 0 }, ...ranked];
   }
 
-  // No provider: send the closest approved passage and a gentle follow-up. When
-  // nothing scores, answer honestly: a real question escalates to a human (rule
-  // 5), anything else gets a safe bridge instead of a canned "lo dejo anotado".
-  private deterministicReply(
-    message: string,
-    ranked: ReturnType<typeof retrieveTopK>,
-  ): TurnResult {
-    const best = ranked[0]?.passage.answer;
+  // No provider (or the model produced nothing): answer only from the GATED
+  // retrieval — a passage that clears the thresholds and is not a forbidden
+  // topic. That is the honest degraded mode: it never echoes a weakly-matched
+  // passage (like "no es el momento" for "¿cómo funciona la formación?") and
+  // keeps escalating real unknowns (rule 5) while bridging casual remarks.
+  private deterministicReply(message: string): TurnResult {
+    const match = retrieve(this.content.kb ?? [], message).match;
+    const best = match?.passage.answer;
     const reply = best ? `${best} ¿Quieres que te cuente algo más?` : this.fallbackReply(message);
     this.history.push({ role: 'assistant', text: reply });
     this.push({ kind: 'reply', intent: 'conversation', detail: reply });

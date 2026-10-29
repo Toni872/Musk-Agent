@@ -227,5 +227,15 @@ describe('regressions found in the live transcript', () => {
     expect(messages.some((m) => m.role === 'assistant' && m.content === opening)).toBe(true);
     expect(messages.some((m) => m.role === 'user' && m.content === 'bien')).toBe(true);
   });
+
+  it('the deterministic fallback never echoes a weakly-matched passage', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead: LEAD });
+    const result = await agent.runTurn('¿cómo funciona la formación?');
+
+    // "cómo funciona" is a methodology question; kb-obj-no-tiempo ("no es el
+    // momento") must not be parroted as if it answered it.
+    expect(result.reply).not.toContain(passage('kb-obj-no-tiempo'));
+    expect(result.reply).not.toContain('Tiene sentido');
+  });
 });
 
