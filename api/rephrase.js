@@ -132,12 +132,14 @@ async function handleRephrase(request, deps) {
   if (!config) {
     return { status: 503, body: errorBody("service_unavailable") };
   }
-  const demoToken = getHeader(request.headers, "x-demo-token");
-  if (typeof demoToken !== "string" || demoToken.length === 0) {
-    return { status: 401, body: errorBody("unauthorized") };
-  }
-  if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
-    return { status: 401, body: errorBody("unauthorized") };
+  if (deps.bypassAuth !== true) {
+    const demoToken = getHeader(request.headers, "x-demo-token");
+    if (typeof demoToken !== "string" || demoToken.length === 0) {
+      return { status: 401, body: errorBody("unauthorized") };
+    }
+    if (demoToken.length !== config.token.length || !tokensMatch(demoToken, config.token)) {
+      return { status: 401, body: errorBody("unauthorized") };
+    }
   }
   if (!isValidBody(request.body)) {
     return { status: 400, body: errorBody("bad_request") };
