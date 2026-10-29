@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "tests", "ui", "scripts"]
+  "include": ["src", "tests", "ui", "scripts", "api"]
 }

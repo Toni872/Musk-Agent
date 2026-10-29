@@ -10,6 +10,7 @@ import {
   type ChatState,
 } from './chat';
 import type { HandoffContext } from '../src/agent';
+import { RemoteRephraseLLM } from './remote-llm';
 
 const ROLE_LABELS: Record<ChatMessage['role'], string> = {
   agent: 'Agente',
@@ -22,7 +23,37 @@ const INPUT_PLACEHOLDER = 'Escribe como el lead y pulsa Enviar';
 const INPUT_PLACEHOLDER_STOPPED =
   'Conversación detenida: escribe un mensaje o pulsa Reiniciar.';
 
-const chat = createChat();
+const DEMO_TOKEN_STORAGE_KEY = 'musk-demo-token';
+
+function getDemoToken(): string | null {
+  try {
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get('k');
+    if (typeof fromUrl === 'string' && fromUrl.trim().length > 0) {
+      const token = fromUrl.trim();
+      try {
+        window.sessionStorage.setItem(DEMO_TOKEN_STORAGE_KEY, token);
+      } catch {
+        // Ignore storage failures.
+      }
+      return token;
+    }
+  } catch {
+    // Ignore URL parsing failures.
+  }
+  try {
+    const fromStorage = window.sessionStorage.getItem(DEMO_TOKEN_STORAGE_KEY);
+    if (typeof fromStorage === 'string' && fromStorage.trim().length > 0) {
+      return fromStorage.trim();
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+  return null;
+}
+
+const demoToken = getDemoToken();
+const chat = demoToken ? createChat({ provider: new RemoteRephraseLLM(demoToken) }) : createChat();
 let busy = false;
 
 const root = document.getElementById('app');
