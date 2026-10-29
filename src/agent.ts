@@ -99,6 +99,24 @@ const HISTORY_WINDOW = 20;
 // Maximum number of knowledge-base passages retrieved per turn.
 const RAG_TOP_K = 4;
 
+// A safe, always-approved bridge for when the model produced nothing usable and
+// the lead did not actually ask a question (e.g. "sí, cuéntame más"). It keeps
+// the conversation going without inventing content and asks one thing.
+const GENERIC_BRIDGE =
+  'Te cuento lo que necesites. ¿Qué te gustaría saber primero: cómo funciona la formación, qué programas hay o cómo compaginarla con tu día a día?';
+
+// Keep rejected model output readable in the operator log without flooding it.
+function truncate(text: string, max = 160): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+// Closed, lead-facing catalogue. Grounded on the approved passages
+// (kb-escuela, kb-otros-programas and the per-programme entries): naming the
+// list here is what stops the model from inventing a programme when the lead
+// asks "¿qué formación tenéis?".
+const CATALOGUE =
+  'Python, Front End, Back End, Full Stack, el máster de videojuegos, Python con IA Engineering, y los másteres de Inteligencia Artificial, Machine Learning y Deep Learning';
+
 export class MuskAgent {
   private readonly content: ApprovedContent;
   private readonly provider: LLMProvider | null;
@@ -111,6 +129,9 @@ export class MuskAgent {
   private readonly doubtMessages: string[] = [];
   // Raw conversation history, the model's thread memory.
   private readonly history: { role: 'lead' | 'assistant'; text: string }[] = [];
+  // The opening is the first outbound turn: once it is shown it becomes part of
+  // the thread, so the model knows what it already asked when the lead replies.
+  private openingSeeded = false;
   // Call-proposal guardrails: the model is told not to propose the call every
   // message; these counters are the deterministic backstop.
   private callProposedLastTurn = false;
@@ -170,6 +191,7 @@ export class MuskAgent {
     this.conversationRecords.length = 0;
     this.doubtMessages.length = 0;
     this.history.length = 0;
+    this.openingSeeded = false;
     this.callProposedLastTurn = false;
     this.callProposalCount = 0;
   }
@@ -180,10 +202,23 @@ export class MuskAgent {
     const message = this.content.initialMessage;
     if (isPendingDecision(message) || !message.trim()) return null;
     if (!guardReply(message).ok) return null;
+    if (!this.openingSeeded) {
+      this.history.push({ role: 'assistant', text: message });
+      this.openingSeeded = true;
+    }
     return message;
   }
 
   async runTurn(message: string): Promise<TurnResult> {
+    const doubtsBefore = this.doubtMessages.length;
+    const result = await this.runTurnInner(message);
+    // Report the doubts registered DURING this turn, so the operator panel does
+    // not lie when a question falls back to the human (rule 5).
+    result.registeredDoubts = this.doubtMessages.slice(doubtsBefore);
+    return result;
+  }
+
+  private async runTurnInner(message: string): Promise<TurnResult> {
     if (this.stopped) {
       return this.suppressedResult();
     }
@@ -286,11 +321,17 @@ export class MuskAgent {
   // against the safety floor.
   private async converse(message: string): Promise<TurnResult> {
     const ranked = retrieveTopK(this.content.kb ?? [], message, RAG_TOP_K);
-    if (ranked.length > 0) {
+    // The school overview is always offered to the model as context: without it,
+    // a short query like "¿qué formación?" is answered with whatever single
+    // passage the lexical score picked ("no es el momento") instead of the real
+    // offer. It is context only: the deterministic fallback below still decides
+    // from `ranked`, so a genuine unknown question keeps escalating (rule 5).
+    const context = this.withOverview(ranked);
+    if (context.length > 0) {
       this.push({
         kind: 'kb',
         intent: 'conversation',
-        detail: `kb top: ${ranked.map((entry) => entry.passage.id).join(', ')}`,
+        detail: `kb top: ${context.map((entry) => entry.passage.id).join(', ')}`,
       });
     }
 
@@ -304,7 +345,7 @@ export class MuskAgent {
     try {
       raw = (
         await this.provider.complete({
-          system: this.buildTurnPrompt(ranked),
+          system: this.buildTurnPrompt(context),
           messages: this.buildHistoryMessages(),
         })
       ).trim();
@@ -322,7 +363,11 @@ export class MuskAgent {
     const guard = guardReply(raw);
     if (!guard.ok) {
       const violations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
-      this.push({ kind: 'grounding', intent: 'conversation', detail: `reply rejected (${violations.join(', ')})` });
+      this.push({
+        kind: 'grounding',
+        intent: 'conversation',
+        detail: `reply rejected (${violations.join(', ')}): "${truncate(raw)}"`,
+      });
       return this.safeFallback(message, violations);
     }
 
@@ -341,13 +386,24 @@ export class MuskAgent {
     };
   }
 
-  // No provider: send the closest approved passage and a gentle follow-up.
+  // The school overview passage, prepended when the retrieved set lacks it. The
+  // anchor keeps the model oriented on what the school actually offers.
+  private withOverview(ranked: ReturnType<typeof retrieveTopK>): ReturnType<typeof retrieveTopK> {
+    if (ranked.some((entry) => entry.passage.id === 'kb-escuela')) return ranked;
+    const overview = (this.content.kb ?? []).find((passage) => passage.id === 'kb-escuela');
+    if (overview === undefined) return ranked;
+    return [{ passage: overview, score: 0, coverage: 0 }, ...ranked];
+  }
+
+  // No provider: send the closest approved passage and a gentle follow-up. When
+  // nothing scores, answer honestly: a real question escalates to a human (rule
+  // 5), anything else gets a safe bridge instead of a canned "lo dejo anotado".
   private deterministicReply(
     message: string,
     ranked: ReturnType<typeof retrieveTopK>,
   ): TurnResult {
     const best = ranked[0]?.passage.answer;
-    const reply = best ? `${best} ¿Quieres que te cuente algo más?` : this.registerDoubt(message);
+    const reply = best ? `${best} ¿Quieres que te cuente algo más?` : this.fallbackReply(message);
     this.history.push({ role: 'assistant', text: reply });
     this.push({ kind: 'reply', intent: 'conversation', detail: reply });
     return {
@@ -359,6 +415,25 @@ export class MuskAgent {
       registeredNoContinuar: false,
       ruleViolations: [],
     };
+  }
+
+  // Nothing approved to say and no model: if the lead asked a real question it
+  // becomes a doubt for the human; if it was just an invitation to keep talking,
+  // bridge safely instead of telling them "lo dejo anotado".
+  private fallbackReply(message: string): string {
+    if (this.looksLikeQuestion(message)) return this.registerDoubt(message);
+    return GENERIC_BRIDGE;
+  }
+
+  private looksLikeQuestion(message: string): boolean {
+    if (message.includes('?')) return true;
+    const folded = normalizeEs(message);
+    return (
+      folded.split(/\s+/).length <= 12 &&
+      /\b(que|como|cuanto|cuanta|cuantos|cuantas|donde|cuando|cual|cuales|quien|quienes|sirve|vale|merece)\b/.test(
+        folded,
+      )
+    );
   }
 
   // The model invented something unsafe: never ship it. Register the doubt and
@@ -384,11 +459,21 @@ export class MuskAgent {
     return buildReply('doubt');
   }
 
-  // Strip common model artifacts: markdown fences, leading labels, quotes.
+  // Strip common model artifacts: markdown fences, formatting, leading labels,
+  // quotes. WhatsApp renders none of it, so bold markers, bullets, headers and
+  // backticks would ship as literal noise to the lead.
   private cleanReply(raw: string): string {
     let value = raw.trim();
     value = value.replace(/^```[a-zA-Z]*\s*\n?/, '').replace(/\n?```$/, '').trim();
     value = value.replace(/^(respuesta|agente|asistente)\s*:\s*/i, '').trim();
+    value = value
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^[ \t]*[-*•]\s+/gm, '')
+      .replace(/^[ \t]*\d+[.)]\s+/gm, '');
+    value = value.replace(/\n{2,}/g, '\n').replace(/\n+/g, ' ').replace(/ {2,}/g, ' ').trim();
     value = value.replace(/^["']|["']$/g, '').trim();
     return value;
   }
@@ -423,20 +508,23 @@ export class MuskAgent {
       'Tu objetivo NO es vender ni presionar: es conversar, entender a la persona y ayudarla a decidir con calma. Si la conversación avanza y hay interés, propones una llamada con el equipo para que le den la información concreta (precio, financiación, calendario), pero solo cuando es natural, nunca en cada mensaje.',
       '',
       'CÓMO CONVERSAR (reglas de comportamiento, muy importantes):',
+      '0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa y en una o dos frases. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo y pregúntale cuál le interesa; NO describas cada programa salvo que te pida uno concreto. La empatía va después, en una frase, no en lugar de la respuesta.',
       '1. Sigue el hilo. Usa lo que la persona ya te ha contado: su situación, su tiempo, sus miedos, lo que busca. No repitas preguntas ya respondidas. No saltes de tema sin enlazar con lo anterior.',
-      '2. Empatiza antes de informar. Antes de soltar información, reacciona a lo que la persona ha dicho: valida su preocupación y nómbrala con sus propias palabras.',
-      '3. Mensajes cortos, como de WhatsApp. Una idea, no un folleto. Nada de listas largas ni párrafos densos.',
+      '2. Empatiza, pero no en vez de responder. Valida lo que ha dicho con sus propias palabras y luego contesta a lo que preguntó.',
+      '3. Mensajes cortos, como de WhatsApp, en texto plano. Máximo dos o tres frases en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.',
       '4. Termina SIEMPRE con UNA sola pregunta, sobre LA PERSONA (qué busca, qué le frena, qué le gustaría saber). Nunca dos preguntas seguidas, nunca la misma pregunta dos veces.',
       '5. No propongas la llamada en cada mensaje. Solo cuando la persona muestre interés real o pregunte por precio, financiación o cómo empezar. Si ya la propusiste y no respondió, cambia de tema.',
       '6. No mientas. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece confirmarlo con el equipo.',
+      '7. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.',
       '',
       'REGLAS DE SEGURIDAD (nunca las incumplas, bajo ninguna circunstancia):',
       '- NUNCA des precios, importes, cifras de dinero, porcentajes, cuotas, intereses ni condiciones de pago. Ante una pregunta de precio o pago: dile que prefieres que se lo explique una persona, que SÍ hay opciones de financiación y dos años flexibles para completarla, y propón la llamada.',
-      '- NUNCA prometas empleo, garantías, becas ni promociones que no estén en la información aprobada.',
+      '- NUNCA prometas empleo, garantías, becas ni promociones que no estén en la información aprobada. Puedes decir con honestidad que no se garantiza un puesto de trabajo.',
       '- NUNCA envíes el temario detallado (módulo a módulo). Sí puedes hablar del contenido general, las habilidades y las salidas.',
       '- Si la persona pide parar, deja de insistir y despídete con respeto.',
       '',
       'INFORMACIÓN APROBADA DE LA ESCUELA (tu única fuente; no inventes nada fuera de ella):',
+      `Catálogo oficial (no hay otros programas): ${CATALOGUE}.`,
       `Descripción: ${this.content.generalDescription}`,
       `Metodología: ${this.content.methodology}`,
       `Sobre la escuela: ${this.content.companyPresentation}`,
@@ -460,7 +548,7 @@ export class MuskAgent {
       'Pasajes de la base de conocimiento relevantes a lo que acaba de preguntar:',
       passages,
       '',
-      'Ahora escribe TU respuesta a lo último que dijo la persona. Termina SIEMPRE con una sola pregunta sobre ella.',
+      'Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta sobre ella.',
     ].join('\n');
   }
 

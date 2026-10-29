@@ -173,3 +173,59 @@ describe('the opening is warm and guarded', () => {
     expect((opening ?? '').trimEnd().endsWith('?')).toBe(true);
   });
 });
+
+describe('regressions found in the live transcript', () => {
+  it('lets an honest denial of a guarantee through the guard', () => {
+    expect(guardReply('No garantizamos un puesto de trabajo al terminar.').ok).toBe(true);
+    expect(guardReply('Sin garantizar empleo, pero te acompañamos.').ok).toBe(true);
+    expect(guardReply('Te garantizamos un puesto de trabajo.').ok).toBe(false);
+  });
+
+  it('strips markdown so WhatsApp does not get literal asterisks or bullets', async () => {
+    const provider = new MockProvider('**Programación**\n- Python\n- Front End\n\n¿Cuál te llama más?');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué formación tenéis?');
+
+    expect(result.reply).not.toContain('**');
+    expect(result.reply).not.toMatch(/^\s*[-*•]\s/m);
+    expect(result.reply).toContain('Programación');
+    expect(result.reply).toContain('Python');
+  });
+
+  it('always gives the model the school overview for a short "¿qué formación?"', async () => {
+    const provider = new MockProvider('Tenemos varias. ¿Qué te interesa más?');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    await agent.runTurn('¿qué formación?');
+
+    expect(provider.calls[0]?.system).toContain(passage('kb-escuela'));
+  });
+
+  it('does not answer "sí, cuéntame más" with the doubt template when nothing scores', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead: LEAD });
+    const result = await agent.runTurn('sí, cuéntame más');
+
+    expect(result.reply).not.toBe(buildReply('doubt'));
+    expect(result.reply.trimEnd().endsWith('?')).toBe(true);
+    expect(agent.doubts.length).toBe(0);
+  });
+
+  it('reports the doubts registered in the turn instead of always zero', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead: LEAD });
+    const result = await agent.runTurn('¿me mandáis un informe en pdf?');
+
+    expect(result.reply).toBe(buildReply('doubt'));
+    expect(result.registeredDoubts).toEqual(['¿me mandáis un informe en pdf?']);
+  });
+
+  it('seeds the opening into the thread so the model knows what it already asked', async () => {
+    const provider = new MockProvider('Bien, ¿y qué te gustaría saber?');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const opening = agent.opening();
+    await agent.runTurn('bien');
+
+    const messages = provider.calls[0]?.messages ?? [];
+    expect(messages.some((m) => m.role === 'assistant' && m.content === opening)).toBe(true);
+    expect(messages.some((m) => m.role === 'user' && m.content === 'bien')).toBe(true);
+  });
+});
+

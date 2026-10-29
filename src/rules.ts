@@ -136,10 +136,32 @@ function foldForGuard(reply: string): string {
     .toLowerCase();
 }
 
+// A denial is not a promise: "no garantizamos un puesto" is honest and must
+// reach the lead, while "te garantizamos trabajo" must never ship. A bare
+// `garantiz\w*` pattern cannot tell them apart, and a lookbehind is out (the UI
+// bundle targets es2022 and older Safari throws on lookbehind at load time), so
+// the negation is checked in code over the words right before the match.
+const GUARANTEE_NEGATION =
+  /(?:\bno|\bsin|\bnunca|\bni|\btampoco|\bningun[oa]?)\s+(?:te\s+|os\s+|se\s+te\s+|se\s+os\s+|un\s+|una\s+|el\s+|la\s+)?$/;
+
+function hasAffirmativeGuarantee(folded: string): boolean {
+  const pattern = /garantiz\w*/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(folded)) !== null) {
+    const before = folded.slice(Math.max(0, match.index - 30), match.index);
+    if (!GUARANTEE_NEGATION.test(before)) return true;
+  }
+  return false;
+}
+
 export function guardReply(reply: string): GuardResult {
   const folded = foldForGuard(reply);
   const violations: GuardViolation[] = [];
   for (const entry of FORBIDDEN_OUTPUT_PATTERNS) {
+    if (entry.id === 'employment-promise') {
+      if (hasAffirmativeGuarantee(folded)) violations.push({ id: entry.id, rule: entry.rule });
+      continue;
+    }
     if (entry.pattern.test(folded)) {
       violations.push({ id: entry.id, rule: entry.rule });
     }
