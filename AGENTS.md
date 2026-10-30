@@ -106,7 +106,10 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   aprobada y reconduce al curso y a la llamada. Un respaldo determinista colapsa
   cualquier respuesta con dos o más preguntas a una sola pregunta de llamada, y
   añade la invitación a la llamada cuando el modelo respondió con una afirmación
-  o con una pregunta de interés, rotando la formulación para no repetirse.
+  o con una pregunta de interés, rotando la formulación para no repetirse. Si el
+  proveedor falla o el guard rechaza la salida y el lead pregunta **qué ofrece la
+  escuela**, se responde con el catálogo cerrado aprobado en lugar de escalar a
+  la plantilla de duda (una pregunta de catálogo tiene respuesta cerrada).
 - **Guard de salida (`src/rules.ts`).** `guardReply` descarta cualquier respuesta
   con importes, promesas de empleo, promociones o temario no aprobado. Distingue
   una negación honesta («no garantizamos empleo») de una promesa: el patrón
@@ -193,6 +196,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 | `docs/producto/escuela-musk-base-conocimiento.md` | Fuente de los 35 pasajes de `src/kb.ts` |
 | `docs/cliente/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
 | `docs/cliente/aprobacion-nicolas.md` | Qué necesita firma de Nicolás (resumen) |
+| `docs/cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para que MUSK las valide |
 | `docs/cliente/guia-comercial.md` | Guía de uso para el comercial |
 | `docs/cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
 | `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
