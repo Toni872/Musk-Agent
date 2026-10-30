@@ -97,7 +97,11 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
   catálogo cerrado, la descripción y la metodología aprobadas y las respuestas de
   la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
-  y termina con una sola pregunta.
+  y termina con una sola pregunta, **orientada siempre a agendar la llamada**:
+  conversa y aclara dudas, pero cada mensaje lleva al lead a hablar con una
+  persona (directiva confirmada por Nicolás el 30/10/2026). Un respaldo
+  determinista colapsa cualquier respuesta con dos o más preguntas a una sola
+  pregunta de llamada, para que nunca se encadenen preguntas.
 - **Guard de salida (`src/rules.ts`).** `guardReply` descarta cualquier respuesta
   con importes, promesas de empleo, promociones o temario no aprobado. Distingue
   una negación honesta («no garantizamos empleo») de una promesa: el patrón

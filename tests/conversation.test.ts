@@ -122,15 +122,16 @@ describe('RAG grounding', () => {
     expect(agent.records.some((record) => record.kind === 'kb')).toBe(true);
   });
 
-  it('the system prompt carries the safety rules and the one-question rule', async () => {
-    const provider = new MockProvider('Claro. ¿Qué te gustaría saber?');
+  it('the system prompt carries the safety rules, the one-question rule and the call-steering goal', async () => {
+    const provider = new MockProvider('Claro. ¿Te va bien que te contacte el equipo?');
     const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
     await agent.runTurn('hola');
 
     const system = provider.calls[0]?.system ?? '';
     expect(system).toMatch(/NUNCA des precios/i);
     expect(system).toMatch(/UNA sola pregunta/i);
-    expect(system).toMatch(/No propongas la llamada en cada mensaje/i);
+    expect(system).toMatch(/lleva la conversación hacia la llamada/i);
+    expect(system).toMatch(/agendar una llamada/i);
   });
 
   it('the model reads the thread: history messages are passed along', async () => {
@@ -153,6 +154,14 @@ describe('deterministic fallback (no provider)', () => {
     expect(result.reply).toContain(passage('kb-certificacion-arp'));
     expect(result.reply.trimEnd().endsWith('?')).toBe(true);
     expect(result.registeredDoubts).toEqual([]);
+  });
+
+  it('the deterministic fallback steers to the call, not another interest question', async () => {
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider: null, lead: LEAD });
+    const result = await agent.runTurn('¿me dan certificado de la UE?');
+
+    expect(result.reply).toContain('llamada');
+    expect(result.reply).not.toContain('te cuente algo más');
   });
 
   it('registers a doubt when nothing in the base answers the lead', async () => {
@@ -190,6 +199,18 @@ describe('regressions found in the live transcript', () => {
     expect(result.reply).not.toMatch(/^\s*[-*•]\s/m);
     expect(result.reply).toContain('Programación');
     expect(result.reply).toContain('Python');
+  });
+
+  it('never ships chained questions: collapses to a single call question', async () => {
+    const provider = new MockProvider(
+      'Tenemos Python, Front End y Back End. ¿Cuál te llama más? Entiendo. ¿Te paso con el equipo en una llamada?',
+    );
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué formación tenéis?');
+
+    expect((result.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1);
+    expect(result.reply).toContain('llamada');
+    expect(result.reply).not.toContain('Cuál te llama');
   });
 
   it('always gives the model the school overview for a short "¿qué formación?"', async () => {

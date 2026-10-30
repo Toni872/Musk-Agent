@@ -103,7 +103,11 @@ const RAG_TOP_K = 4;
 // the lead did not actually ask a question (e.g. "sí, cuéntame más"). It keeps
 // the conversation going without inventing content and asks one thing.
 const GENERIC_BRIDGE =
-  'Te cuento lo que necesites. ¿Qué te gustaría saber primero: cómo funciona la formación, qué programas hay o cómo compaginarla con tu día a día?';
+  'Te lo cuento con gusto. ¿Prefieres que siga contándote por aquí o que te lo explique una persona en una llamada para que te quede todo claro?';
+
+// The single call-steering question used whenever a reply must end by pointing
+// to the call (deterministic fallback and the chained-question backstop).
+const CALL_QUESTION = '¿Quieres que te lo explique una persona en una llamada?';
 
 // Keep rejected model output readable in the operator log without flooding it.
 function truncate(text: string, max = 160): string {
@@ -360,6 +364,18 @@ export class MuskAgent {
       return this.deterministicReply(message);
     }
 
+    // Nicolás's directive: never chain questions. When the model emitted two or
+    // more interrogations (an interest question plus the call question), keep
+    // the answer part and end with the single call question.
+    if (this.hasChainedQuestions(raw)) {
+      this.push({
+        kind: 'grounding',
+        intent: 'conversation',
+        detail: `chained questions collapsed: "${truncate(raw)}"`,
+      });
+      raw = this.collapseToCallQuestion(raw);
+    }
+
     const guard = guardReply(raw);
     if (!guard.ok) {
       const violations = guard.violations.map((v) => `${v.id}(rule ${v.rule})`);
@@ -403,7 +419,7 @@ export class MuskAgent {
   private deterministicReply(message: string): TurnResult {
     const match = retrieve(this.content.kb ?? [], message).match;
     const best = match?.passage.answer;
-    const reply = best ? `${best} ¿Quieres que te cuente algo más?` : this.fallbackReply(message);
+    const reply = best ? `${best} ${CALL_QUESTION}` : this.fallbackReply(message);
     this.history.push({ role: 'assistant', text: reply });
     this.push({ kind: 'reply', intent: 'conversation', detail: reply });
     return {
@@ -478,6 +494,23 @@ export class MuskAgent {
     return value;
   }
 
+  // Nicolás's directive: never chain questions. Detects a reply that ends two
+  // or more interrogations (an interest question plus the call question).
+  private hasChainedQuestions(text: string): boolean {
+    return (text.match(/\?/g)?.length ?? 0) >= 2;
+  }
+
+  // Keeps the answer part (everything before the first question) and ends it with
+  // the single call question, dropping the question cascade the model produced.
+  // A Spanish question opens with "¿" and closes with "?", so the cut is at the
+  // opening mark when present (falling back to "?" when the model skipped it).
+  private collapseToCallQuestion(text: string): string {
+    let idx = text.indexOf('¿');
+    if (idx < 0) idx = text.indexOf('?');
+    const answer = (idx >= 0 ? text.slice(0, idx) : text).replace(/[,;:.\s]+$/, '').trim();
+    return answer.length > 0 ? `${answer}. ${CALL_QUESTION}` : CALL_QUESTION;
+  }
+
   // True when the reply just proposed the call. Deliberately a heuristic: it is
   // the backstop for the call-acceptance handoff, not a business decision.
   private proposesCall(reply: string): boolean {
@@ -505,15 +538,15 @@ export class MuskAgent {
     return [
       'Eres el asistente de WhatsApp de Escuela Musk, una escuela online de programación, videojuegos e inteligencia artificial. Hablas en español de España, con tuteo, de forma cercana, cálida y profesional, como una persona que escucha de verdad.',
       '',
-      'Tu objetivo NO es vender ni presionar: es conversar, entender a la persona y ayudarla a decidir con calma. Si la conversación avanza y hay interés, propones una llamada con el equipo para que le den la información concreta (precio, financiación, calendario), pero solo cuando es natural, nunca en cada mensaje.',
+      'Tu objetivo es ayudar a la persona a decidir con calma y, sobre todo, llevarla a una llamada con el equipo: ahí es donde le explican el detalle (precio, financiación, calendario) que tú no puedes dar. Conversa y aclara sus dudas, pero en cada mensaje hazle entender que lo mejor para ella es hablar con una persona por teléfono. Nunca vendas ni presiones.',
       '',
       'CÓMO CONVERSAR (reglas de comportamiento, muy importantes):',
-      '0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa y en una o dos frases. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo y pregúntale cuál le interesa; NO describas cada programa salvo que te pida uno concreto. La empatía va después, en una frase, no en lugar de la respuesta.',
+      '0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa y en una o dos frases. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo; NO describas cada programa salvo que te pida uno concreto. La empatía va después, en una frase, no en lugar de la respuesta.',
       '1. Sigue el hilo. Usa lo que la persona ya te ha contado: su situación, su tiempo, sus miedos, lo que busca. No repitas preguntas ya respondidas. No saltes de tema sin enlazar con lo anterior.',
       '2. Empatiza, pero no en vez de responder. Valida lo que ha dicho con sus propias palabras y luego contesta a lo que preguntó.',
       '3. Mensajes cortos, como de WhatsApp, en texto plano. Máximo dos o tres frases en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.',
-      '4. Termina SIEMPRE con UNA sola pregunta, sobre LA PERSONA (qué busca, qué le frena, qué le gustaría saber). Nunca dos preguntas seguidas, nunca la misma pregunta dos veces.',
-      '5. No propongas la llamada en cada mensaje. Solo cuando la persona muestre interés real o pregunte por precio, financiación o cómo empezar. Si ya la propusiste y no respondió, cambia de tema.',
+      '4. Termina SIEMPRE con UNA sola pregunta (un solo signo de interrogación, nunca dos), orientada a cerrar la llamada: propón hablar con una persona para que se lo explique todo bien (por ejemplo «¿te paso con el equipo?», «¿agendamos una llamada?», «¿te va bien que te contacten?»). No encadenes dos preguntas, no conviertas cada mensaje en un interrogatorio sobre sus intereses y no repitas la misma pregunta.',
+      '5. Lleva la conversación hacia la llamada en casi todos tus mensajes: después de aclarar una duda, vuelve a ofrecer la llamada como el siguiente paso natural. Hazle entender que lo que más le conviene es hablar por teléfono con una persona que se lo explique todo. Varía la forma de proponerla para no sonar repetitivo.',
       '6. No mientas. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece confirmarlo con el equipo.',
       '7. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.',
       '',
@@ -548,7 +581,7 @@ export class MuskAgent {
       'Pasajes de la base de conocimiento relevantes a lo que acaba de preguntar:',
       passages,
       '',
-      'Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta sobre ella.',
+      'Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta orientada a agendar una llamada con el equipo.',
     ].join('\n');
   }
 
