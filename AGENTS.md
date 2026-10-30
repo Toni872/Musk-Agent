@@ -99,9 +99,14 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
   y termina con una sola pregunta, **orientada siempre a agendar la llamada**:
   conversa y aclara dudas, pero cada mensaje lleva al lead a hablar con una
-  persona (directiva confirmada por Nicolás el 30/10/2026). Un respaldo
-  determinista colapsa cualquier respuesta con dos o más preguntas a una sola
-  pregunta de llamada, para que nunca se encadenen preguntas.
+  persona (directiva de Miguel —socio de Script9, no el cliente— del 30/10/2026).
+  La regla es explícita: **tras cada pregunta del lead**, el agente responde y
+  recomienda una llamada para darle más y mejor información; si la pregunta es
+  trivial (calle, horario, redes), contesta en una frase solo con información
+  aprobada y reconduce al curso y a la llamada. Un respaldo determinista colapsa
+  cualquier respuesta con dos o más preguntas a una sola pregunta de llamada, y
+  añade la invitación a la llamada cuando el modelo respondió con una afirmación
+  o con una pregunta de interés, rotando la formulación para no repetirse.
 - **Guard de salida (`src/rules.ts`).** `guardReply` descarta cualquier respuesta
   con importes, promesas de empleo, promociones o temario no aprobado. Distingue
   una negación honesta («no garantizamos empleo») de una promesa: el patrón

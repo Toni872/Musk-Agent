@@ -105,9 +105,19 @@ const RAG_TOP_K = 4;
 const GENERIC_BRIDGE =
   'Te lo cuento con gusto. ¿Prefieres que siga contándote por aquí o que te lo explique una persona en una llamada para que te quede todo claro?';
 
-// The single call-steering question used whenever a reply must end by pointing
-// to the call (deterministic fallback and the chained-question backstop).
-const CALL_QUESTION = '¿Quieres que te lo explique una persona en una llamada?';
+// Miguel's directive (30/10/2026): after EVERY lead question the agent answers
+// and then recommends a call so the lead gets more and better information.
+// These phrasings are rotated so the deterministic backstop does not repeat the
+// same sentence verbatim turn after turn.
+const CALL_QUESTIONS = [
+  '¿Quieres que te lo explique una persona en una llamada?',
+  '¿Te gustaría que te llamemos y te lo cuenten con calma en una llamada?',
+  '¿Te va bien una llamada para que te lo expliquen todo?',
+  '¿Te paso con el equipo para que te lo expliquen en una llamada?',
+] as const;
+
+// First phrasing, kept as the default for the deterministic fallback.
+const CALL_QUESTION = CALL_QUESTIONS[0];
 
 // Keep rejected model output readable in the operator log without flooding it.
 function truncate(text: string, max = 160): string {
@@ -136,10 +146,12 @@ export class MuskAgent {
   // The opening is the first outbound turn: once it is shown it becomes part of
   // the thread, so the model knows what it already asked when the lead replies.
   private openingSeeded = false;
-  // Call-proposal guardrails: the model is told not to propose the call every
-  // message; these counters are the deterministic backstop.
+  // Call-proposal guardrails: the model is told to recommend the call after
+  // every question; these counters are the deterministic backstop.
   private callProposedLastTurn = false;
   private callProposalCount = 0;
+  // Rotation index so consecutive call invitations do not read identically.
+  private callQuestionIndex = 0;
 
   constructor(options: MuskAgentOptions = {}) {
     this.content = options.content ?? APPROVED_CONTENT;
@@ -364,7 +376,7 @@ export class MuskAgent {
       return this.deterministicReply(message);
     }
 
-    // Nicolás's directive: never chain questions. When the model emitted two or
+    // Miguel's directive: never chain questions. When the model emitted two or
     // more interrogations (an interest question plus the call question), keep
     // the answer part and end with the single call question.
     if (this.hasChainedQuestions(raw)) {
@@ -372,6 +384,19 @@ export class MuskAgent {
         kind: 'grounding',
         intent: 'conversation',
         detail: `chained questions collapsed: "${truncate(raw)}"`,
+      });
+      raw = this.collapseToCallQuestion(raw);
+    }
+
+    // Miguel's directive: after EVERY lead question the reply answers and then
+    // recommends the call. The prompt says so; this is the deterministic
+    // backstop for when the model answered with a plain statement or closed
+    // with an interest question instead ("¿cuál te interesa más?").
+    if (this.looksLikeQuestion(message) && !this.proposesCall(raw)) {
+      this.push({
+        kind: 'grounding',
+        intent: 'conversation',
+        detail: `call invitation added after a question: "${truncate(raw)}"`,
       });
       raw = this.collapseToCallQuestion(raw);
     }
@@ -419,7 +444,7 @@ export class MuskAgent {
   private deterministicReply(message: string): TurnResult {
     const match = retrieve(this.content.kb ?? [], message).match;
     const best = match?.passage.answer;
-    const reply = best ? `${best} ${CALL_QUESTION}` : this.fallbackReply(message);
+    const reply = best ? `${best} ${this.nextCallQuestion()}` : this.fallbackReply(message);
     this.history.push({ role: 'assistant', text: reply });
     this.push({ kind: 'reply', intent: 'conversation', detail: reply });
     return {
@@ -494,29 +519,43 @@ export class MuskAgent {
     return value;
   }
 
-  // Nicolás's directive: never chain questions. Detects a reply that ends two
+  // Miguel's directive: never chain questions. Detects a reply that ends two
   // or more interrogations (an interest question plus the call question).
   private hasChainedQuestions(text: string): boolean {
     return (text.match(/\?/g)?.length ?? 0) >= 2;
+  }
+
+  // Rotates the call phrasing so a lead asking several questions in a row does
+  // not get the same sentence every time.
+  private nextCallQuestion(): string {
+    const question =
+      CALL_QUESTIONS[this.callQuestionIndex % CALL_QUESTIONS.length] ?? CALL_QUESTION;
+    this.callQuestionIndex += 1;
+    return question;
   }
 
   // Keeps the answer part (everything before the first question) and ends it with
   // the single call question, dropping the question cascade the model produced.
   // A Spanish question opens with "¿" and closes with "?", so the cut is at the
   // opening mark when present (falling back to "?" when the model skipped it).
+  // Also the backstop for the after-every-question rule: a plain statement gets
+  // the call question appended, an interest question is replaced by it.
   private collapseToCallQuestion(text: string): string {
     let idx = text.indexOf('¿');
     if (idx < 0) idx = text.indexOf('?');
     const answer = (idx >= 0 ? text.slice(0, idx) : text).replace(/[,;:.\s]+$/, '').trim();
-    return answer.length > 0 ? `${answer}. ${CALL_QUESTION}` : CALL_QUESTION;
+    const question = this.nextCallQuestion();
+    return answer.length > 0 ? `${answer}. ${question}` : question;
   }
 
   // True when the reply just proposed the call. Deliberately a heuristic: it is
-  // the backstop for the call-acceptance handoff, not a business decision.
+  // the backstop for the call-acceptance handoff and for the after-every-
+  // question rule, not a business decision. It matches call/contact words only,
+  // so "¿cuál te llama más?" (interest) is not read as a call proposal.
   private proposesCall(reply: string): boolean {
     if (!reply.trimEnd().endsWith('?')) return false;
     const folded = normalizeEs(reply);
-    return /\b(llam|contact|telefon|movil|mañana o|tarde o|dia y hora|a que hora|mejor momento)/.test(
+    return /\b(?:llamad\w*|llam(?:amos|arte|arle|arlo|emos|en|e|o)\b|telefon\w*|contact\w*|agend\w*|equipo\b|hablar con\b|paso con\b)/.test(
       folded,
     );
   }
@@ -545,8 +584,8 @@ export class MuskAgent {
       '1. Sigue el hilo. Usa lo que la persona ya te ha contado: su situación, su tiempo, sus miedos, lo que busca. No repitas preguntas ya respondidas. No saltes de tema sin enlazar con lo anterior.',
       '2. Empatiza, pero no en vez de responder. Valida lo que ha dicho con sus propias palabras y luego contesta a lo que preguntó.',
       '3. Mensajes cortos, como de WhatsApp, en texto plano. Máximo dos o tres frases en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.',
-      '4. Termina SIEMPRE con UNA sola pregunta (un solo signo de interrogación, nunca dos), orientada a cerrar la llamada: propón hablar con una persona para que se lo explique todo bien (por ejemplo «¿te paso con el equipo?», «¿agendamos una llamada?», «¿te va bien que te contacten?»). No encadenes dos preguntas, no conviertas cada mensaje en un interrogatorio sobre sus intereses y no repitas la misma pregunta.',
-      '5. Lleva la conversación hacia la llamada en casi todos tus mensajes: después de aclarar una duda, vuelve a ofrecer la llamada como el siguiente paso natural. Hazle entender que lo que más le conviene es hablar por teléfono con una persona que se lo explique todo. Varía la forma de proponerla para no sonar repetitivo.',
+      '4. Después de CADA pregunta de la persona, responde primero con la información aprobada y enseguida recomiéndale una llamada para que le den más y mejor información. Termina SIEMPRE con UNA sola pregunta (un solo signo de interrogación, nunca dos) orientada a esa llamada: «¿te paso con el equipo?», «¿agendamos una llamada?», «¿te va bien que te contacten?». No encadenes dos preguntas y no repitas la misma formulación.',
+      '5. Lleva la conversación hacia la llamada en cada respuesta. Si la pregunta es trivial o no tiene que ver con el curso (la dirección, el horario de oficina, las redes), contéstala en una frase SOLO con información aprobada y reconduce al origen: recuérdale el curso que le interesa y ofrécele la llamada para contarle un poco más. Si ese dato no está aprobado, dilo con naturalidad y ofrece confirmarlo por teléfono; nunca inventes una dirección ni datos de contacto.',
       '6. No mientas. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece confirmarlo con el equipo.',
       '7. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.',
       '',
@@ -581,7 +620,7 @@ export class MuskAgent {
       'Pasajes de la base de conocimiento relevantes a lo que acaba de preguntar:',
       passages,
       '',
-      'Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta orientada a agendar una llamada con el equipo.',
+      'Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta orientada a agendar una llamada con el equipo. Hazlo con cualquier pregunta, también con las triviales: contéstala en una frase y reconduce al curso que le interesa y a la llamada.',
     ].join('\n');
   }
 

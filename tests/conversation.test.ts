@@ -260,3 +260,81 @@ describe('regressions found in the live transcript', () => {
   });
 });
 
+// Miguel's directive (30/10/2026): after EVERY lead question the agent answers
+// first and then recommends a call for more and better information, steering
+// back to the course even when the question is trivial. The prompt asks for it;
+// the deterministic backstop guarantees it.
+describe("Miguel's rule: after every question, answer and recommend the call", () => {
+  it('appends the call invitation when the model answered with a plain statement', async () => {
+    const provider = new MockProvider('Python se usa mucho en análisis de datos.');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué se aprende en python?');
+
+    expect(result.reply).toContain('Python se usa mucho');
+    expect(result.reply).toMatch(/llamada/);
+    expect((result.reply.match(/\?/g) ?? []).length).toBe(1);
+    expect(result.reply.trimEnd().endsWith('?')).toBe(true);
+  });
+
+  it('replaces an interest question with the call question', async () => {
+    const provider = new MockProvider('Tenemos Python y Front End. ¿Cuál te interesa más?');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué formación tenéis?');
+
+    expect(result.reply).toContain('Tenemos Python y Front End');
+    expect(result.reply).not.toContain('Cuál te interesa');
+    expect(result.reply).toMatch(/llamada/);
+    expect((result.reply.match(/\?/g) ?? []).length).toBe(1);
+  });
+
+  it('leaves a reply that already proposes the call untouched', async () => {
+    const reply =
+      'Sí, hay opciones de financiación y dos años flexibles. ¿Te va bien que te llamemos?';
+    const provider = new MockProvider(reply);
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿hay financiación?');
+
+    expect(result.reply).toBe(reply);
+  });
+
+  it('rotates the call phrasing across consecutive questions', async () => {
+    const provider = new MockProvider('Te lo cuento con calma.');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const first = await agent.runTurn('¿qué es Escuela Musk?');
+    const second = await agent.runTurn('¿cómo es la metodología?');
+
+    expect(first.reply).not.toBe(second.reply);
+    expect(first.reply).toMatch(/llamada/);
+    expect(second.reply).toMatch(/llamada/);
+  });
+
+  it('never invents an address for an off-topic question', async () => {
+    const provider = new MockProvider(
+      'Esa información no la tengo aquí, te la confirman por teléfono.',
+    );
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿en qué calle estáis?');
+
+    expect(result.reply).not.toMatch(/calle\s+[a-záéíóú]/i);
+    expect(result.reply).toMatch(/llamada/);
+    expect(result.reply.trimEnd().endsWith('?')).toBe(true);
+  });
+
+  it('does not force the call on a plain statement from the lead', async () => {
+    const reply = 'Perfecto, lo dejamos así.';
+    const provider = new MockProvider(reply);
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('me lo pienso y te digo');
+
+    expect(result.reply).toBe(reply);
+  });
+
+  it('the prompt carries the after-every-question rule', async () => {
+    const provider = new MockProvider('Claro.');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    await agent.runTurn('¿qué tal?');
+
+    expect(provider.calls[0]?.system).toMatch(/Después de CADA pregunta/i);
+  });
+});
+
