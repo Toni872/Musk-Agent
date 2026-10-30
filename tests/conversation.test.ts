@@ -338,3 +338,60 @@ describe("Miguel's rule: after every question, answer and recommend the call", (
   });
 });
 
+
+// A closed, approved answer must survive a provider failure: the catalogue is
+// known, so escalating "what do you offer?" to a human is a worse reply.
+describe('catalogue fallback when the model cannot answer', () => {
+  it('answers the catalogue when the provider returns nothing', async () => {
+    const provider = new MockProvider('');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué ofrecéis exactamente?');
+
+    expect(result.reply).toContain('Python');
+    expect(result.reply).toContain('Full Stack');
+    expect(result.reply).toMatch(/llamada/);
+    expect(result.registeredDoubts).toEqual([]);
+    expect(agent.doubts).toEqual([]);
+  });
+
+  it('answers the catalogue when the provider throws', async () => {
+    const provider = new MockProvider(() => {
+      throw new Error('network down');
+    });
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué cursos tenéis?');
+
+    expect(result.reply).toContain('Python');
+    expect(result.ruleViolations).toEqual([]);
+    expect(agent.doubts).toEqual([]);
+  });
+
+  it('answers the catalogue when the model reply is rejected by the guard', async () => {
+    const provider = new MockProvider('Te garantizamos trabajo al terminar.');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿qué ofrecéis?');
+
+    expect(result.reply).toContain('Python');
+    expect(result.reply).not.toContain('garantiz');
+    expect(result.ruleViolations.length).toBeGreaterThan(0);
+    expect(agent.doubts).toEqual([]);
+  });
+
+  it('never uses the catalogue to answer a price question', async () => {
+    const provider = new MockProvider('Son 500 euros al mes.');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿cuánto cuestan los cursos?');
+
+    expect(result.reply).toBe(buildReply('doubt'));
+    expect(result.reply).not.toContain('Python');
+  });
+
+  it('still escalates a question the base cannot answer', async () => {
+    const provider = new MockProvider('');
+    const agent = new MuskAgent({ content: APPROVED_CONTENT, provider, lead: LEAD });
+    const result = await agent.runTurn('¿tenéis wifi en clase?');
+
+    expect(result.reply).toBe(buildReply('doubt'));
+    expect(agent.doubts).toEqual(['¿tenéis wifi en clase?']);
+  });
+});

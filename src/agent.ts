@@ -14,7 +14,7 @@
 import type { ApprovedContent } from './content';
 import { APPROVED_CONTENT, isPendingDecision } from './content';
 import type { LLMChatMessage, LLMProvider } from './llm';
-import { retrieve, retrieveTopK } from './retrieval';
+import { FORBIDDEN_TOPIC_PATTERNS, retrieve, retrieveTopK } from './retrieval';
 import {
   acceptanceConfirmed,
   ANSWER_TRIGGERS,
@@ -118,6 +118,13 @@ const CALL_QUESTIONS = [
 
 // First phrasing, kept as the default for the deterministic fallback.
 const CALL_QUESTION = CALL_QUESTIONS[0];
+
+// The list of programmes is closed and approved, so it can be given without the
+// model. It is the answer used when the provider fails or its output is rejected
+// and the lead asked what the school offers: escalating that question to a human
+// is a worse answer than the approved catalogue itself. Never carries figures.
+const CATALOGUE_ANSWER =
+  'En Escuela Musk ofrecemos Python, Front End, Back End, Full Stack, el máster de videojuegos, Python con IA Engineering y los másteres de Inteligencia Artificial, Machine Learning y Deep Learning. Todos online y desde cero.';
 
 // Keep rejected model output readable in the operator log without flooding it.
 function truncate(text: string, max = 160): string {
@@ -458,12 +465,32 @@ export class MuskAgent {
     };
   }
 
-  // Nothing approved to say and no model: if the lead asked a real question it
-  // becomes a doubt for the human; if it was just an invitation to keep talking,
-  // bridge safely instead of telling them "lo dejo anotado".
+  // Nothing approved to say and no model: an offer/catalogue question gets the
+  // closed list; a real question becomes a doubt for the human; an invitation to
+  // keep talking gets a safe bridge instead of "lo dejo anotado".
   private fallbackReply(message: string): string {
+    if (this.isCatalogueQuestion(message)) return `${CATALOGUE_ANSWER} ${this.nextCallQuestion()}`;
     if (this.looksLikeQuestion(message)) return this.registerDoubt(message);
     return GENERIC_BRIDGE;
+  }
+
+  // True when the lead is asking what the school offers. Deliberately narrow and
+  // deterministic: anything that touches a forbidden topic (price, financing,
+  // location, syllabus...) is excluded, so the catalogue never answers a price
+  // question by accident.
+  private isCatalogueQuestion(message: string): boolean {
+    const folded = normalizeEs(message);
+    if (FORBIDDEN_TOPIC_PATTERNS.some((entry) => entry.pattern.test(folded))) return false;
+    return (
+      /\bque (ofreceis|ofrece|ofrecen|teneis|tienen|hay|cursos?|formacion(?:es)?|programas?)\b/.test(
+        folded,
+      ) ||
+      /\bque es lo que (ofreceis|teneis|haceis)\b/.test(folded) ||
+      /\b(cuales son|cual es)\b.*\b(cursos?|formacion(?:es)?|programas?|oferta)\b/.test(folded) ||
+      /\b(cursos?|formacion(?:es)?|programas?)\b.*\b(ofreceis|teneis|tienen|impartis|da|hay)\b/.test(
+        folded,
+      )
+    );
   }
 
   private looksLikeQuestion(message: string): boolean {
@@ -477,11 +504,15 @@ export class MuskAgent {
     );
   }
 
-  // The model invented something unsafe: never ship it. Register the doubt and
-  // propose a human (rule 5).
+  // The model invented something unsafe: never ship it. A catalogue question is
+  // answered from the approved list; anything else registers the doubt and
+  // proposes a human (rule 5).
   private safeFallback(message: string, violations: string[]): TurnResult {
-    this.registerDoubt(message);
-    const reply = buildReply('doubt');
+    // A catalogue question is still answerable from the closed, approved list:
+    // escalating it to a human is a worse answer than the list itself.
+    const reply = this.isCatalogueQuestion(message)
+      ? `${CATALOGUE_ANSWER} ${this.nextCallQuestion()}`
+      : this.registerDoubt(message);
     this.push({ kind: 'reply', intent: 'conversation', detail: reply });
     return {
       intent: 'conversation',
