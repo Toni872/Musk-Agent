@@ -17,7 +17,7 @@
 // boundary this gate protects.
 //
 // It cannot prove that real lead data crossed the boundary: that condition stays
-// manual in docs/checklist-canal-real.md.
+// manual in docs/operacion/checklist-canal-real.md.
 //
 // Escape hatch: once protection is in place, set PILOT_GATE_ACK=1 in the CI
 // workflow. That single line is the auditable record that the decision was made.
@@ -92,7 +92,7 @@ function main(): void {
   console.log('   1. Activar protección de despliegue en Vercel (contraseña o SSO).');
   console.log('   2. Verificar que el alias público ya no sirve el bundle sin credenciales.');
   console.log('   3. Registrar la decisión (fecha, quién, qué protección) en');
-  console.log('      docs/checklist-canal-real.md y poner PILOT_GATE_ACK=1 en');
+  console.log('      docs/operacion/checklist-canal-real.md y poner PILOT_GATE_ACK=1 en');
   console.log('      .github/workflows/ci.yml.');
   console.log('');
 

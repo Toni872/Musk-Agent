@@ -7,7 +7,7 @@ node_modules/
 *.env.local
 
 # Signed client documents: shared with MUSK, never published from this repo
-docs/aprobacion-nicolas.pdf
+docs/cliente/aprobacion-nicolas.pdf
 
 # Build artifacts / deliverables
 *.zip

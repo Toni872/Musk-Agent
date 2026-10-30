@@ -33,7 +33,7 @@ acompañamiento en la búsqueda, sin garantizar prácticas ni empresa.
 
 ## 3) Decisiones operativas (checklist de canal real)
 
-Fuera del texto, quedan por confirmar en `docs/checklist-canal-real.md`:
+Fuera del texto, quedan por confirmar en `docs/operacion/checklist-canal-real.md`:
 
 | Punto | Qué se necesita |
 |---|---|

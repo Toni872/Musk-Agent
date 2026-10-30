@@ -6,7 +6,7 @@
 // the deterministic knowledge base) and drops nothing the pilot needs.
 //
 // Content provenance: curated from MUSK's own dossier and the copy drafted in
-// docs/matriz-validacion-cursos.md. Final wording sign-off with MUSK is still
+// docs/producto/matriz-validacion-cursos.md. Final wording sign-off with MUSK is still
 // pending for the whole profile: nothing here is a price, an amount, a payment
 // condition or a detailed syllabus (hard rules 1, 2, 3 and 10).
 //

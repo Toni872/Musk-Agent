@@ -2,7 +2,7 @@
 
 Proyecto de Script9 para MUSK Technologies (interlocutor: Nicolás Stella). Este
 fichero es la fuente de verdad del alcance **en este repositorio**. El detalle
-completo está en `docs/musk-mvp-spec.md`; léelo antes de tocar flujo, prompts del
+completo está en `docs/producto/musk-mvp-spec.md`; léelo antes de tocar flujo, prompts del
 agente, estados o métricas.
 
 Fuente: reunión del 28/09/2026 (prevalece), contexto del 18/09/2026 y respuestas
@@ -82,7 +82,7 @@ presentación de MUSK, la FAQ y los 35 pasajes de la base de conocimiento están
 escritos y se usan en el perfil único, pero todo ello sigue siendo **copy unificado
 pendiente de firma de MUSK** (reglas 4 y 11), no contenido aprobado. La protección
 se mantiene para futuros huecos: **un `TODO(decisión)` nunca se envía**, se informa
-como decisión abierta de MUSK. Ver `docs/pedido-nicolas.md`.
+como decisión abierta de MUSK. Ver `docs/cliente/pedido-nicolas.md`.
 
 Importante: los "6 intentos" de la reunión del 18/09 NO son una regla del MVP. El
 ~3 % de conversión, el coste (>300 €) y los volúmenes (12-15 / 35 al mes) son
@@ -145,7 +145,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - Antes de cualquier envío real: comprobar canal, mensaje inicial, seguimiento,
   parada, receptor del aviso y que la derivación funciona. Hasta entonces, solo
   simulación sin datos personales reales. La lista de cierre está en
-  `docs/checklist-canal-real.md`.
+  `docs/operacion/checklist-canal-real.md`.
 - Registrar por separado: respuesta al WhatsApp, solicitud/aceptación de llamada y
   llamada realizada. Siempre con denominador y periodo. Comparar ilocalizables y no
   compradores por separado.
@@ -154,7 +154,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (129 tests en 6 ficheros) y
+- Antes de tocar nada: `npm run typecheck`, `npm test` (125 tests en 6 ficheros) y
   `npm run eval` (bucle de evaluación de la base de conocimiento: recall, falsos
   positivos y ablación léxica held-out). La comprobación automática corre también
   en cada push (`.github/workflows/ci.yml`).
@@ -172,14 +172,22 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Mapa de documentación
 
+Índice completo en `docs/README.md`. Resumen:
+
 | Fichero | Contenido |
 |---|---|
 | `README.md` | Qué hace el arnés, comandos y verificación |
-| `GUION_DEMO.md` | Guion de demo con las respuestas observadas |
-| `docs/guion-neuroventas.md` | Guion por momento conversacional: texto real, objetivo y mecanismo |
 | `INSTRUCCIONES.md` | Guía para que el equipo de MUSK lo pruebe en su equipo |
-| `docs/musk-mvp-spec.md` | Especificación completa del MVP |
-| `docs/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
-| `docs/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
-| `docs/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
-| `docs/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo (fase 2) |
+| `docs/producto/musk-mvp-spec.md` | Especificación completa del MVP |
+| `docs/producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo (fase 2) |
+| `docs/producto/matriz-validacion-cursos.md` | Validación por curso (origen de `src/content.ts`) |
+| `docs/producto/escuela-musk-base-conocimiento.md` | Fuente de los 35 pasajes de `src/kb.ts` |
+| `docs/cliente/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
+| `docs/cliente/aprobacion-nicolas.md` | Qué necesita firma de Nicolás (resumen) |
+| `docs/cliente/guia-comercial.md` | Guía de uso para el comercial |
+| `docs/cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
+| `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
+| `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
+| `docs/guiones/GUION_DEMO.md` | Guion de demo con las respuestas observadas |
+| `docs/guiones/guion-neuroventas.md` | Guion por momento: texto real, objetivo y mecanismo |
+| `docs/archivo/` | Material histórico (plan de retrieval híbrido, guía de costes, export obsoleto) |

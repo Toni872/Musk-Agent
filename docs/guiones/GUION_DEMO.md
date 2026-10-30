@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-Guion verificado contra el agente real (`MuskAgent`, `APPROVED_CONTENT` curado, `provider=null`). Todo el flujo es **determinista y offline** (sin LLM, sin red, sin API key). Última verificación: 2026-10-29, 372/372 tests.
+> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **125 tests en 6 ficheros**.
 
 > **Apertura y cualificación**: el perfil único ya incluye `initialMessage` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
@@ -141,7 +141,7 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 
 ```powershell
 npm run typecheck   # cero errores
-npm test             # 372 tests, sin red
+npm test             # 125 tests, sin red
 npm run eval        # 46 casos de FAQ + 33 de KB + 23 de fundamentación
 npm run sim -- --smoke   # un turno guiado, exit 0
 npm run build:ui    # empaqueta el simulador de navegador

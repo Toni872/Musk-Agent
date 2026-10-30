@@ -4,7 +4,7 @@ Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
 referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
 pendiente de firma.
 
-Anexo de `docs/pedido-nicolas.md`. El pedido original cierra **qué se dice** (mensaje
+Anexo de `docs/cliente/pedido-nicolas.md`. El pedido original cierra **qué se dice** (mensaje
 inicial, preguntas, presentación). Este documento cierra **cómo se comporta** la
 conversación: seguimiento, llamada, aviso y datos del lote.
 
@@ -169,4 +169,4 @@ Si prefieres ir rápido, con estas cinco respuestas se desbloquea casi todo:
 5. Resultado de la llamada: ¿quién lo anota y con qué campos?
 
 Lo demás (contenido, mensaje inicial, presentación de MUSK, preguntas y
-correcciones de copy) sigue en `docs/pedido-nicolas.md`.
+correcciones de copy) sigue en `docs/cliente/pedido-nicolas.md`.

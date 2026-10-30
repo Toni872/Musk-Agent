@@ -44,4 +44,4 @@ Anotar siempre:
 
 ## Notas
 - El simulador es solo para trazar la conversación. El envío real por WhatsApp se gestiona fuera.
-- Hay un único perfil de contenido, sin selector DEMO/REAL. Su copy unificado está pendiente de firma de MUSK; no uses el simulador con leads reales hasta completar las validaciones de `docs/checklist-canal-real.md`.
+- Hay un único perfil de contenido, sin selector DEMO/REAL. Su copy unificado está pendiente de firma de MUSK; no uses el simulador con leads reales hasta completar las validaciones de `docs/operacion/checklist-canal-real.md`.

@@ -26,7 +26,7 @@ Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no
    npm test
    ```
 
-    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **129 passed**, todo está correcto y ya puedes arrancar el simulador.
+    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **125 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 

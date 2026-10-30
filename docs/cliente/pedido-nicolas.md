@@ -14,8 +14,8 @@ pendiente de firma.
 
 Relacionado: `src/content.ts` (perfil único con copy unificado pendiente de firma
 de MUSK), `AGENTS.md` ("Decisiones abiertas"),
-`docs/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
-lote: las decisiones que no son de contenido) y `docs/checklist-canal-real.md`
+`docs/operacion/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
+lote: las decisiones que no son de contenido) y `docs/operacion/checklist-canal-real.md`
 (qué queda por cerrar antes de tocar un lead real).
 
 ## Contexto
@@ -138,7 +138,7 @@ mantienen las fórmulas naturales ("Perfecto", "Claro", "Buena pregunta",
 cuyas cinco frases ya tienen propuesta propia y no se repiten aquí. Nada está
 aplicado en el código (regla 11); al aplicar los cambios habrá que ajustar la
 aserción de `tests/rules.test.ts` sobre la respuesta de parada
-(`/no continuar/i`) y las citas literales de `GUION_DEMO.md` e
+(`/no continuar/i`) y las citas literales de `docs/guiones/GUION_DEMO.md` e
 `INSTRUCCIONES.md`.
 
 ## 8. Copy nuevo pendiente de aprobación (contenido de la base de conocimiento)
@@ -272,9 +272,9 @@ Lo que necesita Nicolás:
 ## Qué ocurre cuando el copy unificado esté firmado
 
 1. Se registra la validación de Nicolás en este documento y en
-   `docs/checklist-canal-real.md`, sin darla por supuesta antes de que exista.
+   `docs/operacion/checklist-canal-real.md`, sin darla por supuesta antes de que exista.
 2. Si Nicolás corrige alguna redacción, se aplica en `src/content.ts` y se
-   sincronizan los tests y las citas literales de `GUION_DEMO.md` e
+   sincronizan los tests y las citas literales de `docs/guiones/GUION_DEMO.md` e
    `INSTRUCCIONES.md`.
 3. Se comprueba de nuevo el conjunto de evaluación y se regenera la web publicada;
    después se verifica contra el bundle local.

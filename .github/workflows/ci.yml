@@ -50,7 +50,7 @@ jobs:
       # thing that hides it. This gate watches one signal only: a committed .env
       # file (real configuration in the repository), so the notification arrives
       # before the next publish instead of after it. Content sign-off is tracked
-      # manually in docs/checklist-canal-real.md, not by this gate. See section 9.
+      # manually in docs/operacion/checklist-canal-real.md, not by this gate. See section 9.
       - name: Pilot gate (bundle exposure)
         run: npm run pilot-gate
 

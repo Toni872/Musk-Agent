@@ -2,7 +2,7 @@
 
 Documento de referencia detallado. Resumen operativo y reglas duras en `AGENTS.md`.
 Fuente: documento "Validación funcional" de Script9 actualizado tras la reunión del 28/09/2026. Referencias horarias sin fecha = reunión del 18/09/2026.
-Fuente original (copia de referencia): `docs/MUSK_Validacion_Funcional_MVP_Script9_28092026.pdf`. Los diagramas UML (Figuras 1-3) están solo en el PDF, no en este markdown.
+Fuente original (copia de referencia): `docs/cliente/MUSK_Validacion_Funcional_MVP_Script9_28092026.pdf`. Los diagramas UML (Figuras 1-3) están solo en el PDF, no en este markdown.
 
 ## 1. Contexto y problema
 

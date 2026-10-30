@@ -13,8 +13,8 @@ falta para la demo, pero todo esto hay que cerrarlo antes del primer envío real
 (orquestación, RAG, guardrails, capa de decisión; octubre 2026), contrastada con las
 reglas duras de `AGENTS.md` y con lo que este repositorio ya implementa.
 
-Relacionado: `AGENTS.md`, `docs/musk-mvp-spec.md`, `docs/pedido-nicolas.md`,
-`docs/decisiones-operativas-nicolas.md`.
+Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido-nicolas.md`,
+`docs/operacion/decisiones-operativas-nicolas.md`.
 
 ## Resumen
 
@@ -96,11 +96,11 @@ irreversibles o con coste.
 1. Firma final de todo el **copy unificado pendiente de firma de MUSK**: mensaje
    inicial, presentación de MUSK, pregunta de cualificación `goal`, FAQ y los 35
    pasajes de la base de conocimiento, junto con el resto de textos del perfil único
-   (`docs/pedido-nicolas.md`). Ya no quedan marcadores `TODO(decisión)`, pero la
+   (`docs/cliente/pedido-nicolas.md`). Ya no quedan marcadores `TODO(decisión)`, pero la
    redacción escrita no equivale a una aprobación.
 2. Decisiones de operación aún abiertas: cobertura de Laura, cadencia y reglas de
    parada, datos del lote y resultado de la llamada
-   (`docs/decisiones-operativas-nicolas.md`).
+   (`docs/operacion/decisiones-operativas-nicolas.md`).
 3. Base legal, privacidad y transparencia del lote real; tamaño de muestra y fecha de
    lanzamiento.
 

@@ -1,6 +1,6 @@
 // The approved knowledge base of Escuela Musk, as DATA.
 //
-// Source of truth: `escuela-musk-base-conocimiento.md` (repository root). Each
+// Source of truth: `docs/producto/escuela-musk-base-conocimiento.md`. Each
 // passage is a small, self-contained chunk of that document with its OWN
 // lead-facing answer. Hard rule 10: a guide used as a knowledge source does
 // NOT authorize sending it whole, so the document is never quoted: only the

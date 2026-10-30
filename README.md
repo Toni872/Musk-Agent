@@ -22,7 +22,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 129 tests en 6 ficheros, sin red ni API key.
+3. `npm test` → 125 tests en 6 ficheros, sin red ni API key.
 4. `npm run eval` → informe del bucle de evaluación de la base de conocimiento (recall, falsos positivos y ablación léxica).
 5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
 6. `npm run sim` → REPL interactivo (usa el LLM si `.env` está configurado; si no, modo determinista).
@@ -98,7 +98,7 @@ Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El r
 ## Verificación
 
 - [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 129 tests, cero fallos, sin red.
+- [ ] `npm test` pasa: 125 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `npm run sim -- --smoke` sale con código 0.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.
@@ -109,7 +109,7 @@ Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El r
 
 ## Decisiones pendientes
 
-`docs/decisiones-operativas-nicolas.md` (cobertura de Laura, cadencia y reglas de parada, canal, base legal/privacidad, tamaño de muestra y fecha de lanzamiento). El copy del perfil único sigue **pendiente de firma de MUSK**. La lista de cierre antes del canal real está en `docs/checklist-canal-real.md`.
+`docs/operacion/decisiones-operativas-nicolas.md` (cobertura de Laura, cadencia y reglas de parada, canal, base legal/privacidad, tamaño de muestra y fecha de lanzamiento). El copy del perfil único sigue **pendiente de firma de MUSK**. La lista de cierre antes del canal real está en `docs/operacion/checklist-canal-real.md`.
 
 ## Contexto histórico (no son objetivos ni parámetros)
 
