@@ -22,10 +22,10 @@ En el aviso copiado o en el PDF encontrarás:
 | **Mensajes post-handoff** | Si el lead ha seguido escribiendo tras el aviso, revisar siempre. |
 
 ## Cómo usar el simulador
-1. Abrir http://127.0.0.1:4174 o la URL del piloto.
+1. Abrir http://127.0.0.1:4173 o la URL del piloto.
 2. Conversar con el lead tal como llegue por WhatsApp (copiar mensajes).
 3. Cuando haya handoff, pulsar "Copiar aviso" y pegarlo por el canal que corresponda.
-4. También puedes "Descargar informe" (PDF) o "Descargar JSON" para archivar la sesión.
+4. También puedes "Descargar informe" (PDF, se descarga directamente sin diálogo de impresión) o "Descargar JSON" para archivar la sesión.
 
 ## Reglas a tener en cuenta
 - **Nunca precios ni importes.** El agente ya los bloquea, pero conviene mantener el tono.

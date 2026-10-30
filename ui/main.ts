@@ -10,6 +10,7 @@ import {
   type ChatState,
 } from './chat';
 import type { HandoffContext } from '../src/agent';
+import { buildConversationPdf } from '../src/report-pdf';
 import { RemoteRephraseLLM } from './remote-llm';
 
 const ROLE_LABELS: Record<ChatMessage['role'], string> = {
@@ -367,106 +368,33 @@ exportJsonButton.addEventListener('click', () => {
 
 exportButton.addEventListener('click', () => {
   const state = chat.getState();
-  const now = new Date().toLocaleString('es-ES');
-  const title = `Informe MUSK - ${now.replace(/[/:]/g, '-')}`;
-  const handoff: HandoffContext | undefined = chat.handoff;
-  const handedQualification = (): Array<{ questionId: string; answer: string }> =>
-    chat.qualificationAnswers.map((qa) => ({ questionId: qa.id, answer: qa.text }));
-
-  const messages = state.messages
-    .map((m, idx) => {
-      const role = ROLE_LABELS[m.role];
-      return `<div class="line"><strong>[Turno ${idx + 1}] [${role}]</strong> ${escapeHtml(m.text)}</div>`;
-    })
-    .join('');
-
-  const records = state.records
-    .map((r) => {
-      const time = r.timestamp ? new Date(r.timestamp).toLocaleString('es-ES') : '-';
-      const intent = r.intent ? ` (${r.intent})` : '';
-      return `<tr><td>${escapeHtml(time)}</td><td>${escapeHtml(r.kind)}</td><td>${escapeHtml(intent)}</td><td>${escapeHtml(r.detail)}</td></tr>`;
-    })
-    .join('');
-
-  const doubts = state.doubts
-    .map((d, i) => `<li>${i + 1}. ${escapeHtml(d)}</li>`)
-    .join('');
-
-  const handoffHtml = handoff
-    ? `<div class="section">
-      <h2>AVISO COMERCIAL</h2>
-    <table>
-      <tbody>
-        <tr><th>Motivo</th><td>${escapeHtml(handoff.reason)}</td></tr>
-        <tr><th>Lead ID</th><td>${escapeHtml(handoff.leadId)}</td></tr>
-        <tr><th>Contacto</th><td>${escapeHtml(handoff.contact || '-')}</td></tr>
-        <tr><th>Bolsa / origen</th><td>${escapeHtml(handoff.bucket === 'ilocalizable' ? 'ilocalizables' : 'no compradores')}</td></tr>
-        <tr><th>Destinataria</th><td>${escapeHtml(handoff.recipient || '-')}</td></tr>
-        <tr><th>Formación detectada</th><td>${escapeHtml(handoff.formation || '-')}</td></tr>
-        <tr><th>Resumen para el comercial</th><td>${escapeHtml(handoff.summary || '-')}</td></tr>
-      </tbody>
-    </table>
-        ${handedQualification().length > 0 ? `<h3>Respuestas de cualificación</h3><ul>${handedQualification().map((qa) => `<li><strong>${escapeHtml(qa.questionId)}</strong>: ${escapeHtml(qa.answer)}</li>`).join('')}</ul>` : ''}
-    ${handoff.doubts && handoff.doubts.length > 0 ? `<h3>Dudas en el momento del aviso</h3><ul>${handoff.doubts.map((d: string) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}
-    ${handoff.afterHandoff && handoff.afterHandoff.length > 0 ? `<h3>Mensajes del lead tras el aviso</h3><ul>${handoff.afterHandoff.map((m: string) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>` : ''}
-  </div>`
-    : `<div class="section"><h2>AVISO COMERCIAL</h2><p><em>No se ha generado handoff en esta sesión.</em></p></div>`;
-
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>${title}</title>
-  <style>
-    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:32px;line-height:1.5;color:#111}
-    h1,h2,h3{margin:0 0 12px 0}
-    .meta{color:#555;margin-bottom:24px}
-    .section{margin:28px 0}
-    .line{margin:6px 0}
-    table{width:100%;border-collapse:collapse;font-size:12px}
-    th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}
-    th{background:#f7f7f7}
-    ul{margin:8px 0;padding-left:20px}
-    @media print{button{display:none}}
-  </style>
-</head>
-<body>
-  <h1>Informe de conversación - Agente MUSK</h1>
-  <div class="meta">
-    <div>Fecha de generación: ${now}</div>
-    <div>Perfil: Real (contenido aprobado)</div>
-    <div>Turnos: ${state.turnCount}</div>
-    <div>Detenido: ${state.stopped ? 'Sí' : 'No'}</div>
-    <div>Registros: ${state.records.length}</div>
-    <div>Dudas: ${state.doubts.length}</div>
-  </div>
-  <div class="section">
-    <h2>Conversación completa</h2>
-    ${messages || '<p><em>Sin mensajes</em></p>'}
-  </div>
-  ${handoffHtml}
-  <div class="section">
-    <h2>Registros cronológicos</h2>
-    <table>
-      <thead><tr><th>Fecha/Hora</th><th>Tipo</th><th>Intent</th><th>Detalle</th></tr></thead>
-      <tbody>${records || ''}</tbody>
-    </table>
-  </div>
-  <div class="section">
-    <h2>Dudas registradas</h2>
-    ${doubts ? `<ul>${doubts}</ul>` : '<p><em>Sin dudas registradas</em></p>'}
-  </div>
-  <script>window.onload = () => window.print();</script>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank');
-  if (!win) {
-    alert('No se ha podido abrir una nueva ventana. Permite ventanas emergentes para exportar el informe.');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    turnCount: state.turnCount,
+    stopped: state.stopped,
+    messages: state.messages,
+    records: state.records,
+    doubts: state.doubts,
+    handoff: chat.handoff ?? null,
+    qualificationAnswers: chat.qualificationAnswers.map((qa) => ({
+      questionId: qa.id,
+      answer: qa.text,
+    })),
+  };
+  // Direct download: the browser saves the PDF without opening the print dialog.
+  const bytes = buildConversationPdf(payload);
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const blob = new Blob([buffer], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const clock = new Date().toISOString().replace(/[:.]/g, '-');
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `musk-sesion-${clock}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 });
 
 function escapeHtml(value: string): string {

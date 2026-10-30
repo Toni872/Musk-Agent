@@ -113,7 +113,7 @@ export class Chat {
     return {
       banner: this.provider
         ? CONTENT_BANNER
-        : `${CONTENT_BANNER} — modo determinista (sin modelo LLM: abre la URL con ?k=<token>)`,
+        : `${CONTENT_BANNER} — modo determinista (sin modelo LLM)`,
       messages: this.messages.map((message) => ({ ...message })),
       stopped: this.agent.isStopped,
       records: this.agent.records.map((record) => ({ ...record })),
