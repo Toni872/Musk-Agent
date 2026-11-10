@@ -166,10 +166,15 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (152 tests en 8 ficheros) y
-  `npm run eval` (bucle de evaluación de la base de conocimiento: recall, falsos
-  positivos y ablación léxica held-out). La comprobación automática corre también
-  en cada push (`.github/workflows/ci.yml`).
+- **Motor vigente: app Python** (`app/`, FastAPI + uv) servida en el puerto
+  **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
+  `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app` y
+  `uv run pytest` (175 tests). CI de Python en
+  `.github/workflows/python-ci.yml`.
+- **Versión TypeScript en retirada** (`src/`, `ui/`, `package.json`): se conserva
+  como referencia mientras se compara. `npm run typecheck`, `npm test` (125 tests),
+  `npm run eval` y `npm run ui` describen esa versión anterior; CI en
+  `.github/workflows/ci.yml`.
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.
 - Si falta una decisión de las listadas arriba, propón una opción por defecto
@@ -179,8 +184,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   aparece únicamente como destinataria simulada. El LLM es opcional y dirige la
   conversación con RAG; sin él, el agente cae al modo determinista con los pasajes
   aprobados.
-- El deploy a Vercel es **manual** (`npm run deploy`, que ejecuta `pilot-gate` y
-  `vercel deploy --prod`): el repositorio no despliega solo.
+- El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
+  `8000`). El deploy a Vercel (`npm run deploy`) es la vía **legacy** de la versión
+  TypeScript; ninguno de los dos despliega solo.
 
 ## Mapa de documentación
 

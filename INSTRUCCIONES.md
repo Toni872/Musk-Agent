@@ -4,6 +4,8 @@ Esto es el **motor conversacional del MVP**: todavía no está conectado a Whats
 
 Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no sale nada a internet; con el LLM configurado, el texto de la conversación se envía al proveedor (Groq) para que el agente responda.
 
+> **Nota (versión vigente).** El motor actual es una aplicación **Python** (FastAPI) con la misma lógica y el mismo suelo de seguridad. Se arranca con `uv run uvicorn app.main:app --port 4173` o con Docker, y se abre en `http://localhost:4173` (ver `README.md`). Las instrucciones con Node de esta guía describen la **versión anterior en TypeScript**, aún funcional, que se retirará.
+
 ---
 
 ## 1. Qué necesitas (solo la primera vez)

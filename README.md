@@ -1,8 +1,28 @@
 # MUSK — Asistente conversacional de WhatsApp (MVP)
 
-Arnés independiente en Node/TypeScript para simular el agente de WhatsApp del primer MVP de Escuela Musk: reactivar leads antiguos, presentar las cinco formaciones a nivel general y conducir la conversación a una llamada humana. El cierre de la venta es siempre humano; el agente nunca vende por WhatsApp.
+Arnés independiente para simular el agente de WhatsApp del primer MVP de Escuela Musk (motor actual en **Python/FastAPI**; el proyecto TypeScript original sigue como referencia mientras se retira): reactivar leads antiguos, presentar las cinco formaciones a nivel general y conducir la conversación a una llamada humana. El cierre de la venta es siempre humano; el agente nunca vende por WhatsApp.
 
 No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conversacional lo dirige un LLM opcional (con RAG sobre la base de conocimiento aprobada); sin LLM, el agente cae a un modo determinista que solo responde con pasajes aprobados que superan los umbrales.
+
+## Estado actual: motor en Python
+
+El motor vigente es una aplicación **FastAPI en Python** (`app/`), con el mismo suelo de seguridad, los mismos endpoints y **175 tests**. El proyecto TypeScript original (`src/`, `ui/`) se conserva como referencia y se retirará cuando ya no haga falta comparar; los comandos `npm …` de más abajo describen esa versión anterior.
+
+Arranque local (Python 3.12 + uv):
+
+```
+uv sync
+uv run uvicorn app.main:app --reload --port 4173
+```
+
+Abre `http://localhost:4173`. También en Docker:
+
+```
+docker build -t musk-agent .
+docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
+```
+
+Verificación: `uv run pytest` (175 tests), `uv run mypy app` y `uv run ruff check .`.
 
 ## Qué hace y qué no hace
 
@@ -18,7 +38,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 | Registro | Registros de conversación, dudas y resultado + vista de supervisión básica en la UI |
 | Aviso al equipo | Simulado: destinataria configurada (Laura), sin envío real, con contacto y bolsa de origen |
 
-## Rápido camino
+## Rápido camino (versión TypeScript, en retirada)
 
 1. `npm install` (desde la raíz de este repositorio).
 2. `npm run typecheck` → debe pasar sin errores.
@@ -77,8 +97,11 @@ Copia `.env.example` a `.env` y rellena:
 | `MUSK_LLM_API_KEY` | Clave del proveedor |
 | `MUSK_LLM_MODEL` | Modelo (por defecto `gpt-4o-mini`) |
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
+| `MUSK_LLM_MAX_TOKENS` | Tope de tokens de salida (por defecto `700`; solo app Python) |
 
 Hacen falta `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY` para activar el modelo; sin ellas, modo determinista. **Groq** funciona sin tocar código: `https://api.groq.com/openai/v1` con `openai/gpt-oss-120b` (más capaz) o `openai/gpt-oss-20b` (más barato).
+
+En la app Python, `MAX_CALLS_PER_MINUTE` limita las llamadas a `/chat` por IP (por defecto `30`).
 
 `.env` está en `.gitignore` (la clave nunca se commitea).
 
@@ -97,15 +120,26 @@ Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El r
 
 ## Verificación
 
+**App Python (vigente):**
+
+- [ ] `uv run ruff check .` sin hallazgos.
+- [ ] `uv run mypy app` sin errores.
+- [ ] `uv run pytest` pasa: 175 tests, cero fallos, sin red.
+
+**TypeScript (legacy):**
+
 - [ ] `npm run typecheck` pasa con cero errores.
 - [ ] `npm test` pasa: 125 tests, cero fallos, sin red.
 - [ ] `npm run eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `npm run sim -- --smoke` sale con código 0.
+
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)
 
-`.github/workflows/ci.yml` en cada push a `main` y cada PR: `npm ci` → `npm run typecheck` → `npm test` → `npm run eval` → `npm run build:ui` y `npm run build:api`. El comando `eval` sale siempre con código 0; los suelos los exige `tests/eval.test.ts`.
+**Python (vigente):** `.github/workflows/python-ci.yml` ejecuta `uv run ruff check .`, `uv run mypy app` y `uv run pytest` en cada push y PR.
+
+**TypeScript (legacy):** `.github/workflows/ci.yml` en cada push a `main` y cada PR: `npm ci` → `npm run typecheck` → `npm test` → `npm run eval` → `npm run build:ui` y `npm run build:api`. El comando `eval` sale siempre con código 0; los suelos los exige `tests/eval.test.ts`.
 
 ## Decisiones pendientes
 
