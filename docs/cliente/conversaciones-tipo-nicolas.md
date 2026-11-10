@@ -310,7 +310,7 @@ aunque el lead insista:
 
 ## 6. Cómo probarlo tú mismo
 
-- URL del simulador: <https://musk-agent.vercel.app> (sin contraseña, sin datos
+- URL del simulador: <http://localhost:4173> (sin contraseña, sin datos
   reales; es una simulación).
 - Puedes escribir como un lead y ver las respuestas, y descargar un informe PDF de la
   sesión o exportar el JSON.

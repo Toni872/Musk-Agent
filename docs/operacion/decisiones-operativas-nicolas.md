@@ -1,6 +1,6 @@
 # Decisiones operativas pendientes (Escuela Musk)
 
-Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+Actualización (27 de octubre de 2026): perfil único en `app/content.py`; las
 referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
 pendiente de firma.
 

@@ -1,12 +1,12 @@
 # MUSK — Asistente conversacional de WhatsApp (MVP)
 
-Arnés independiente para simular el agente de WhatsApp del primer MVP de Escuela Musk (motor actual en **Python/FastAPI**; el proyecto TypeScript original sigue como referencia mientras se retira): reactivar leads antiguos, presentar las cinco formaciones a nivel general y conducir la conversación a una llamada humana. El cierre de la venta es siempre humano; el agente nunca vende por WhatsApp.
+Arnés independiente para simular el agente de WhatsApp del primer MVP de Escuela Musk (motor en **Python/FastAPI**): reactivar leads antiguos, presentar las cinco formaciones a nivel general y conducir la conversación a una llamada humana. El cierre de la venta es siempre humano; el agente nunca vende por WhatsApp.
 
 No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conversacional lo dirige un LLM opcional (con RAG sobre la base de conocimiento aprobada); sin LLM, el agente cae a un modo determinista que solo responde con pasajes aprobados que superan los umbrales.
 
 ## Estado actual: motor en Python
 
-El motor vigente es una aplicación **FastAPI en Python** (`app/`), con el mismo suelo de seguridad, los mismos endpoints y **180 tests**. El proyecto TypeScript original (`src/`, `ui/`) se conserva como referencia y se retirará cuando ya no haga falta comparar; los comandos `npm …` de más abajo describen esa versión anterior.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **185 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (180 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
+Verificación: `uv run pytest` (185 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
 
 ## Qué hace y qué no hace
 
@@ -31,34 +31,24 @@ Verificación: `uv run pytest` (180 tests), `uv run mypy app` y `uv run ruff che
 | Canal WhatsApp | No conectado: simulación local |
 | Leads y CRM | Datos simulados en memoria (`LeadContact` de prueba) |
 | Motor conversacional | Dirigido por LLM (RAG sobre la base de conocimiento) con suelo de seguridad determinista |
-| Reglas duras 1-11 de `AGENTS.md` | Codificadas en `src/rules.ts` y verificadas por tests |
+| Reglas duras 1-11 de `AGENTS.md` | Codificadas en `app/rules.py` y verificadas por tests |
 | Sin LLM | Modo determinista: solo pasajes aprobados que superan umbrales; el resto escala a la regla 5 |
-| Contenido de la formación | Cinco formaciones presentadas a nivel general. Perfil único en `src/content.ts`, **copy pendiente de firma de MUSK** |
+| Contenido de la formación | Cinco formaciones presentadas a nivel general. Perfil único en `app/content.py`, **copy pendiente de firma de MUSK** |
 | Derivación a humano | Disparadores deterministas: el lead pide hablar con una persona, da su teléfono o acepta una llamada ya propuesta |
 | Registro | Registros de conversación, dudas y resultado + vista de supervisión básica en la UI |
 | Aviso al equipo | Simulado: destinataria configurada (Laura), sin envío real, con contacto y bolsa de origen |
 
-## Rápido camino (versión TypeScript, en retirada)
-
-1. `npm install` (desde la raíz de este repositorio).
-2. `npm run typecheck` → debe pasar sin errores.
-3. `npm test` → 125 tests en 6 ficheros, sin red ni API key.
-4. `npm run eval` → informe del bucle de evaluación de la base de conocimiento (recall, falsos positivos y ablación léxica).
-5. `npm run sim -- --smoke` → un turno guiado, sale con código 0 sin leer stdin.
-6. `npm run sim` → REPL interactivo (usa el LLM si `.env` está configurado; si no, modo determinista).
-7. `npm run ui` → interfaz de chat en `http://localhost:4173`; en local usa el modelo real vía proxy (`/api/rephrase`).
-
 ## Cómo funciona el motor
 
-Un turno = una llamada a `converse()` (`src/agent.ts`):
+Un turno = una llamada a `run_turn()` (`app/agent.py`):
 
-1. **Recuperación** (`retrieveTopK`): los pasajes más cercanos por BM25 se pasan al modelo como contexto, junto con la presentación de la escuela (`kb-escuela`) para que una pregunta corta («¿qué formación?») no se responda con un pasaje suelto.
+1. **Recuperación** (`retrieve_top_k`): los pasajes más cercanos por BM25 se pasan al modelo como contexto, junto con la presentación de la escuela (`kb-escuela`) para que una pregunta corta («¿qué formación?») no se responda con un pasaje suelto.
 2. **Prompt**: rol + tono + reglas duras + catálogo + descripción/metodología + respuestas de la FAQ. El modelo debe responder **primero** a lo preguntado, en texto plano y breve, y terminar con una sola pregunta.
-3. **Guard de salida** (`guardReply`): si la respuesta contiene importes, promesas de empleo, promociones o temario no aprobado, se descarta y se escala a la regla 5. El guard distingue una negación honesta («no garantizamos empleo») de una promesa.
+3. **Guard de salida** (`guard_reply`): si la respuesta contiene importes, promesas de empleo, promociones o temario no aprobado, se descarta y se escala a la regla 5. El guard distingue una negación honesta («no garantizamos empleo») de una promesa.
 4. **Derivación determinista**: parada, petición de humano, teléfono y aceptación de llamada no pasan por el modelo.
 5. **Sin modelo** (o fallo del proveedor): modo determinista que solo responde con un pasaje que **supera los umbrales** de `retrieve()`; lo demás escala o usa un puente seguro, nunca un pasaje débil recitado.
 
-## Reglas duras (suelo de seguridad, `src/rules.ts`)
+## Reglas duras (suelo de seguridad, `app/rules.py`)
 
 1. Nunca precios ni importes: respuesta aprobada + invitación a la llamada.
 2. Nunca temario detallado; sí contenido general, habilidades y salidas.
@@ -74,18 +64,18 @@ Un turno = una llamada a `converse()` (`src/agent.ts`):
 
 El guard de salida y los disparadores están como datos y cubiertos por tests.
 
-## Base de conocimiento y recuperación (`src/kb.ts` + `src/retrieval.ts`)
+## Base de conocimiento y recuperación (`app/kb.py` + `app/retrieval.py`)
 
 - 35 pasajes como datos (`id`, `title`, `answer`, `terms`, `source`). El `answer` va al lead; `terms` es vocabulario de recuperación y no se envía.
 - Recuperación determinista (BM25 + cobertura), sin LLM, sin embeddings, sin dependencias.
 - **Temas prohibidos** (`FORBIDDEN_TOPIC_PATTERNS`): precio, compensación, financiación, duración/horarios, fechas de inicio, devoluciones, ubicación, temario detallado, requisitos y condiciones de prácticas → siempre escalan (regla 5).
 - **Umbrales con nombre** en código: `MIN_BM25_SCORE` (3.5) y `MIN_TERM_COVERAGE` (0.5). Un pasaje responde solo si supera ambos.
-- Ninguna respuesta de la base de conocimiento contiene una cifra (lo fija un test) y todas pasan `guardReply`.
-- `retrieve()` = puerta con umbrales (usa el modo determinista); `retrieveTopK()` = ranking para el contexto del LLM.
+- Ninguna respuesta de la base de conocimiento contiene una cifra (lo fija un test) y todas pasan `guard_reply`.
+- `retrieve()` = puerta con umbrales (usa el modo determinista); `retrieve_top_k()` = ranking para el contexto del LLM.
 
-## Evaluación (`src/eval.ts` + `src/eval.dataset.ts`)
+## Evaluación (`app/eval.py` + `app/eval_dataset.py`)
 
-Instrumento de medición, no lógica de producción: mide recall, falsos positivos, pasaje equivocado e interceptación de temas protegidos sobre la base de conocimiento, más una ablación léxica (held-out). `npm run eval` imprime el resumen; `--verbose` y `--json` dan detalle. Los suelos están fijados en `tests/eval.test.ts`.
+Instrumento de medición, no lógica de producción: mide recall, falsos positivos, pasaje equivocado e interceptación de temas protegidos sobre la base de conocimiento, más una ablación léxica (held-out). `uv run python -m app.eval` imprime el resumen; `--verbose` y `--json` dan detalle. Los suelos están fijados en `tests/test_eval.py`.
 
 ## Configuración del LLM (opcional)
 
@@ -97,7 +87,7 @@ Copia `.env.example` a `.env` y rellena:
 | `MUSK_LLM_API_KEY` | Clave del proveedor |
 | `MUSK_LLM_MODEL` | Modelo (por defecto `gpt-4o-mini`) |
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
-| `MUSK_LLM_MAX_TOKENS` | Tope de tokens de salida (por defecto `700`; solo app Python) |
+| `MUSK_LLM_MAX_TOKENS` | Tope de tokens de salida (por defecto `700`) |
 
 Hacen falta `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY` para activar el modelo; sin ellas, modo determinista. **Groq** funciona sin tocar código: `https://api.groq.com/openai/v1` con `openai/gpt-oss-120b` (más capaz) o `openai/gpt-oss-20b` (más barato).
 
@@ -105,42 +95,26 @@ En la app Python, `MAX_CALLS_PER_MINUTE` limita las llamadas a `/chat` por IP (p
 
 `.env` está en `.gitignore` (la clave nunca se commitea).
 
-## UI local y proxy
+## UI local
 
-- `npm run ui` → construye `ui/dist` y levanta `ui/dev-server.ts` en `http://localhost:4173`.
-- El navegador no puede llamar a Groq directamente (CORS + la clave quedaría en el cliente), así que habla con `POST /api/rephrase`.
-- En local, `ui/dev-server.ts` responde `/api/rephrase` con el **mismo** handler puro de producción (`src/rephrase-endpoint.ts`).
-- En producción, la función `api/rephrase.js` sirve el mismo handler. El **acceso al despliegue** lo protege Vercel Password Protection (contraseña), no un token.
+La interfaz (`app/static/`) la sirve la propia app FastAPI en `/` al arrancar con uvicorn: abre `http://localhost:4173`. No hay bundle aparte ni proxy de desarrollo; el navegador habla con `POST /chat` de la misma app y el LLM se invoca en el servidor, así que la clave nunca llega al cliente.
 
-## Despliegue (Vercel)
+## Despliegue (Docker)
 
-Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El repositorio no despliega solo. `vercel.json` recompila el API y la UI desde el código fuente; `api/rephrase.js` es un bundle commiteado que debe regenerarse con `npm run build:api` cuando cambia `src/rephrase-endpoint.ts`.
-
-**Protección por contraseña:** en el proyecto de Vercel, activa **Settings → Deployment Protection → Password Protection** para que el despliegue entero (UI y `/api/rephrase`) quede detrás de una contraseña. Es lo que protege tu clave de Groq de un uso externo.
+Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio no despliega solo. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada. El despliegue debe ir detrás de TLS y autenticación (proxy inverso o protección equivalente) para no exponer la clave de Groq.
 
 ## Verificación
 
-**App Python (vigente):**
-
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 180 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 185 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
-
-**TypeScript (legacy):**
-
-- [ ] `npm run typecheck` pasa con cero errores.
-- [ ] `npm test` pasa: 125 tests, cero fallos, sin red.
-- [ ] `npm run eval` imprime el informe sin regresar por debajo de los suelos.
-- [ ] `npm run sim -- --smoke` sale con código 0.
-
+- [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)
 
-**Python (vigente):** `.github/workflows/python-ci.yml` ejecuta `uv run ruff check .`, `uv run mypy app` y `uv run pytest` en cada push y PR.
-
-**TypeScript (legacy):** `.github/workflows/ci.yml` en cada push a `main` y cada PR: `npm ci` → `npm run typecheck` → `npm test` → `npm run eval` → `npm run build:ui` y `npm run build:api`. El comando `eval` sale siempre con código 0; los suelos los exige `tests/eval.test.ts`.
+`.github/workflows/python-ci.yml` ejecuta `uv run ruff check .`, `uv run mypy app`, `uv run python -m app.pilot_gate` y `uv run pytest` en cada push y PR.
 
 ## Decisiones pendientes
 

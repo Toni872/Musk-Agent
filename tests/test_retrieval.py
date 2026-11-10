@@ -305,7 +305,7 @@ def test_knowledge_base_refuses_a_compensation_question() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The RAG retrieval (retrieveTopK)
+# The RAG retrieval (retrieve_top_k)
 # ---------------------------------------------------------------------------
 
 

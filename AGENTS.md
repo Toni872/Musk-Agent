@@ -64,11 +64,11 @@ externa de llamadas, integración con el CRM propio de MUSK (en desarrollo).
 11. No hay aprendizaje autónomo de políticas comerciales: las respuestas nuevas se
     revisan antes de incorporarse al contenido aprobado.
 
-Las once están codificadas como datos en `src/rules.ts`, con guardián de salida
-(`guardReply`) y tests obligatorios. El perfil único de contenido vive en
-`src/content.ts` (`APPROVED_CONTENT`): reúne el copy del simulador y la base de
-conocimiento, y es **copy unificado pendiente de firma de MUSK**.
-`src/content.demo.ts` y `DEMO_CONTENT` se eliminaron; ya no existe el flag `--demo`.
+Las once están codificadas como datos en `app/rules.py`, con guardián de salida
+(`guard_reply`) y tests obligatorios. El perfil único de contenido vive en
+`app/content.py` (`APPROVED_CONTENT`): reúne el copy del simulador y la base de
+conocimiento, y es **copy unificado pendiente de firma de MUSK**. Es el único
+contenido del motor: no hay perfil de demo alternativo ni flag `--demo`.
 
 ## Decisiones abiertas (no asumir; dejar configurable y marcar `TODO(decisión)`)
 
@@ -77,7 +77,7 @@ parada · nombres definitivos de las etiquetas conversacionales · cobertura de 
 para los avisos · configuración del canal WhatsApp · base legal / privacidad /
 transparencia del lote real · umbrales de éxito.
 
-Ya no queda ningún `TODO(decisión)` en `src/content.ts`. El mensaje inicial, la
+Ya no queda ningún `TODO(decisión)` en `app/content.py`. El mensaje inicial, la
 presentación de MUSK, la FAQ y los 35 pasajes de la base de conocimiento están
 escritos y se usan en el perfil único, pero todo ello sigue siendo **copy unificado
 pendiente de firma de MUSK** (reglas 4 y 11), no contenido aprobado. La protección
@@ -90,8 +90,8 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Convenciones técnicas
 
-- **Motor LLM con RAG.** `src/agent.ts` dirige la conversación: cada turno
-  recupera los pasajes más cercanos (`retrieveTopK`, BM25) y los pasa al modelo
+- **Motor LLM con RAG.** `app/agent.py` dirige la conversación: cada turno
+  recupera los pasajes más cercanos (`retrieve_top_k`, BM25) y los pasa al modelo
   como contexto, anclando siempre la presentación de la escuela (`kb-escuela`)
   para que una pregunta corta («¿qué formación?») no se conteste con un pasaje
   suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
@@ -110,15 +110,15 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   proveedor falla o el guard rechaza la salida y el lead pregunta **qué ofrece la
   escuela**, se responde con el catálogo cerrado aprobado en lugar de escalar a
   la plantilla de duda (una pregunta de catálogo tiene respuesta cerrada).
-- **Guard de salida (`src/rules.ts`).** `guardReply` descarta cualquier respuesta
+- **Guard de salida (`app/rules.py`).** `guard_reply` descarta cualquier respuesta
   con importes, promesas de empleo, promociones o temario no aprobado. Distingue
   una negación honesta («no garantizamos empleo») de una promesa: el patrón
   `garantiz*` se revisa mirando la negación inmediatamente anterior (sin
   lookbehind, que rompería Safari antiguo). Parada, petición de humano, teléfono
   y aceptación de llamada son deterministas y no pasan por el modelo.
-- **Capa de base de conocimiento (Fase 0).** `src/kb.ts` guarda los pasajes como
+- **Capa de base de conocimiento (Fase 0).** `app/kb.py` guarda los pasajes como
   datos (id, título, respuesta para el lead, términos de recuperación y
-  procedencia) y `src/retrieval.ts` los consulta de forma determinista (BM25 +
+  procedencia) y `app/retrieval.py` los consulta de forma determinista (BM25 +
   cobertura, sin LLM, sin embeddings ni dependencias). Reglas: **el umbral vive en
   el código, como constante con nombre** (`MIN_BM25_SCORE`, `MIN_TERM_COVERAGE`),
   nunca en un prompt; los temas prohibidos (precio, compensación, financiación,
@@ -130,7 +130,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - **Dos recuperadores, un contrato.** `retrieve()` es la puerta con umbrales y
   gate de temas prohibidos: la usa el **modo determinista** (sin modelo o si el
   proveedor falla) para responder solo con un pasaje que supera ambos umbrales, o
-  escalar a la regla 5 si nada lo hace. `retrieveTopK()` es el ranking sin umbral
+  escalar a la regla 5 si nada lo hace. `retrieve_top_k()` es el ranking sin umbral
   que alimenta el contexto del LLM; la seguridad se aplica después (prompt +
   guard), no retirando contexto. El modo determinista nunca recita un pasaje débil
   (p. ej. «no es el momento» ante «¿cómo funciona la formación?»): eso escalaría
@@ -141,10 +141,10 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   falla o devuelve vacío, se cae al modo determinista. La duda y la plantilla de
   duda **no** se reformulan: el motor las reconoce por igualdad de texto para
   armar la derivación a humano.
-- **Un solo normalizador.** `src/text.ts` es el módulo hoja que posee
-  `normalizeEs` (minúsculas, sin acentos, puntuación a espacios, espacios
-  colapsados). Lo usan la capa de disparadores (`src/rules.ts`) y la recuperación
-  (`src/retrieval.ts`) sin ciclo de importación. `foldForGuard` en `src/rules.ts`
+- **Un solo normalizador.** `app/text.py` es el módulo hoja que posee
+  `normalize_es` (minúsculas, sin acentos, puntuación a espacios, espacios
+  colapsados). Lo usan la capa de disparadores (`app/rules.py`) y la recuperación
+  (`app/retrieval.py`) sin ciclo de importación. `_fold_for_guard` en `app/rules.py`
   es deliberadamente distinta: no quita puntuación.
 - Las etiquetas conversacionales del asistente son distintas de los estados del CRM
   (nuevo, pendiente, beca, perdido…). No las mezcles ni las mapees por API en esta
@@ -166,15 +166,11 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- **Motor vigente: app Python** (`app/`, FastAPI + uv) servida en el puerto
+- **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
-  `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app` y
-  `uv run pytest` (180 tests) y `uv run python -m app.eval`. CI de Python en
-  `.github/workflows/python-ci.yml`.
-- **Versión TypeScript en retirada** (`src/`, `ui/`, `package.json`): se conserva
-  como referencia mientras se compara. `npm run typecheck`, `npm test` (125 tests),
-  `npm run eval` y `npm run ui` describen esa versión anterior; CI en
-  `.github/workflows/ci.yml`.
+  `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
+  `uv run pytest` (185 tests) y `uv run python -m app.eval`. CI de Python en
+  `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.
 - Si falta una decisión de las listadas arriba, propón una opción por defecto
@@ -185,8 +181,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   conversación con RAG; sin él, el agente cae al modo determinista con los pasajes
   aprobados.
 - El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
-  `8000`). El deploy a Vercel (`npm run deploy`) es la vía **legacy** de la versión
-  TypeScript; ninguno de los dos despliega solo.
+  `8000`); no despliega solo. No hay vía de despliegue alternativa.
 
 ## Mapa de documentación
 
@@ -198,8 +193,8 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 | `INSTRUCCIONES.md` | Guía para que el equipo de MUSK lo pruebe en su equipo |
 | `docs/producto/musk-mvp-spec.md` | Especificación completa del MVP |
 | `docs/producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo (fase 2) |
-| `docs/producto/matriz-validacion-cursos.md` | Validación por curso (origen de `src/content.ts`) |
-| `docs/producto/escuela-musk-base-conocimiento.md` | Fuente de los 35 pasajes de `src/kb.ts` |
+| `docs/producto/matriz-validacion-cursos.md` | Validación por curso (origen de `app/content.py`) |
+| `docs/producto/escuela-musk-base-conocimiento.md` | Fuente de los 35 pasajes de `app/kb.py` |
 | `docs/cliente/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
 | `docs/cliente/aprobacion-nicolas.md` | Qué necesita firma de Nicolás (resumen) |
 | `docs/cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para que MUSK las valide |

@@ -1,6 +1,6 @@
 # Matriz de validación de las formaciones
 
-Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+Actualización (27 de octubre de 2026): perfil único en `app/content.py`; las
 referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
 pendiente de firma.
 
@@ -31,12 +31,12 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 
 ## Discrepancias que requieren confirmación de Nicolás
 
-- **Back End — stack tecnológico.** La presentación destaca Node.js, Python y SQL (p. 3); el apartado tecnológico concreta Node.js, Python, SQL/MongoDB y varias herramientas, incluida Spring (p. 9); el plan detallado incorpora Java y Spring (pp. 12–13). La base anterior del agente describe JavaScript, Node.js, Java y Spring. No se presupone qué versión es la definitiva. (BackEnd.pdf, pp. 3, 9, 12–13; `escuela-musk-base-conocimiento.md`, §2.1; `src/kb.ts`, pasaje `kb-backend-contenido`.)
-- **Front End — frameworks y tecnologías.** La presentación menciona JavaScript y React (p. 3); el apartado de stack nombra React, Angular y Vue.js (p. 9); el plan detallado desarrolla React (p. 12). La base anterior describe JavaScript, React y Next.js, y también incluye Tailwind CSS en el contenido de origen y en términos de recuperación. No se elige una lista ganadora. (FrontEnd (1).pdf, pp. 3, 9, 12; `escuela-musk-base-conocimiento.md`, §2.2; `src/kb.ts`, pasaje `kb-frontend-contenido`.)
-- **Certificados de los dosieres no Python.** Back End (p. 19), Front End (p. 18), Full Stack (p. 21) y Videojuegos (p. 17) muestran texto o una muestra de certificado que identifica «Programación en Python». En videojuegos también se anuncian UCAGD y UCU-PROG. La base anterior identifica PCAP para Python y certificaciones Unity para Videojuegos, pero no resuelve qué certificado de finalización o ARP corresponde a cada formación. No asignar el certificado Python/ARP de muestra a los otros cursos sin confirmación. (BackEnd.pdf, p. 19; FrontEnd (1).pdf, p. 18; FullStack.pdf, p. 21; Videojuegos.pdf, p. 17; `escuela-musk-base-conocimiento.md`, §§1 y 2.4–2.5; `src/kb.ts`, pasajes de certificación.)
-- **Videojuegos — proyecto final y Steam.** El dosier titula el proyecto «Crea tu juego: Proyecto final» (p. 12) y en otra página habla en general de publicar proyectos en plataformas líderes (p. 3); no nombra Steam para el proyecto final. La base anterior sí afirma que se publica y vende en Steam. Mantener esa afirmación fuera de WhatsApp hasta que Nicolás confirme el alcance. (Videojuegos.pdf, pp. 3, 12; `escuela-musk-base-conocimiento.md`, §2.5 y §6; `src/kb.ts`, pasajes `kb-videojuegos-contenido` y `kb-freelance`.)
+- **Back End — stack tecnológico.** La presentación destaca Node.js, Python y SQL (p. 3); el apartado tecnológico concreta Node.js, Python, SQL/MongoDB y varias herramientas, incluida Spring (p. 9); el plan detallado incorpora Java y Spring (pp. 12–13). La base anterior del agente describe JavaScript, Node.js, Java y Spring. No se presupone qué versión es la definitiva. (BackEnd.pdf, pp. 3, 9, 12–13; `escuela-musk-base-conocimiento.md`, §2.1; `app/kb.py`, pasaje `kb-backend-contenido`.)
+- **Front End — frameworks y tecnologías.** La presentación menciona JavaScript y React (p. 3); el apartado de stack nombra React, Angular y Vue.js (p. 9); el plan detallado desarrolla React (p. 12). La base anterior describe JavaScript, React y Next.js, y también incluye Tailwind CSS en el contenido de origen y en términos de recuperación. No se elige una lista ganadora. (FrontEnd (1).pdf, pp. 3, 9, 12; `escuela-musk-base-conocimiento.md`, §2.2; `app/kb.py`, pasaje `kb-frontend-contenido`.)
+- **Certificados de los dosieres no Python.** Back End (p. 19), Front End (p. 18), Full Stack (p. 21) y Videojuegos (p. 17) muestran texto o una muestra de certificado que identifica «Programación en Python». En videojuegos también se anuncian UCAGD y UCU-PROG. La base anterior identifica PCAP para Python y certificaciones Unity para Videojuegos, pero no resuelve qué certificado de finalización o ARP corresponde a cada formación. No asignar el certificado Python/ARP de muestra a los otros cursos sin confirmación. (BackEnd.pdf, p. 19; FrontEnd (1).pdf, p. 18; FullStack.pdf, p. 21; Videojuegos.pdf, p. 17; `escuela-musk-base-conocimiento.md`, §§1 y 2.4–2.5; `app/kb.py`, pasajes de certificación.)
+- **Videojuegos — proyecto final y Steam.** El dosier titula el proyecto «Crea tu juego: Proyecto final» (p. 12) y en otra página habla en general de publicar proyectos en plataformas líderes (p. 3); no nombra Steam para el proyecto final. La base anterior sí afirma que se publica y vende en Steam. Mantener esa afirmación fuera de WhatsApp hasta que Nicolás confirme el alcance. (Videojuegos.pdf, pp. 3, 12; `escuela-musk-base-conocimiento.md`, §2.5 y §6; `app/kb.py`, pasajes `kb-videojuegos-contenido` y `kb-freelance`.)
 - **Nombres canónicos y mención de IA.** Los títulos impresos en las portadas no llevan «con IA». La respuesta de catálogo recogida en el correo de Nicolás usa «con IA» para Back End, Front End, Full Stack y Videojuegos, pero no para Python; la base anterior también incluye esas denominaciones. Confirmar el nombre comercial que debe usarse en una presentación general. (PDF citados en la matriz, p. 1; `docs/cliente/pedido-nicolas.md`, §8; `escuela-musk-base-conocimiento.md`, §§2.1–2.5.)
-- **Respuesta de catálogo del perfil único: la invitación duplicada se ha retirado.** La entrada `catalogo-formaciones` de `src/content.ts` termina ahora en «Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.» Antes terminaba con «Dime qué te atrae y te oriento.», que pedía exactamente lo mismo que la pregunta de cualificación `goal` que sale en ese mismo turno: el lead leía la misma pregunta dos veces. Desde el 22-10 el turno emite **un solo mensaje** (respuesta y pregunta de cualificación unidas; `src/outbound.ts`, el mismo helper que usan la UI y el CLI), y la respuesta de catálogo dejó de preguntar para que la pregunta lo haga. Se conservan los cinco programas y el diferenciador «con IA»; no hay interrogación, cifras, precios ni promesas. Sigue siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y el texto propuesto por Nicolás para su aprobación (§8 de `docs/cliente/pedido-nicolas.md`) sigue siendo el pendiente de validar.
+- **Respuesta de catálogo del perfil único: la invitación duplicada se ha retirado.** La entrada `catalogo-formaciones` de `app/content.py` termina ahora en «Cinco programas: Python, Front End, Back End, Full Stack y el máster de videojuegos. Todos online y desde cero, con IA en los de desarrollo y videojuegos.» Antes terminaba con «Dime qué te atrae y te oriento.», que pedía exactamente lo mismo que la pregunta de cualificación `goal` que sale en ese mismo turno: el lead leía la misma pregunta dos veces. Desde el 22-10 el turno emite **un solo mensaje** (respuesta y pregunta de cualificación unidas; `app/agent.py`, el mismo helper que usan la UI y el CLI), y la respuesta de catálogo dejó de preguntar para que la pregunta lo haga. Se conservan los cinco programas y el diferenciador «con IA»; no hay interrogación, cifras, precios ni promesas. Sigue siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y el texto propuesto por Nicolás para su aprobación (§8 de `docs/cliente/pedido-nicolas.md`) sigue siendo el pendiente de validar.
 
 ## Contenido que debe quedar fuera de WhatsApp
 
@@ -44,7 +44,7 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 - Salarios, porcentajes, estimaciones y otras cifras de mercado o empleabilidad.
 - Horas, calendarios y otras duraciones, salvo la afirmación confirmada de que la formación puede completarse en dos años con flexibilidad.
 - Temario módulo a módulo y reproducción de los dosieres o certificados completos.
-- Cualquier garantía, promesa de contratación o resultado asegurado. `guardReply` rechaza todas las formas de «garantiz*»; el copy de prácticas no puede prometer el convenio, un empleo ni una empresa concreta.
+- Cualquier garantía, promesa de contratación o resultado asegurado. `guard_reply` rechaza todas las formas de «garantiz*»; el copy de prácticas no puede prometer el convenio, un empleo ni una empresa concreta.
 - Ubicación, remuneración, duración y condiciones concretas de las prácticas, salvo confirmación independiente.
 - Material interno, nombres o datos de contacto personales, testimonios y detalles identificables de empresas o personas.
 
@@ -60,10 +60,10 @@ Las menciones a conocimientos previos se incluyen únicamente cuando el dosier l
 
 ### Estado en el código: implementadas en el perfil único, pendientes de firma
 
-Las cinco frases de arriba ya están en `APPROVED_CONTENT` (`src/content.ts`, reacciones de la
+Las cinco frases de arriba ya están en `APPROVED_CONTENT` (`app/content.py`, reacciones de la
 pregunta `goal`), con una redacción adaptada: la reacción del agente solo **reconoce la elección y
 añade una cláusula breve** sobre qué es esa formación. La llamada no la propone el propio texto; la
-cierra el `closingInvitation` ya configurado. Es decir, la frase propuesta aquí está **recortada a una
+cierra la pregunta de llamada del motor (`app/agent.py`). Es decir, la frase propuesta aquí está **recortada a una
 cláusula** para que el mensaje completo siga siendo corto y el lead reciba una sola pregunta.
 
 | Formación | Reacción implementada (perfil único) |
@@ -74,14 +74,14 @@ cláusula** para que el mensaje completo siga siendo corto y el lead reciba una 
 | Full Stack | «Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web.» |
 | Videojuegos | «Entiendo, te interesa videojuegos: diseño y programación para crear experiencias interactivas.» |
 
-Condiciones que se respetan, y que fija un test (`tests/reception.test.ts`): sin cifras, sin precios ni
+Condiciones que se respetan, y que fija un test (`tests/test_agent.py`): sin cifras, sin precios ni
 porcentajes, sin certificados, sin prácticas ni Steam, sin temario detallado y sin promesa de empleo;
 el mensaje completo queda por debajo de 240 caracteres, con **una sola** interrogación (la del cierre) y
-pasa `guardReply`. Una mención negada («no me interesa Full Stack») **no** se acusa como elección
+pasa `guard_reply`. Una mención negada («no me interesa Full Stack») **no** se acusa como elección
 positiva.
 
 Siguen siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y viven en
-`src/content.ts`. Hasta que Nicolás valide el texto, no deben usarse con un lead real.
+`app/content.py`. Hasta que Nicolás valide el texto, no deben usarse con un lead real.
 
 ## Lista de aprobación de Nicolás
 
@@ -89,5 +89,5 @@ Siguen siendo **copy unificado pendiente de firma de MUSK** (reglas 4 y 11) y vi
 - [ ] Validar para cada curso la lista breve de áreas y tecnologías de nivel general.
 - [ ] Confirmar qué certificado corresponde a cada formación y qué páginas de muestra deben sustituirse o corregirse.
 - [ ] Validar el wording de las prácticas: se gestionan mediante un convenio de colaboración, sin promesa de empleo ni de empresa concreta; definir aparte si se autoriza algún detalle de ubicación, remuneración, duración o condiciones.
-- [ ] Aprobar o corregir la respuesta breve propuesta para cada formación. La versión corta ya implementada en el perfil único (reacciones de `goal`, ver «Estado en el código») es la que está pendiente de firma; si Nicolás aprueba otra redacción, se cambia en `src/content.ts` y aquí.
+- [ ] Aprobar o corregir la respuesta breve propuesta para cada formación. La versión corta ya implementada en el perfil único (reacciones de `goal`, ver «Estado en el código») es la que está pendiente de firma; si Nicolás aprueba otra redacción, se cambia en `app/content.py` y aquí.
 - [ ] Confirmar que ninguna afirmación aprobada pueda entenderse como garantía de empleo o promesa de contratación.

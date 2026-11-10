@@ -8,11 +8,11 @@ registran en el apartado 10 y no implican que el contenido completo esté firmad
 Fecha: 17 de octubre de 2026. Revisión de dialecto y registro: 18 de octubre de
 2026 (apartados 5 a 7).
 
-Actualización (27 de octubre de 2026): perfil único en `src/content.ts`; las
+Actualización (27 de octubre de 2026): perfil único en `app/content.py`; las
 referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
 pendiente de firma.
 
-Relacionado: `src/content.ts` (perfil único con copy unificado pendiente de firma
+Relacionado: `app/content.py` (perfil único con copy unificado pendiente de firma
 de MUSK), `AGENTS.md` ("Decisiones abiertas"),
 `docs/operacion/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
 lote: las decisiones que no son de contenido) y `docs/operacion/checklist-canal-real.md`
@@ -20,11 +20,10 @@ lote: las decisiones que no son de contenido) y `docs/operacion/checklist-canal-
 
 ## Contexto
 
-El simulador publicado arranca con el perfil de contenido **de ejemplo**
-(`src/content.demo.ts`), no con el contenido aprobado. El motivo es que el
-contenido aprobado (`src/content.ts`) tiene cuatro puntos marcados
-`TODO(decisión)` que impiden que el agente pueda saludar y cualificar. Mientras no
-estén cerrados, la web publicada enseña contenido de muestra.
+El simulador arranca con el perfil único (`app/content.py`). Ese perfil reúne el
+copy que antes se repartía entre el contenido aprobado y el de ejemplo, y sigue
+pendiente de firma de MUSK. Mientras no esté firmado, la web publicada no debe
+usarse con leads reales.
 
 Los cuatro puntos de abajo van como **propuesta**: ninguno se presenta como
 acordado, y nada de esto se envía a leads reales sin la aprobación de Nicolás
@@ -38,7 +37,7 @@ Es lo primero que recibe el lead por WhatsApp. Propuesta:
 > formación en desarrollo. ¿Sigue siendo de tu interés? Te cuento en qué consiste
 > y, si encaja, te llamamos sin compromiso.
 
-Pendiente en el código: `initialMessage` de `src/content.ts`.
+Pendiente en el código: `initial_message` de `app/content.py`.
 
 ## 2. Preguntas de cualificación (propuesta original, sustituida en la DEMO)
 
@@ -52,7 +51,7 @@ contenido aprobado conserva sus marcadores `TODO(decisión)` y no se ha modifica
   desde cero?
 - ¿Te planteas empezar pronto o más de cara al año que viene?
 
-Pendiente en el código: `qualificationQuestions` de `src/content.ts`.
+Pendiente en el código: la pregunta `goal` del prompt de `app/agent.py`.
 
 ## 3. Presentación de Escuela Musk
 
@@ -64,7 +63,7 @@ Se usa solo cuando el lead pregunta "¿quiénes sois?". Propuesta:
 Si Nicolás quiere añadir o cambiar algo del equipo y de la propuesta, se pasa su
 texto: no se inventa.
 
-Pendiente en el código: `companyPresentation` de `src/content.ts`.
+Pendiente en el código: `company_presentation` de `app/content.py`.
 
 ## 4. Confirmación de la formación elegida
 
@@ -120,24 +119,24 @@ aprobado sin confirmación escrita**.
 
 ## 7. Revisión de registro (formalidad y cercanía)
 
-Se han revisado las 41 frases de cara al lead de los tres archivos: 10 en
-`rules.ts`, 14 en `content.ts` y 17 en `content.demo.ts` (los marcadores
+Se han revisado las 41 frases de cara al lead: 10 en `app/rules.py`, 14 en el
+contenido aprobado y 17 en el de ejemplo (hoy unificados en `app/content.py`; los marcadores
 `TODO(decisión)` no son texto para el lead y no cuentan). Criterio: tuteo
 profesional de España, claro y cercano, sin sonar administrativo ni informal y
 sin perder la cercanía de MUSK.
 
 | Dónde | Ahora | Propuesta | Motivo |
 | --- | --- | --- | --- |
-| `rules.ts` → `REPLY_TEMPLATES.price` | "No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | "No puedo darte el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | Imprecisión: "compartir" da a entender que el agente tiene el precio; en realidad no puede darlo, y la plantilla de financiación ya dice "No puedo darte…". |
-| `rules.ts` → `CALL_INVITATION` (compartida por `price` y `callProposal`) | "¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?" | "¿Me dejas tu contacto o un momento en el que te venga bien para que te llamen?" | Redacción trabada: encadena dos "que" seguidos ("en el que… que te llamen"); con "para que te llamen" se lee bien y el sentido no cambia. |
-| `rules.ts` → `REPLY_TEMPLATES.stop` | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar"." | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado." | Registro administrativo: expone al lead la etiqueta interna del sistema; "Queda registrado" comunica lo mismo sin jerga. |
+| `app/agent.py` → respaldo determinista de precio | "No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | "No puedo darte el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | Imprecisión: "compartir" da a entender que el agente tiene el precio; en realidad no puede darlo, y la plantilla de financiación ya dice "No puedo darte…". |
+| Pregunta de llamada (`app/agent.py`) | "¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?" | "¿Me dejas tu contacto o un momento en el que te venga bien para que te llamen?" | Redacción trabada: encadena dos "que" seguidos ("en el que… que te llamen"); con "para que te llamen" se lee bien y el sentido no cambia. |
+| `app/rules.py` → `REPLY_TEMPLATES["stop"]` | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar"." | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado." | Registro administrativo: expone al lead la etiqueta interna del sistema; "Queda registrado" comunica lo mismo sin jerga. |
 
 Son tres cambios nuevos. Todo lo demás ya cumple el criterio y no se toca: se
 mantienen las fórmulas naturales ("Perfecto", "Claro", "Buena pregunta",
 "¡Hola!", "aquí estoy") y no hay marcadores americanos fuera del apartado 5,
 cuyas cinco frases ya tienen propuesta propia y no se repiten aquí. Nada está
 aplicado en el código (regla 11); al aplicar los cambios habrá que ajustar la
-aserción de `tests/rules.test.ts` sobre la respuesta de parada
+aserción de `tests/test_rules.py` sobre la respuesta de parada
 (`/no continuar/i`) y las citas literales de `docs/guiones/GUION_DEMO.md` e
 `INSTRUCCIONES.md`.
 
@@ -146,12 +145,12 @@ aserción de `tests/rules.test.ts` sobre la respuesta de parada
 Tres textos nuevos de cara al lead, ya en el código pero **pendientes del visto
 bueno de Nicolás** como el resto de plantillas y contenido de ejemplo (regla
 11). Ninguno contiene precios, importes, porcentajes ni temario detallado — lo
-garantiza el guardián de salida (`guardReply`), que bloquearía su envío si lo
-tuvieran. Los tres viven **solo en el perfil de ejemplo** (`src/content.demo.ts`):
-el contenido aprobado (`src/content.ts`) no recibe copy nuevo sin firmar.
+garantiza el guardián de salida (`guard_reply`), que bloquearía su envío si lo
+tuvieran. Los tres viven **solo en el perfil único** (`app/content.py`), como
+copy pendiente de firma: el contenido no recibe copy nuevo sin firmar.
 
-1. **Respuesta de catálogo** (contenido de ejemplo, entrada
-   `catalogo-formaciones` de `src/content.demo.ts`), para "¿qué cursos
+1. **Respuesta de catálogo** (entrada `catalogo-formaciones` de
+   `app/content.py`), para "¿qué cursos
    tenéis?":
 
    > Cinco programas: Python, Front End, Back End, Full Stack y el máster de
@@ -161,31 +160,29 @@ el contenido aprobado (`src/content.ts`) no recibe copy nuevo sin firmar.
    Se acompaña de la pregunta de objetivo en el mismo mensaje; ya no incluye
    «Dime qué te atrae y te oriento», porque la pregunta siguiente lo dice.
 
-2. **Respuesta de modalidad enriquecida** (contenido de ejemplo, entrada
-   `modalidad` de `src/content.demo.ts`), que ahora también cubre "dónde está la
+2. **Respuesta de modalidad enriquecida** (entrada `modalidad` de
+   `app/content.py`), que ahora también cubre "dónde está la
    academia":
 
    > Todo es online: campus virtual, comunidad en Discord y tutores personales
    > que te acompañan. No hay horarios fijos de conexión, así que puedes
    > compaginarlo con tu rutina.
 
-3. **Segunda duda consecutiva** (`DEMO_CONTENT.doubtFollowup` de
-   `src/content.demo.ts`): cuando el lead hace dos preguntas sin respuesta
+3. **Segunda duda consecutiva** (la antigua variante de segunda duda del perfil
+   de ejemplo): cuando el lead hace dos preguntas sin respuesta
    aprobada seguidas, la segunda recibe esta variante en lugar de pedir el
    contacto a secas:
 
    > Eso también lo anoto como duda para que te lo confirmen. Si te encaja, una
    > persona del equipo te contacta y lo veis todo con calma. ¿Te viene bien?
 
-   Este texto **ya no está en `REPLY_TEMPLATES`** (`src/rules.ts`): las
-   plantillas compartidas las usa todo perfil, incluido el contenido aprobado,
-   así que meter ahí copy sin firmar lo habría enviado a leads reales (reglas 4
-   y 11). Ahora es opcional y propio de cada perfil
-   (`ApprovedContent.doubtFollowup`): el perfil aprobado no lo define, así que
-   conserva el comportamiento anterior (la invitación aprobada) hasta que
-   Nicolas lo firme.
+   Este texto **ya no está en `REPLY_TEMPLATES`** de `app/rules.py`: las
+   plantillas compartidas las usa todo el motor, así que meter ahí copy sin
+   firmar lo habría enviado a leads reales (reglas 4 y 11). Ahora es opcional y
+   propio del contenido: el perfil único no lo define, así que conserva el
+   comportamiento anterior (la invitación aprobada) hasta que Nicolás lo firme.
 
-4. **Perfil aprobado (`src/content.ts`): sin copy nuevo, pero sí cambia el
+4. **Perfil único (`app/content.py`): sin copy nuevo, pero sí cambia el
    enrutado.** La entrada `modalidad` del contenido aprobado **no ha cambiado
    de redacción**; solo se le han añadido cinco palabras clave: `donde esta`,
    `donde queda`, `academia`, `ubicacion` y `direccion`. Con ellas, un lead real
@@ -197,11 +194,11 @@ el contenido aprobado (`src/content.ts`) no recibe copy nuevo sin firmar.
 
 ## 9. Copy de la base de conocimiento (pendiente de aprobación, salvo excepción indicada)
 
-La Fase 0 añade una **capa de base de conocimiento**: `src/kb.ts` guarda como
+La Fase 0 añade una **capa de base de conocimiento**: `app/kb.py` guarda como
 datos 35 pasajes de `escuela-musk-base-conocimiento.md` (qué es la escuela, el
 método, las certificaciones, las cinco formaciones, los demás programas, la
 guía de recomendación, las preguntas frecuentes del lead y las objeciones
-típicas de un lead "congelado") y `src/retrieval.ts` los consulta de forma
+típicas de un lead "congelado") y `app/retrieval.py` los consulta de forma
 determinista (BM25 + cobertura de términos, **sin LLM, sin embeddings y sin
 dependencias**). Cada pasaje lleva su **propia** respuesta breve para el lead:
 el documento de origen es una fuente, nunca se envía entero (regla 10).
@@ -210,9 +207,9 @@ Los textos de respuesta son copy de cara al lead y, como todo el contenido de
 este repositorio, van como propuesta: no están firmados, **salvo el pasaje sobre
 el plazo flexible de finalización**, cuyo dato concreto sí confirmó Nicolás en
 su respuesta inline. Esa confirmación no firma el resto de la base. Por
-eso viven **solo en el perfil de ejemplo** (`src/content.demo.ts`); el
-contenido aprobado (`src/content.ts`) no lleva la base de conocimiento y, sin
-ella, el agente se comporta exactamente como hasta ahora (reglas 4 y 11).
+eso los textos de respuesta viven en la capa de base de conocimiento
+(`app/kb.py`), como copy pendiente de firma, no en el contenido aprobado
+(reglas 4 y 11).
 
 Lo que sí se puede afirmar de este copy, y lo que comprueban los tests:
 
@@ -228,7 +225,7 @@ Lo que sí se puede afirmar de este copy, y lo que comprueban los tests:
   prácticas ni ubicación física de la escuela. Esos temas **escalan siempre** a
   una persona (regla 5), y la capa lo garantiza con una lista explícita de
   temas prohibidos, no con la puntuación.
-- **Todas las respuestas pasan el guard de salida** (`guardReply`): ni
+- **Todas las respuestas pasan el guard de salida** (`guard_reply`): ni
   importes, ni porcentajes, ni promociones, ni garantías ni promesas de empleo.
   El guard rechaza cualquier forma de «garantiz*»; los pasajes de prácticas,
   orientación laboral, videojuegos y contenido freelance no aseguran resultados,
@@ -273,11 +270,11 @@ Lo que necesita Nicolás:
 
 1. Se registra la validación de Nicolás en este documento y en
    `docs/operacion/checklist-canal-real.md`, sin darla por supuesta antes de que exista.
-2. Si Nicolás corrige alguna redacción, se aplica en `src/content.ts` y se
+2. Si Nicolás corrige alguna redacción, se aplica en `app/content.py` y se
    sincronizan los tests y las citas literales de `docs/guiones/GUION_DEMO.md` e
    `INSTRUCCIONES.md`.
-3. Se comprueba de nuevo el conjunto de evaluación y se regenera la web publicada;
-   después se verifica contra el bundle local.
+3. Se comprueba de nuevo el conjunto de evaluación y se reconstruye la imagen
+   Docker; después se verifica en local (`http://localhost:4173`).
 
 No hay perfiles que alternar ni una base de conocimiento que migrar: los 35
 pasajes y el resto del copy ya viven en el perfil único, pendientes de firma.

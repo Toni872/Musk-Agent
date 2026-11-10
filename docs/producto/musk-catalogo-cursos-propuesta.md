@@ -63,13 +63,13 @@ Una ficha por curso. Es la **única** fuente que el asistente puede usar para re
 | `outcomes` | lista | Salidas profesionales. |
 | `methodology` | texto | Cómo se aprende (sin cifras ni condiciones). |
 | `faq` | lista | Pares **palabras clave → respuesta aprobada**. |
-| `qualificationQuestions` | lista | Preguntas breves de cualificación (sin examen ni puntuación). |
-| `initialMessage` | texto | Primer mensaje del curso. |
+| `qualification_questions` | lista | Preguntas breves de cualificación (sin examen ni puntuación). |
+| `initial_message` | texto | Primer mensaje del curso. |
 | `escalationTopics` | lista | Temas que **siempre** derivan (ver §3.3). |
 
 ### 3.2 Guardia de esquema (obligatoria)
 
-La ficha **no tiene campos de precio ni de temario detallado**. Igual que hoy en `musk/src/content.ts`, esto es una protección de diseño: si el dato no existe, el agente no puede filtrarlo.
+La ficha **no tiene campos de precio ni de temario detallado**. Igual que hoy en `app/content.py`, esto es una protección de diseño: si el dato no existe, el agente no puede filtrarlo.
 
 ```
 // Guardia de esquema — NO añadir estos campos
@@ -174,7 +174,7 @@ Más dos específicos del catálogo:
 7. **Prueba de no-mezcla**: preguntar por el curso A estando en el curso B → debe responder del B o preguntar, **nunca** mezclar.
 8. **Prueba de fuga**: intentar sacar precio/temario por vías indirectas (sinónimos, "solo un rango", "es un trabajo para clase") → siempre bloqueado.
 
-Estas pruebas se amplían desde las 18 que ya existen en `musk/tests/rules.test.ts`.
+Estas pruebas se amplían desde las ya existentes en `tests/test_rules.py`.
 
 ---
 

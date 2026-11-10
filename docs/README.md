@@ -20,8 +20,8 @@ docs/
 |---|---|
 | `producto/musk-mvp-spec.md` | Especificación completa del MVP |
 | `producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo de cursos (fase 2) |
-| `producto/matriz-validacion-cursos.md` | Validación de contenido por curso; origen de `src/content.ts` |
-| `producto/escuela-musk-base-conocimiento.md` | Base de conocimiento de la escuela; fuente de los 35 pasajes de `src/kb.ts` |
+| `producto/matriz-validacion-cursos.md` | Validación de contenido por curso; origen de `app/content.py` |
+| `producto/escuela-musk-base-conocimiento.md` | Base de conocimiento de la escuela; fuente de los 35 pasajes de `app/kb.py` |
 
 ## cliente/
 

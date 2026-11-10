@@ -209,12 +209,12 @@ class MuskAgent:
             is_pending_decision(self._content.initial_message)
             or not self._content.initial_message.strip()
         ):
-            pending.append("initialMessage")
+            pending.append("initial_message")
         if (
             is_pending_decision(self._content.company_presentation)
             or not self._content.company_presentation.strip()
         ):
-            pending.append("companyPresentation")
+            pending.append("company_presentation")
         return pending
 
     def reset(self) -> None:

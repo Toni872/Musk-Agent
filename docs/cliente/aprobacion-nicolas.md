@@ -1,12 +1,12 @@
 # Lo que necesita aprobación de Nicolás para el MVP MUSK
 
 Estado a 27 de octubre de 2026. Ya no quedan huecos `TODO(decisión)` en el
-contenido: el perfil único de `src/content.ts` está escrito y lo usan el
+contenido: el perfil único de `app/content.py` está escrito y lo usan el
 simulador, la interfaz y el bucle de evaluación. Lo que falta es la **firma**.
 
 ## 1) Firmar el copy unificado (imprescindible)
 
-Todo el texto de cara al lead vive en `src/content.ts` (`APPROVED_CONTENT`) y
+Todo el texto de cara al lead vive en `app/content.py` (`APPROVED_CONTENT`) y
 está marcado como **copy unificado pendiente de firma de MUSK** (reglas 4 y 11).
 Hasta que Nicolás lo firme, el agente no debe atender leads reales.
 
@@ -16,10 +16,10 @@ Hasta que Nicolás lo firme, el agente no debe atender leads reales.
 | Presentación de Escuela Musk | Cómo quiere que se presente la escuela. |
 | Pregunta de cualificación `goal` | La única pregunta de conversación: qué busca el lead, para conducirlo a la llamada. |
 | FAQ curada | Las respuestas escritas a mano para las preguntas frecuentes (precio, temario, financiación, modalidad, orientación, etc.). |
-| Base de conocimiento (35 pasajes) | Los 35 pasajes de `src/kb.ts`, que ahora viajan en el perfil único. |
+| Base de conocimiento (35 pasajes) | Los 35 pasajes de `app/kb.py`, que ahora viajan en el perfil único. |
 
 El agente solo puede emitir lo que está escrito ahí y cada respuesta pasa por el
-guardián de salida (`guardReply`): sin importes, sin condiciones de pago, sin
+guardián de salida (`guard_reply`): sin importes, sin condiciones de pago, sin
 promesas de empleo ni garantías.
 
 ## 2) Un punto concreto que conviene decidir

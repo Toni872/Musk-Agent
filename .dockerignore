@@ -6,22 +6,18 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# The TypeScript harness being phased out (kept out of the image)
+# Development-only files (kept out of the image)
 node_modules/
-src/
-ui/
 tests/
-scripts/
-api/
+docs/
+.atl/
+.github/
 
-# Secrets, docs and local artifacts
+# Secrets and local artifacts
 .env
 .env.local
 *.log
 musk.db
-docs/
-.atl/
-.github/
 
 # VCS
 .git/

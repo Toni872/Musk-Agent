@@ -1,18 +1,26 @@
 # MUSK — Simulador del asistente (PROBARLO EN VUESTRO EQUIPO)
 
-Esto es el **motor conversacional del MVP**: todavía no está conectado a WhatsApp. Es una ventana de terminal en la que escribes frases como las escribiría un alumno y ves responder al asistente de MUSK.
+Esto es el **motor conversacional del MVP**: todavía no está conectado a WhatsApp. Es una página web local en la que escribes frases como las escribiría un alumno y ves responder al asistente de MUSK.
 
 Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no sale nada a internet; con el LLM configurado, el texto de la conversación se envía al proveedor (Groq) para que el agente responda.
-
-> **Nota (versión vigente).** El motor actual es una aplicación **Python** (FastAPI) con la misma lógica y el mismo suelo de seguridad. Se arranca con `uv run uvicorn app.main:app --port 4173` o con Docker, y se abre en `http://localhost:4173` (ver `README.md`). Las instrucciones con Node de esta guía describen la **versión anterior en TypeScript**, aún funcional, que se retirará.
 
 ---
 
 ## 1. Qué necesitas (solo la primera vez)
 
 - Un ordenador con **Windows o Mac**.
-- **Node.js 20 o superior**: descárgalo de https://nodejs.org (botón con la versión LTS) e instálalo con las opciones por defecto.
-- Internet **solo** para la instalación inicial. Después, todo funciona sin conexión.
+- **uv**, el gestor de Python de Astral. Instálalo así:
+  - **Windows**: abre PowerShell y ejecuta
+    ```
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    ```
+  - **Mac**: abre la Terminal y ejecuta
+    ```
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+  - Cierra y vuelve a abrir la terminal al terminar.
+  - uv descarga Python 3.12 por su cuenta; no hace falta instalar Python a mano.
+- Internet **solo** para la instalación inicial. Después, todo funciona sin conexión (salvo que configures el LLM).
 
 ## 2. Descomprime e instala
 
@@ -20,27 +28,23 @@ Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no
 2. Abre una terminal **ya dentro de esa carpeta**. No hace falta ejecutar nada como administrador (y no lo hagas: si el título de la ventana dice "Administrador", ábrela normal).
    - **Windows**: abre esa carpeta en el Explorador → haz clic en la barra de direcciones de arriba → escribe `powershell` → Enter.
    - **Mac**: abre la Terminal, escribe `cd ` (con un espacio al final), arrastra la carpeta a la ventana y pulsa Enter.
-3. Comprueba que estás en el sitio correcto: escribe `dir` (Windows) o `ls` (Mac). Debes ver `package.json` entre los archivos. Si no lo ves, no estás dentro de la carpeta.
+3. Comprueba que estás en el sitio correcto: escribe `dir` (Windows) o `ls` (Mac). Debes ver `pyproject.toml` entre los archivos. Si no lo ves, no estás dentro de la carpeta.
 4. Instala y comprueba que todo está bien:
 
    ```
-   npm install
-   npm test
+   uv sync
+   uv run pytest
    ```
 
-    La primera vez puede tardar un par de minutos. Si al final del `npm test` pone **125 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `uv run pytest` pone **185 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 
 ```
-npm run sim
+uv run uvicorn app.main:app --port 4173
 ```
 
-Al arrancar verás primero una nota técnica y el bloque `--- opening ---` con el mensaje de apertura. Debajo aparece `you (lead) >`: desde ahí escribes lo que diría un alumno, igual que siempre.
-
-Este comando muestra el flujo **completo**: mensaje de apertura, conversación libre (el asistente responde y hace una pregunta por turno) y propuesta de llamada cuando hay interés. Usa el perfil único de `src/content.ts`, con **copy unificado pendiente de firma de MUSK**; ya no existe un modo `sim:demo` ni un contenido de ejemplo alternativo.
-
-Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ejecuta `npm run ui` y abre `http://localhost:4173`. Es exactamente el mismo motor y el mismo perfil único, con una interfaz de chat y sin selector de perfiles. Para cerrarlo, pulsa `Ctrl+C` en la terminal.
+Abre `http://localhost:4173` en el navegador. Verás la página de la demo: pulsa **Empezar la demo** y escribe lo que diría un alumno. El asistente responde y hace una sola pregunta por turno, con el perfil único de `app/content.py` (**copy unificado pendiente de firma de MUSK**). Para cerrarlo, pulsa `Ctrl+C` en la terminal.
 
 ## 4. Prueba estas frases, en este orden
 
@@ -70,15 +74,21 @@ Si prefieres no usar la terminal, tienes la misma prueba en el **navegador**: ej
 
 Probad también frases "fuera de guion" (lo que se os ocurra que diría un alumno real); todas deben caer en alguno de los comportamientos anteriores.
 
-## 6. Mandos del simulador
+## 6. Controles de la página
 
-- `/reset` → empezar una conversación nueva
-- `/state` → ver el registro de la conversación
-- `/exit` o `Ctrl+C` → salir
+- **Reiniciar** → empieza una conversación nueva (pide confirmación).
+- **Estado de la conversación** → panel con los registros, las dudas, las métricas y el aviso simulado.
+- **Descargar informe** → PDF de la sesión.
+- **Descargar JSON** → los mismos datos en JSON.
+- **Copiar aviso** → copia el aviso simulado para Laura.
+- `Ctrl+C` en la terminal → detiene el servidor.
 
 ## 7. Notas
 
 - Todo es **local y simulado**: no hay canal real, no hay leads reales. Sin clave de LLM no sale nada a internet; con ella, la conversación se envía al proveedor para que responda el modelo.
-- La presentación general puede incluir las cinco formaciones; no hace falta ahora un catálogo detallado. La DEMO conserva otros textos de muestra, que siguen pendientes de validación.
+- La presentación general puede incluir las cinco formaciones; no hace falta ahora un catálogo detallado.
+- Si quieres activar el LLM, copia `.env.example` a `.env`, rellena `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY`, y vuelve a arrancar el servidor. Sin esas dos variables, el agente funciona en modo determinista con los pasajes aprobados.
+- Si prefieres Docker, los comandos están en `README.md`.
+- No hay una URL pública: el repositorio no despliega solo. Para una muestra controlada, hablad con Script9.
 - Si algo falla o aparece un error, **copiad el mensaje de error** y enviádselo a Script9 tal cual.
-- Si ves un error `EPERM` o una ruta que empieza por `C:\WINDOWS\system32`, es que la terminal se abrió fuera de la carpeta del proyecto (habitualmente porque se abrió como administrador). Cierra esa ventana y repite el paso 2.
+- Si la terminal se abrió como administrador o fuera de la carpeta del proyecto, ciérrala y repite el paso 2.

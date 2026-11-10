@@ -36,7 +36,7 @@ Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido
 |---|---|---|
 | Tamaño y frecuencia por lead | Pendiente | No hay tope de longitud ni límite de cadencia. La cadencia de seguimiento sigue abierta con Nicolás. |
 | Contenido no confiable | Pendiente | El mensaje del lead se trata siempre como texto y nunca como instrucción (el motor solo clasifica y responde con textos aprobados), pero no hay una defensa explícita documentada contra un mensaje que intente reescribir el guion. |
-| Material no aprobado fuera del contexto | Hecho | El dossier con temario no entra en el contexto del agente (regla 10) y `src/content.ts` no tiene campos de precio ni de temario: hay tests estructurales que lo vigilan. |
+| Material no aprobado fuera del contexto | Hecho | El dossier con temario no entra en el contexto del agente (regla 10) y `app/content.py` no tiene campos de precio ni de temario: hay tests estructurales que lo vigilan. |
 | Datos personales | Pendiente | El aviso al comercial incluye el contacto del lead. Con leads reales eso es dato personal: hace falta base legal, control de acceso y plazo de conservación (decisión de MUSK; ver `AGENTS.md`, "Decisiones abiertas"). |
 | Otros idiomas | Sin cubrir | El clasificador es español de España y no hay casos de prueba en otro idioma. Antes del lote real conviene añadir 3-4 casos al banco de evaluación. |
 
@@ -44,8 +44,8 @@ Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido
 
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
-| Guard de salida | Hecho | `guardReply` bloquea 8 familias de patrones prohibidos; si bloquea, se envía el texto aprobado. |
-| Reglas duras como datos | Hecho | Las 11 reglas viven en `src/rules.ts` y hay tests obligatorios por cada una. |
+| Guard de salida | Hecho | `guard_reply` bloquea 8 familias de patrones prohibidos; si bloquea, se envía el texto aprobado. |
+| Reglas duras como datos | Hecho | Las 11 reglas viven en `app/rules.py` y hay tests obligatorios por cada una. |
 | Sin importes ni condiciones | Hecho | Tests estructurales más el banco de evaluación: 0 falsos positivos sobre los temas prohibidos (C23-C31). |
 | Escapado de la salida | Hecho | La interfaz escribe siempre con `textContent`, nunca `innerHTML`. |
 | Validación de esquema hacia otros sistemas | No aplica hoy | No hay CRM ni cola conectados. Si se conecta Clientify, hay que validar el payload antes de enviarlo. |
@@ -62,7 +62,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/ci.yml`: instalación, tipos, 140 tests, informe del bucle de evaluación, disparador de protección del bundle (§9) y empaquetado de la interfaz. |
+| Comprobación en cada push | Hecho | `.github/workflows/python-ci.yml`: lint, tipos, 185 tests, informe del bucle de evaluación y disparador de protección del despliegue (§9). |
 | Traza de tokens, latencia y coste | Parcial | Hoy el modo por defecto es determinista (0 tokens). Si se enciende la reformulación con LLM, cada turno debe registrar tokens, latencia y coste. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
@@ -86,10 +86,10 @@ irreversibles o con coste.
 
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
-| Conjunto propio versionado | Hecho | 79 casos etiquetados (46 de la FAQ + 33 de la base de conocimiento) en `src/eval.dataset.ts`, con las expectativas derivadas de las reglas duras. |
-| Métricas de recuperación | Hecho | recall 1.00, precisión 1.00, aciertos de intención 1.00, 0 violaciones del guard, 0 falsos positivos. |
+| Conjunto propio versionado | Hecho | 33 casos de la base de conocimiento + 259 de desarrollo + 118 held-out (ablación léxica) en `app/eval_dataset.py`, con las expectativas derivadas de las reglas duras. |
+| Métricas de recuperación | Hecho | Informe con recall, falsos positivos, pasaje equivocado e interceptación de temas protegidos; los suelos están fijados en `tests/test_eval.py` y se comprueban con `uv run python -m app.eval`. |
 | Fidelidad de la respuesta generada | No aplica hoy | Sin generación libre no hay nada que medir. Si se enciende el LLM, hay que medir que no se salga del texto aprobado. |
-| Evaluación en cada cambio | Hecho | Se ejecuta en cada push (ver `.github/workflows/ci.yml`). |
+| Evaluación en cada cambio | Hecho | Se ejecuta en cada push (ver `.github/workflows/python-ci.yml`). |
 
 ## 8. Aprobaciones de MUSK (no son técnicas)
 
@@ -104,31 +104,35 @@ irreversibles o con coste.
 3. Base legal, privacidad y transparencia del lote real; tamaño de muestra y fecha de
    lanzamiento.
 
-## 9. Protección del bundle público
+## 9. Protección del despliegue público
 
-El simulador es un sitio estático: **todo lo que necesita en el navegador viaja en el
-bundle**. Hoy es aceptable porque no contiene precios, importes ni datos de leads
-reales, el enlace se comparte a mano y el copy unificado sigue pendiente de firma.
-Antes de cruzar esa frontera, proteger el despliegue es lo único que oculta de verdad
-el artefacto, porque una comprobación en JavaScript se salta leyendo el `app.js`.
+El simulador es una app web (FastAPI) accesible por URL: lo que sirve el navegador
+viene del servidor. Hoy es aceptable porque no contiene precios, importes ni datos
+de leads reales, el enlace se comparte a mano y el copy unificado sigue pendiente
+de firma. Antes de cruzar esa frontera, proteger el despliegue es lo único que
+oculta de verdad el servicio, porque una comprobación en el cliente se salta
+leyendo el `app.js`.
 
-**Qué vigila el disparador.** `npm run pilot-gate` —y el paso equivalente de CI— falla
-cuando hay un `.env` versionado (salvo `.env.example`): configuración real dentro del
-repositorio. Es la única señal que vigila el gate.
+**Qué vigila el disparador.** `uv run python -m app.pilot_gate` —y el paso
+equivalente de CI— falla cuando hay un `.env` versionado (salvo `.env.example`):
+configuración real dentro del repositorio. Es la única señal que vigila el gate.
 
 **Cómo te enteras.** Tres avisos, no uno:
 
-- **En cada push**, el paso «Pilot gate (bundle exposure)» pone CI en rojo y GitHub
-  manda el aviso de ejecución fallida a quien hizo el push.
-- **Antes de desplegar**, `npm run deploy` ejecuta el gate y se detiene si dispara.
-  `vercel deploy --prod` a mano se salta ese aviso; CI lo coge en el push siguiente.
-- **En local**, `npm run pilot-gate` imprime el motivo y el estado actual.
+- **En cada push**, el paso «Pilot gate» de `.github/workflows/python-ci.yml` pone
+  CI en rojo y GitHub manda el aviso de ejecución fallida a quien hizo el push.
+- **Antes de publicar**, ejecuta `uv run python -m app.pilot_gate`: se detiene si
+  dispara. No hay deploy automático: se construye y ejecuta la imagen Docker (ver
+  `README.md`).
+- **En local**, `uv run python -m app.pilot_gate` imprime el motivo y el estado
+  actual.
 
-**Qué hacer cuando dispara.** Antes de la siguiente publicación: activar protección de
-despliegue en Vercel (contraseña o SSO), comprobar que el alias público ya no sirve el
-bundle sin credenciales y anotarlo aquí con fecha y con quién lo decidió. Solo entonces
-poner `PILOT_GATE_ACK=1` en el paso del gate de `.github/workflows/ci.yml`: esa línea es
-el registro de que la decisión se tomó, y hasta que exista el gate falla a propósito.
+**Qué hacer cuando dispara.** Antes de la siguiente publicación: poner el
+despliegue detrás de TLS y autenticación (proxy inverso o protección equivalente),
+comprobar que la URL pública ya no sirve el simulador sin credenciales y anotarlo
+aquí con fecha y con quién lo decidió. Solo entonces poner `PILOT_GATE_ACK=1` en
+el paso del gate de `.github/workflows/python-ci.yml`: esa línea es el registro de
+que la decisión se tomó, y hasta que exista el gate falla a propósito.
 
 **Lo que el gate no puede ver.** Que hayan entrado datos de un lead real. Eso no se
 detecta leyendo el repositorio: sigue siendo una condición manual, la 4 del criterio de

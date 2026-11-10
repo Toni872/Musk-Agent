@@ -1,28 +1,28 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **125 tests en 6 ficheros**.
+> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **185 tests en 11 ficheros**.
 
-> **Apertura y cualificación**: el perfil único ya incluye `initialMessage` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
+> **Apertura y cualificación**: el perfil único ya incluye `initial_message` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
 ## Preparación (una vez)
 
 ```powershell
-npm install          # desde la raíz del repositorio
-npm run typecheck
-npm test
+uv sync              # desde la raíz del repositorio
+uv run mypy app
+uv run pytest
 ```
 
 ## Ejecución en vivo
 
-La demo se corre en **una terminal real** (Windows Terminal / PowerShell) porque el REPL necesita TTY:
+La demo se corre en el **navegador**: el motor actual es una app FastAPI sin REPL de terminal.
 
 ```powershell
-npm run sim
+uv run uvicorn app.main:app --port 4173
 ```
 
-Al arrancar muestra `Content: Escuela Musk unified profile (curated from MUSK material; final wording sign-off pending).`, después `LLM provider: none - deterministic approved replies only. Set MUSK_LLM_BASE_URL and MUSK_LLM_API_KEY to enable.` (la demo va sin LLM) y debajo el bloque `--- opening ---` con la apertura ya redactada. No aparece la antigua lista `pending` de `TODO(decisión)`: el perfil único ya no contiene esos marcadores, pero el copy unificado sigue pendiente de firma de MUSK.
+Abre `http://localhost:4173` y pulsa **Empezar la demo**. El perfil único ya no contiene marcadores `TODO(decisión)`; el copy unificado sigue pendiente de firma de MUSK. Sin `.env` configurado, la demo va en modo determinista con los pasajes aprobados.
 
-> **Gotcha conocido**: el REPL no consume stdin pipeado en modo no-TTY (readline/promises lee solo la primera línea y el proceso muere con `unsettled top-level await`). Si la automatización rompe, no es el agente: es la limitación del REPL interactivo. Para validación no interactiva, ver "Verificación automatizada" abajo.
+> **Nota**: el antiguo REPL de terminal (`npm run sim`) se retiró con el arnés TypeScript; ya no existe un modo `--smoke` ni un REPL interactivo.
 
 ## Conversación 1 — el flujo completo hasta la llamada (objetivo del MVP)
 
@@ -44,7 +44,7 @@ Estado final observado de la conversación 1: `stopped=false records=13 doubts=1
 
 Cada frase se comprobó contra el agente real (`provider=null`), **una sesión nueva por frase**. Todas alcanzan **contenido ya aprobado** del perfil: no se inventa nada.
 
-Desde el perfil único, toda respuesta de la FAQ viaja en el mismo mensaje que la pregunta `goal` (una sola pregunta por turno, ver `src/outbound.ts`), así que estas filas terminan con el mismo cierre: **"Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?"**. Se escribe completo en la primera fila y en el resto se abrevia como `+ pregunta` `goal` para no repetirlo ocho veces.
+Desde el perfil único, toda respuesta de la FAQ viaja en el mismo mensaje que la pregunta `goal` (una sola pregunta por turno, ver `app/agent.py`), así que estas filas terminan con el mismo cierre: **"Antes de contarte nada, me gustaría entender qué buscas. Si no encaja, te lo digo yo. ¿Tienes algo en mente?"**. Se escribe completo en la primera fila y en el resto se abrevia como `+ pregunta` `goal` para no repetirlo ocho veces.
 
 | Escribe el lead | El agente responde (observado) | Ruta |
 |---|---|---|
@@ -76,11 +76,11 @@ Esta traza reproduce el texto compartido para la demo. La pregunta `goal` admite
 | 2 | `el curso de full stack` | Entiendo, te interesa Full Stack: la parte visual y la lógica de una aplicación web. ¿Qué día y a qué hora te viene bien que el equipo te llame? | Elección capturada bajo `goal` + reacción específica del programa + cierre configurable |
 | 3 | `los cursos pueden finanaciarse?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3: alias estrecho del error tipográfico; respuesta de financiación del perfil |
 
-La respuesta de catálogo ya no termina con «Dime qué te atrae y te oriento.»: esa invitación pedía lo mismo que la pregunta `goal` que sale a continuación, y ambos textos viajan en un solo mensaje (`src/outbound.ts`). Cuando la respuesta ya es una pregunta, la pregunta de cualificación NO se apila: una sola pregunta por mensaje.
+La respuesta de catálogo ya no termina con «Dime qué te atrae y te oriento.»: esa invitación pedía lo mismo que la pregunta `goal` que sale a continuación, y ambos textos viajan en un solo mensaje (`app/agent.py`). Cuando la respuesta ya es una pregunta, la pregunta de cualificación NO se apila: una sola pregunta por mensaje.
 
 La respuesta de financiación sigue siendo la configurada en el perfil y no genera un registro de KB. No se envía un WhatsApp real ni se integra el CRM. Las pruebas de regresión son sintéticas: no se presentan como tráfico observado adicional.
 
-Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/reception.test.ts`:
+Lo que **no** se captura como respuesta (y deja la pregunta pendiente). Verificado en crudo para precio y parada; el resto, cubierto por `tests/test_agent.py`:
 
 | Escribe el lead | Qué sigue haciendo |
 |---|---|
@@ -107,7 +107,7 @@ Y en la respuesta a la propuesta de llamada (ampliado 18-10, tras la traza del c
 
 > **Cambiado el 20-10 (defectos D5 y D6):** tras una duda (regla 5), un "sí" suelto **deriva ahora a humano** (regla 9): antes se archivaba como respuesta a la pregunta de cualificación y el lead se perdía. Y todo mensaje que llega **después** de la derivación queda registrado (el momento acordado suele llegar tarde: "mañana" y después "mañana a las 9:00"), amending el aviso al comercial; antes solo se guardaba el teléfono y el resto se perdía en silencio. El agente sigue sin escribir nada después de la derivación (regla 9).
 
-Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas y se usan tanto en `npm run sim` como en la interfaz. No quedan marcadores `TODO(decisión)`; todo el copy unificado sigue pendiente de firma de MUSK.
+Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas y se usan en la interfaz. No quedan marcadores `TODO(decisión)`; todo el copy unificado sigue pendiente de firma de MUSK.
 
 ## Frase de apertura recomendada
 
@@ -124,7 +124,7 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 ## Decisiones a cerrar con Nicolás
 
 (A) **Contenido** (el contenido aprobado mantiene sus marcadores abiertos):
-  1. **Presentación de MUSK** (`companyPresentation`), mensaje inicial (`initialMessage`) y la pregunta de cualificación `goal` del perfil único. La apertura y el `goal` se reescribieron el 28-10 con permiso explícito para retirarse y una sola pregunta.
+  1. **Presentación de MUSK** (`company_presentation`), mensaje inicial (`initial_message`) y la pregunta de cualificación `goal` del perfil único. La apertura y el `goal` se reescribieron el 28-10 con permiso explícito para retirarse y una sola pregunta.
   2. El resto del copy unificado (FAQ y los 35 pasajes de la base de conocimiento) sigue pendiente de firma de MUSK (reglas 4 y 11).
   3. Los detalles de horas, fechas de inicio y condiciones de pago siguen sin aprobarse y deben escalar.
 
@@ -140,14 +140,11 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 ## Verificación automatizada (sin tipear)
 
 ```powershell
-npm run typecheck   # cero errores
-npm test             # 125 tests, sin red
-npm run eval        # 46 casos de FAQ + 33 de KB + 23 de fundamentación
-npm run sim -- --smoke   # un turno guiado, exit 0
-npm run build:ui    # empaqueta el simulador de navegador
-npm run ui          # sirve el simulador en http://localhost:4173
+uv run mypy app    # cero errores
+uv run ruff check .  # sin hallazgos
+uv run pytest        # 185 tests, sin red
+uv run python -m app.eval   # informe de recuperación (KB, dev y held-out)
+uv run python -m app.pilot_gate   # sin disparadores de despliegue
 ```
 
-El **bucle de evaluación** (`npm run eval`) mide el enrutado de respuestas aprobadas con un dataset de 46 casos (pregunta del lead → respuesta esperada). No añade embeddings ni LLM: es una medición, no un recuperador. Hoy marca recall 1.00 y precisión 1.00, con 0 violaciones del guard. La comparación léxica de Fase 2 sigue siendo un benchmark sintético, bloqueado para producción; el modo de runtime permanece en `baseline`.
-
-Para reproducir el guion completo de forma no interactiva se usa un driver temporal `.mts` que importa `MuskAgent` (mismo código del agente, sin la limitación del REPL). Ese driver está en `.gitignore` (`tmp-*.mts`) y no forma parte del entregable.
+El **bucle de evaluación** (`uv run python -m app.eval`) mide recall, falsos positivos, pasaje equivocado e interceptación de temas protegidos sobre la base de conocimiento, más la ablación léxica (held-out). No añade embeddings ni LLM: es una medición, no un recuperador. Los suelos están fijados en `tests/test_eval.py`; el informe actual y sus cifras se leen al ejecutar el comando.
