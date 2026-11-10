@@ -1,6 +1,24 @@
 # Dependencies (never ship or commit)
 node_modules/
 
+# Python (uv) environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Local SQLite runtime data (never commit)
+musk.db
+musk.db-journal
+musk.db-wal
+musk.db-shm
+data/
+
 # Local environment / secrets
 .env
 .env.local

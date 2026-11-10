@@ -166,7 +166,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 
 ## Cómo trabajar en este repositorio
 
-- Antes de tocar nada: `npm run typecheck`, `npm test` (140 tests en 8 ficheros) y
+- Antes de tocar nada: `npm run typecheck`, `npm test` (152 tests en 8 ficheros) y
   `npm run eval` (bucle de evaluación de la base de conocimiento: recall, falsos
   positivos y ablación léxica held-out). La comprobación automática corre también
   en cada push (`.github/workflows/ci.yml`).

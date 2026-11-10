@@ -1,0 +1,28 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# The TypeScript harness being phased out (kept out of the image)
+node_modules/
+src/
+ui/
+tests/
+scripts/
+api/
+
+# Secrets, docs and local artifacts
+.env
+.env.local
+*.log
+musk.db
+docs/
+.atl/
+.github/
+
+# VCS
+.git/
+.gitignore
