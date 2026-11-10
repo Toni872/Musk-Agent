@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor vigente es una aplicación **FastAPI en Python** (`app/`), con el mismo suelo de seguridad, los mismos endpoints y **175 tests**. El proyecto TypeScript original (`src/`, `ui/`) se conserva como referencia y se retirará cuando ya no haga falta comparar; los comandos `npm …` de más abajo describen esa versión anterior.
+El motor vigente es una aplicación **FastAPI en Python** (`app/`), con el mismo suelo de seguridad, los mismos endpoints y **180 tests**. El proyecto TypeScript original (`src/`, `ui/`) se conserva como referencia y se retirará cuando ya no haga falta comparar; los comandos `npm …` de más abajo describen esa versión anterior.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (175 tests), `uv run mypy app` y `uv run ruff check .`.
+Verificación: `uv run pytest` (180 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
 
 ## Qué hace y qué no hace
 
@@ -124,7 +124,8 @@ Manual: `npm run deploy` (= `npm run pilot-gate` + `vercel deploy --prod`). El r
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 175 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 180 tests, cero fallos, sin red.
+- [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 
 **TypeScript (legacy):**
 

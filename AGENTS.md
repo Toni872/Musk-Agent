@@ -169,7 +169,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - **Motor vigente: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app` y
-  `uv run pytest` (175 tests). CI de Python en
+  `uv run pytest` (180 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml`.
 - **Versión TypeScript en retirada** (`src/`, `ui/`, `package.json`): se conserva
   como referencia mientras se compara. `npm run typecheck`, `npm test` (125 tests),
