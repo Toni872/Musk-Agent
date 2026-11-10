@@ -75,3 +75,29 @@ async def test_non_https_url_is_rejected_before_any_request() -> None:
     )
     with pytest.raises(ValueError, match="https"):
         await provider.complete(LLMRequest(system="sistema", messages=()))
+
+
+def test_max_tokens_defaults_to_700() -> None:
+    config = load_llm_config_from_env(_GROQ)
+    assert config is not None
+    assert config.max_tokens == 700
+
+
+def test_max_tokens_is_configurable() -> None:
+    config = load_llm_config_from_env({**_GROQ, "MUSK_LLM_MAX_TOKENS": "256"})
+    assert config is not None
+    assert config.max_tokens == 256
+
+
+def test_invalid_max_tokens_falls_back_to_default() -> None:
+    config = load_llm_config_from_env({**_GROQ, "MUSK_LLM_MAX_TOKENS": "muchos"})
+    assert config is not None
+    assert config.max_tokens == 700
+
+
+def test_payload_carries_the_max_tokens_cap() -> None:
+    config = load_llm_config_from_env({**_GROQ, "MUSK_LLM_MAX_TOKENS": "512"})
+    assert config is not None
+    provider = OpenAICompatibleLLM(config)
+    payload = provider._build_payload(LLMRequest(system="sistema", messages=()))
+    assert payload["max_tokens"] == 512

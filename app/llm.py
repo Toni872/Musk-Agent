@@ -38,6 +38,7 @@ class LLMConfig:
     api_key: str
     model: str
     temperature: float
+    max_tokens: int = 700
 
 
 def load_llm_config_from_env(env: dict[str, str] | None = None) -> LLMConfig | None:
@@ -61,11 +62,22 @@ def load_llm_config_from_env(env: dict[str, str] | None = None) -> LLMConfig | N
         except ValueError:
             parsed = float("nan")
 
+    max_tokens_raw = source.get("MUSK_LLM_MAX_TOKENS")
+    max_tokens = 700
+    if max_tokens_raw is not None and max_tokens_raw.strip():
+        try:
+            max_tokens = int(max_tokens_raw)
+        except ValueError:
+            max_tokens = 700
+        if max_tokens <= 0:
+            max_tokens = 700
+
     return LLMConfig(
         base_url=base_url,
         api_key=api_key,
         model=(source.get("MUSK_LLM_MODEL") or "").strip() or "gpt-4o-mini",
         temperature=parsed if math.isfinite(parsed) else 0.2,
+        max_tokens=max_tokens,
     )
 
 
@@ -75,19 +87,23 @@ class OpenAICompatibleLLM:
     def __init__(self, config: LLMConfig) -> None:
         self._config = config
 
-    async def complete(self, request: LLMRequest) -> str:
-        base_url = self._config.base_url.strip()
-        if not base_url.lower().startswith("https://"):
-            raise ValueError("LLM base URL must use https")
-        url = f"{base_url.rstrip('/')}/chat/completions"
-        payload = {
+    def _build_payload(self, request: LLMRequest) -> dict[str, object]:
+        return {
             "model": self._config.model,
             "temperature": self._config.temperature,
+            "max_tokens": self._config.max_tokens,
             "messages": [
                 {"role": "system", "content": request.system},
                 *[{"role": m.role, "content": m.content} for m in request.messages],
             ],
         }
+
+    async def complete(self, request: LLMRequest) -> str:
+        base_url = self._config.base_url.strip()
+        if not base_url.lower().startswith("https://"):
+            raise ValueError("LLM base URL must use https")
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        payload = self._build_payload(request)
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(

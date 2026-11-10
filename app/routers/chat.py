@@ -22,6 +22,7 @@ from app.models import (
 )
 from app.observability import logger
 from app.pdf import build_conversation_pdf, build_handoff_pdf
+from app.ratelimit import RateLimiter
 from app.session import SessionStore
 
 router = APIRouter(tags=["chat"])
@@ -125,6 +126,11 @@ async def _persist(
 
 @router.post("/chat", response_model=TurnOut)
 async def create_turn(payload: ChatRequest, request: Request) -> TurnOut:
+    limiter = cast(RateLimiter, request.app.state.rate_limiter)
+    client_ip = request.client.host if request.client is not None else "unknown"
+    if not limiter.allow(client_ip):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
     store = _store(request)
     agent = store.get_or_create(payload.session_id, _to_lead(payload.lead))
     result = await agent.run_turn(payload.message)

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     log_level: str = "WARNING"
     database_url: str = "sqlite+aiosqlite:///./musk.db"
+    # Per-client cap on cost-bearing /chat calls per minute.
+    max_calls_per_minute: int = 30
 
 
 @lru_cache

@@ -21,6 +21,7 @@ from app.content import APPROVED_CONTENT
 from app.db import Database
 from app.llm import LLMProvider, OpenAICompatibleLLM, load_llm_config_from_env
 from app.observability import configure_logging
+from app.ratelimit import RateLimiter
 from app.routers import chat, health
 from app.session import SessionStore
 
@@ -37,6 +38,7 @@ def build_provider() -> LLMProvider | None:
 def create_app(provider: LLMProvider | None, database: Database | None = None) -> FastAPI:
     configure_logging()
     store = SessionStore(provider=provider, content=APPROVED_CONTENT)
+    limiter = RateLimiter(max_calls=get_settings().max_calls_per_minute)
 
     @asynccontextmanager
     async def lifespan(_application: FastAPI) -> AsyncIterator[None]:
@@ -49,6 +51,7 @@ def create_app(provider: LLMProvider | None, database: Database | None = None) -
     application = FastAPI(title="MUSK Agent", version="0.1.0", lifespan=lifespan)
     application.state.session_store = store
     application.state.database = database
+    application.state.rate_limiter = limiter
     application.include_router(chat.router)
     application.include_router(health.router)
 
