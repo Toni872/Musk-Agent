@@ -71,8 +71,8 @@ irreversibles o con coste.
 
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
-| Degradación elegante | Parcial | Sin proveedor el agente funciona igual, y si el guard bloquea cae al texto aprobado. Falta definir qué se hace si el proveedor LLM falla. |
-| Timeouts, reintentos y backoff | Pendiente | No implementados. |
+| Degradación elegante | Hecho | Sin proveedor, o si falla/expira/devuelve vacío, el agente cae al modo determinista; si el guard bloquea, responde la duda (regla 5). |
+| Timeouts, reintentos y backoff | Parcial | Timeout de 30 s implementado (un fallo cae a determinista); sin reintentos ni backoff. |
 | Caché | No aplica | Las respuestas deterministas ya son reproducibles; la caché tendría sentido para embeddings y para el LLM. |
 
 ## 6. Permisos y lotes
