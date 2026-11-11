@@ -26,6 +26,9 @@ jobs:
       - name: Type check
         run: uv run mypy app
 
+      - name: Evaluation report
+        run: uv run python -m app.eval
+
       - name: Pilot gate
         run: uv run python -m app.pilot_gate
 

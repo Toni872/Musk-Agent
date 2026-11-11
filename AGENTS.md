@@ -169,7 +169,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (185 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (186 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.

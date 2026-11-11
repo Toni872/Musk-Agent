@@ -52,3 +52,14 @@ def test_collect_signals_does_not_treat_every_tracked_file_as_config(
         lambda: ("README.md", "app/main.py", ".env.example"),
     )
     assert pilot_gate.collect_signals() == PilotGateSignals(committed_env_files=())
+
+
+def test_gate_fails_closed_when_git_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pilot_gate, "read_tracked_files", lambda: None)
+    signals = pilot_gate.collect_signals()
+    assert signals.unverified is True
+    result = evaluate_pilot_gate(signals)
+    assert result.triggered is True
+    assert "git no disponible" in " ".join(result.reasons)

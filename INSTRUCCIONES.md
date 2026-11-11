@@ -36,7 +36,7 @@ Funciona **en local y sin leads reales**: todo es simulado. Sin clave de LLM, no
    uv run pytest
    ```
 
-   La primera vez puede tardar un par de minutos. Si al final del `uv run pytest` pone **185 passed**, todo está correcto y ya puedes arrancar el simulador.
+   La primera vez puede tardar un par de minutos. Si al final del `uv run pytest` pone **186 passed**, todo está correcto y ya puedes arrancar el simulador.
 
 ## 3. Arranca el simulador
 

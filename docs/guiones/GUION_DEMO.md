@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **185 tests en 11 ficheros**.
+> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **186 tests en 11 ficheros**.
 
 > **Apertura y cualificación**: el perfil único ya incluye `initial_message` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
@@ -142,7 +142,7 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 ```powershell
 uv run mypy app    # cero errores
 uv run ruff check .  # sin hallazgos
-uv run pytest        # 185 tests, sin red
+uv run pytest        # 186 tests, sin red
 uv run python -m app.eval   # informe de recuperación (KB, dev y held-out)
 uv run python -m app.pilot_gate   # sin disparadores de despliegue
 ```

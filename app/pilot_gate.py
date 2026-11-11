@@ -35,6 +35,7 @@ _ENV_FILE = re.compile(r"(^|/)\.env(\.[^/]*)?$")
 @dataclass(frozen=True)
 class PilotGateSignals:
     committed_env_files: tuple[str, ...]
+    unverified: bool = False
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,10 @@ class PilotGateResult:
 def evaluate_pilot_gate(signals: PilotGateSignals) -> PilotGateResult:
     """Decide whether the gate must block a publish, with its reasons."""
     reasons: list[str] = []
+    if signals.unverified:
+        reasons.append(
+            "No se puede verificar la configuracion versionada: git no disponible."
+        )
     if signals.committed_env_files:
         reasons.append(
             "Hay configuracion real versionada: "
@@ -64,7 +69,8 @@ def read_committed_env_files(tracked_files: Sequence[str]) -> tuple[str, ...]:
     )
 
 
-def read_tracked_files() -> tuple[str, ...]:
+def read_tracked_files() -> tuple[str, ...] | None:
+    """Tracked files, or ``None`` when git is unavailable."""
     try:
         completed = subprocess.run(
             ["git", "ls-files"],
@@ -76,13 +82,17 @@ def read_tracked_files() -> tuple[str, ...]:
     except (OSError, subprocess.CalledProcessError):
         # No git (tarball, CI checkout without history, etc.). The signal cannot
         # be checked, so report it as such instead of pretending it is clean.
-        return (".env (no verificable: git no disponible)",)
+        return None
     return tuple(line for line in completed.stdout.splitlines() if line)
 
 
 def collect_signals() -> PilotGateSignals:
     """Tracked files filtered down to the one signal this gate can prove."""
-    return PilotGateSignals(read_committed_env_files(read_tracked_files()))
+    tracked = read_tracked_files()
+    if tracked is None:
+        # Fail closed: an unverifiable checkout must not look clean.
+        return PilotGateSignals(committed_env_files=(), unverified=True)
+    return PilotGateSignals(read_committed_env_files(tracked))
 
 
 def main() -> None:

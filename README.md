@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **185 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **186 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (185 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
+Verificación: `uv run pytest` (186 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
 
 ## Qué hace y qué no hace
 
@@ -107,14 +107,14 @@ Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 185 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 186 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)
 
-`.github/workflows/python-ci.yml` ejecuta `uv run ruff check .`, `uv run mypy app`, `uv run python -m app.pilot_gate` y `uv run pytest` en cada push y PR.
+`.github/workflows/python-ci.yml` ejecuta `uv run ruff check .`, `uv run mypy app`, `uv run python -m app.eval`, `uv run python -m app.pilot_gate` y `uv run pytest` en cada push y PR.
 
 ## Decisiones pendientes
 
