@@ -1,0 +1,15 @@
+# TLS is terminated here. Caddy provisions and renews the certificate for
+# MUSK_DOMAIN automatically, which requires the domain to resolve to this host
+# and ports 80/443 to be reachable. Authentication is enforced by the app, so
+# Caddy only proxies and adds the security headers below.
+{$MUSK_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy app:8000
+}

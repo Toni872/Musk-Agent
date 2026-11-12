@@ -1,0 +1,42 @@
+# Production-shaped deployment: the FastAPI container is only reachable on the
+# internal network and Caddy terminates TLS for MUSK_DOMAIN (automatic
+# certificates). Authentication lives in the app itself via
+# MUSK_BASIC_AUTH_USER / MUSK_BASIC_AUTH_PASSWORD, so the same credentials also
+# protect a direct `uv run uvicorn` run and the UI cannot be bypassed.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////data/musk.db
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MUSK_LLM_BASE_URL: ${MUSK_LLM_BASE_URL:-}
+      MUSK_LLM_API_KEY: ${MUSK_LLM_API_KEY:-}
+      MUSK_LLM_MODEL: ${MUSK_LLM_MODEL:-openai/gpt-oss-120b}
+      MUSK_LLM_TEMPERATURE: ${MUSK_LLM_TEMPERATURE:-0.2}
+      MUSK_BASIC_AUTH_USER: ${MUSK_BASIC_AUTH_USER:?Set MUSK_BASIC_AUTH_USER in .env}
+      MUSK_BASIC_AUTH_PASSWORD: ${MUSK_BASIC_AUTH_PASSWORD:?Set MUSK_BASIC_AUTH_PASSWORD in .env}
+    volumes:
+      - musk-data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MUSK_DOMAIN: ${MUSK_DOMAIN:?Set MUSK_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  musk-data:
+  caddy-data:
+  caddy-config:

@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **194 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **201 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (194 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
+Verificación: `uv run pytest` (201 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
 
 ## Qué hace y qué no hace
 
@@ -108,13 +108,27 @@ La interfaz (`app/static/`) la sirve la propia app FastAPI en `/` al arrancar co
 
 ## Despliegue (Docker)
 
-Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio no despliega solo. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada. El despliegue debe ir detrás de TLS y autenticación (proxy inverso o protección equivalente) para no exponer la clave de Groq.
+Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio no despliega solo.
+
+**Con TLS y contraseña** — `docker-compose.yml` deja la app en la red interna y pone **Caddy** delante, que obtiene y renueva el certificado automáticamente. Añade a `.env`:
+
+| Variable | Descripción |
+|---|---|
+| `MUSK_DOMAIN` | Dominio público que resuelve a este servidor, con los puertos 80 y 443 abiertos |
+| `MUSK_BASIC_AUTH_USER` | Usuario único de acceso |
+| `MUSK_BASIC_AUTH_PASSWORD` | Contraseña única de acceso |
+
+```bash
+docker compose up -d --build
+```
+
+La app exige HTTP Basic en todas las rutas salvo `/health`, así que el mismo par de credenciales protege también un `uv run uvicorn` directo; si dejas esas dos variables vacías, la autenticación se desactiva (solo para simulación local). Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
 
 ## Verificación
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 194 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 201 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.

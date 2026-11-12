@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.auth import load_basic_auth_from_env
 from app.db import ConversationRepository, Database
 from app.main import create_app
 from app.rules import build_reply
@@ -11,6 +12,10 @@ from app.rules import build_reply
 
 def _client() -> TestClient:
     return TestClient(create_app(provider=None))
+
+
+def _auth_client() -> TestClient:
+    return TestClient(create_app(provider=None, basic_auth=("musk", "secreto")))
 
 
 def _lead() -> dict[str, str]:
@@ -22,6 +27,48 @@ def test_health() -> None:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+
+def test_health_is_public_with_authentication_enabled() -> None:
+    with _auth_client() as client:
+        assert client.get("/health").status_code == 200
+
+
+def test_protected_route_requires_credentials() -> None:
+    with _auth_client() as client:
+        response = client.get("/sessions/unknown")
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"].startswith("Basic")
+
+
+def test_static_ui_requires_credentials() -> None:
+    with _auth_client() as client:
+        assert client.get("/").status_code == 401
+
+
+def test_valid_credentials_reach_the_api() -> None:
+    with _auth_client() as client:
+        assert client.get("/sessions/unknown", auth=("musk", "secreto")).status_code == 404
+
+
+def test_wrong_password_is_rejected() -> None:
+    with _auth_client() as client:
+        assert client.get("/sessions/unknown", auth=("musk", "otra")).status_code == 401
+
+
+def test_malformed_authorization_header_is_rejected() -> None:
+    with _auth_client() as client:
+        response = client.get("/sessions/unknown", headers={"authorization": "Bearer token"})
+        assert response.status_code == 401
+
+
+def test_basic_auth_requires_both_variables() -> None:
+    assert load_basic_auth_from_env({}) is None
+    assert load_basic_auth_from_env({"MUSK_BASIC_AUTH_USER": "musk"}) is None
+    assert load_basic_auth_from_env({"MUSK_BASIC_AUTH_PASSWORD": "secreto"}) is None
+    assert load_basic_auth_from_env(
+        {"MUSK_BASIC_AUTH_USER": "musk", "MUSK_BASIC_AUTH_PASSWORD": "secreto"}
+    ) == ("musk", "secreto")
 
 
 def test_chat_answers_a_kb_question() -> None:

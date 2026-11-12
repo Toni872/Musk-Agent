@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.auth import BasicAuthMiddleware, load_basic_auth_from_env
 from app.config import get_settings
 from app.content import APPROVED_CONTENT
 from app.db import Database
@@ -35,7 +36,12 @@ def build_provider() -> LLMProvider | None:
     return OpenAICompatibleLLM(config) if config is not None else None
 
 
-def create_app(provider: LLMProvider | None, database: Database | None = None) -> FastAPI:
+def create_app(
+    provider: LLMProvider | None,
+    database: Database | None = None,
+    *,
+    basic_auth: tuple[str, str] | None = None,
+) -> FastAPI:
     configure_logging(get_settings().log_level)
     store = SessionStore(provider=provider, content=APPROVED_CONTENT)
     limiter = RateLimiter(max_calls=get_settings().max_calls_per_minute)
@@ -49,6 +55,9 @@ def create_app(provider: LLMProvider | None, database: Database | None = None) -
             await database.dispose()
 
     application = FastAPI(title="MUSK Agent", version="0.1.0", lifespan=lifespan)
+    if basic_auth is not None:
+        username, password = basic_auth
+        application.add_middleware(BasicAuthMiddleware, username=username, password=password)
     application.state.session_store = store
     application.state.database = database
     application.state.rate_limiter = limiter
@@ -61,4 +70,8 @@ def create_app(provider: LLMProvider | None, database: Database | None = None) -
     return application
 
 
-app = create_app(build_provider(), Database(get_settings().database_url))
+app = create_app(
+    build_provider(),
+    Database(get_settings().database_url),
+    basic_auth=load_basic_auth_from_env(),
+)

@@ -169,7 +169,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (194 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (201 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.
@@ -181,7 +181,9 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   conversación con RAG; sin él, el agente cae al modo determinista con los pasajes
   aprobados.
 - El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
-  `8000`); no despliega solo. No hay vía de despliegue alternativa.
+  `8000`) o `docker compose up` con Caddy delante (TLS automático) y HTTP Basic
+  opcional por variables de entorno; no despliega solo. No hay vía de despliegue
+  alternativa.
 
 ## Mapa de documentación
 

@@ -28,7 +28,7 @@ Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido
 | Herramientas con efectos | No aplica todavía |
 | Permisos, lotes y datos personales | Pendiente |
 | Aprobaciones de MUSK | Pendiente |
-| Protección del bundle público | Disparador armado (§9) |
+| Protección del bundle público | Listo (§9) |
 
 ## 1. Entrada: lo que llega del lead
 
@@ -62,7 +62,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/python-ci.yml`: lint, tipos, 194 tests, informe del bucle de evaluación y disparador de protección del despliegue (§9). |
+| Comprobación en cada push | Hecho | `.github/workflows/python-ci.yml`: lint, tipos, 201 tests, informe del bucle de evaluación y disparador de protección del despliegue (§9). |
 | Traza de tokens, latencia y coste | Hecho | Cada llamada al proveedor registra tokens, latencia e intentos en las métricas de sesión y en el log `llm_call`; el coste estimado aparece si se configuran los precios. Nunca se envía al lead. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
@@ -113,6 +113,13 @@ de firma. Antes de cruzar esa frontera, proteger el despliegue es lo único que
 oculta de verdad el servicio, porque una comprobación en el cliente se salta
 leyendo el `app.js`.
 
+**Qué hay implementado.** `docker-compose.yml` publica solo Caddy (80/443), que
+termina TLS con certificado automático para `MUSK_DOMAIN` y añade cabeceras de
+seguridad; la app queda en la red interna y exige HTTP Basic en todas las rutas
+salvo `/health` cuando `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` están
+definidas. Sin esas dos variables la autenticación se desactiva, así que publicar
+una URL sin ellas vuelve a dejar el simulador abierto.
+
 **Qué vigila el disparador.** `uv run python -m app.pilot_gate` —y el paso
 equivalente de CI— falla cuando hay un `.env` versionado (salvo `.env.example`):
 configuración real dentro del repositorio. Es la única señal que vigila el gate.
@@ -128,9 +135,9 @@ configuración real dentro del repositorio. Es la única señal que vigila el ga
   actual.
 
 **Qué hacer cuando dispara.** Antes de la siguiente publicación: poner el
-despliegue detrás de TLS y autenticación (proxy inverso o protección equivalente),
-comprobar que la URL pública ya no sirve el simulador sin credenciales y anotarlo
-aquí con fecha y con quién lo decidió. Solo entonces poner `PILOT_GATE_ACK=1` en
+despliegue detrás de TLS y autenticación (Caddy + HTTP Basic, ya incluidos en
+`docker-compose.yml`), comprobar que la URL pública ya no sirve el simulador sin
+credenciales y anotarlo aquí con fecha y con quién lo decidió. Solo entonces poner `PILOT_GATE_ACK=1` en
 el paso del gate de `.github/workflows/python-ci.yml`: esa línea es el registro de
 que la decisión se tomó, y hasta que exista el gate falla a propósito.
 

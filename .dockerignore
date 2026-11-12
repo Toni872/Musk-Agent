@@ -12,6 +12,8 @@ tests/
 docs/
 .atl/
 .github/
+docker-compose.yml
+Caddyfile
 
 # Secrets and local artifacts
 .env
