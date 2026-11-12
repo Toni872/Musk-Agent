@@ -16,6 +16,10 @@ services:
       MUSK_LLM_TEMPERATURE: ${MUSK_LLM_TEMPERATURE:-0.2}
       MUSK_BASIC_AUTH_USER: ${MUSK_BASIC_AUTH_USER:?Set MUSK_BASIC_AUTH_USER in .env}
       MUSK_BASIC_AUTH_PASSWORD: ${MUSK_BASIC_AUTH_PASSWORD:?Set MUSK_BASIC_AUTH_PASSWORD in .env}
+      # Trust X-Forwarded-For only from the internal Docker network, so the
+      # per-IP chat limit sees the real client behind Caddy instead of Caddy's
+      # address. A direct public peer can never spoof the header.
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}"
     volumes:
       - musk-data:/data
     expose:

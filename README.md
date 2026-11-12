@@ -122,7 +122,7 @@ Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio
 docker compose up -d --build
 ```
 
-La app exige HTTP Basic en todas las rutas salvo `/health`, así que el mismo par de credenciales protege también un `uv run uvicorn` directo; si dejas esas dos variables vacías, la autenticación se desactiva (solo para simulación local). Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
+La app exige HTTP Basic en todas las rutas salvo `/health`, así que el mismo par de credenciales protege también un `uv run uvicorn` directo; si dejas esas dos variables vacías, la autenticación se desactiva (solo para simulación local). Caddy reenvía la IP real del cliente y la app confía en `X-Forwarded-For` solo desde redes privadas de Docker (`FORWARDED_ALLOW_IPS`), de modo que el límite por IP del chat sigue siendo por cliente y no un cupo compartido. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
 
 ## Verificación
 
