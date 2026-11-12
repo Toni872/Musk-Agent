@@ -88,6 +88,26 @@ Importante: los "6 intentos" de la reunión del 18/09 NO son una regla del MVP. 
 ~3 % de conversión, el coste (>300 €) y los volúmenes (12-15 / 35 al mes) son
 contexto histórico sin denominador; no son objetivos ni parámetros.
 
+## Stack y versiones (no cambiar sin pedirlo)
+
+El stack está decidido y **no se cambia sin petición explícita del responsable del
+proyecto**: ni frameworks, ni librerías troncales, ni versiones mínimas, ni el
+gestor de paquetes. Si una tarea parece exigir otro stack, para y pregunta.
+
+- **Motor:** Python >= 3.12 · FastAPI >= 0.115 · Uvicorn · Pydantic Settings ·
+  SQLModel + aiosqlite · structlog · ReportLab. Gestor y ejecución: **uv**.
+- **Calidad:** ruff (line-length 100, target py312) · mypy en modo **strict** ·
+  pytest con pytest-asyncio y pytest-cov sobre `tests/`.
+- **Frontend:** estático servido por la app (`app/static/`). Sin bundler ni
+  framework de UI.
+- **Despliegue:** imagen Docker (`Dockerfile`, host 4173 → contenedor 8000) o
+  `docker compose up` con Caddy delante. Sin vía alternativa.
+- **Integraciones:** ninguna real todavía (sin WhatsApp, sin CRM, sin proveedor de
+  agenda). El LLM es opcional; sin él, el motor cae a modo determinista.
+
+Dependencia nueva o subida de versión mínima = pedir permiso y justificar por qué
+no vale con lo que ya hay.
+
 ## Convenciones técnicas
 
 - **Motor LLM con RAG.** `app/agent.py` dirige la conversación: cada turno
@@ -164,6 +184,37 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 - Idioma: código, identificadores, comentarios y commits en **inglés**; textos de
   cara al lead y documentación en **español de España** (tuteo).
 
+## Definición de hecho
+
+Un cambio está hecho cuando se cumple todo esto y lo has ejecutado tú, no lo has
+supuesto:
+
+1. `uv run ruff check .` limpio y `uv run mypy app` sin errores (strict).
+2. `uv run pytest` en verde, con los tests nuevos y los existentes que comparten
+   el código tocado.
+3. `uv run python -m app.eval` sin regresiones de recuperación.
+4. `uv run python -m app.pilot_gate` no falla (lo ejecuta la CI).
+5. Ninguna regla dura nueva sin test; ningún `TODO(decisión)` enviado al lead.
+6. Sin secretos, tokens ni datos personales reales en código, tests, logs ni
+   commits.
+7. Si cambia comportamiento visible, la documentación afectada (`docs/`,
+   `README.md`, `INSTRUCCIONES.md`) se actualiza en el mismo cambio.
+8. Resumen final: qué cambió, qué quedó fuera y qué riesgo tiene.
+
+## Criterios de aceptación
+
+Todo cambio, grande o pequeño, trae al menos un criterio de aceptación
+**ejecutable**: un comando, un test concreto o una comprobación que se pueda
+mostrar con su salida real.
+
+- Malo: «el agente responde mejor».
+- Bueno: `uv run pytest tests/test_agent.py -k precio` en verde y `/chat` con
+  «¿cuánto cuesta?» sin cifras en la respuesta.
+- Si el criterio no se puede ejecutar, dilo antes de empezar y propón cómo
+  verificarlo; no lo inventes después.
+- Si no se cumple, el cambio no está terminado: se reporta como pendiente con el
+  fallo observado.
+
 ## Cómo trabajar en este repositorio
 
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
@@ -171,6 +222,13 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
   `uv run pytest` (201 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
+- **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
+  lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un
+  cambio de comportamiento sin un test que lo fije.
+- **Cita el requisito de la spec.** Cuando el cambio afecta al comportamiento del
+  MVP, el test y el mensaje del commit referencian la sección de
+  `docs/producto/musk-mvp-spec.md` (p. ej. «spec §4»), para que la especificación
+  siga siendo la fuente de verdad.
 - Si una petición choca con las reglas duras o el alcance, avisa antes de
   implementar.
 - Si falta una decisión de las listadas arriba, propón una opción por defecto
@@ -197,6 +255,8 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 | `docs/producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo (fase 2) |
 | `docs/producto/matriz-validacion-cursos.md` | Validación por curso (origen de `app/content.py`) |
 | `docs/producto/escuela-musk-base-conocimiento.md` | Fuente de los 35 pasajes de `app/kb.py` |
+| `docs/producto/glosario-dominio.md` | Vocabulario canónico: negocio, motor, métricas y proceso |
+| `docs/producto/nfr-piloto.md` | Requisitos no funcionales del piloto (rendimiento, seguridad, privacidad, coste) |
 | `docs/cliente/pedido-nicolas.md` | Lo que falta que apruebe Nicolás (contenido) |
 | `docs/cliente/aprobacion-nicolas.md` | Qué necesita firma de Nicolás (resumen) |
 | `docs/cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para que MUSK las valide |
@@ -204,6 +264,7 @@ contexto histórico sin denominador; no son objetivos ni parámetros.
 | `docs/cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
 | `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
 | `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
+| `docs/operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
 | `docs/guiones/GUION_DEMO.md` | Guion de demo con las respuestas observadas |
 | `docs/guiones/guion-neuroventas.md` | Guion por momento: texto real, objetivo y mecanismo |
 | `docs/archivo/` | Material histórico (plan de retrieval híbrido, guía de costes, export obsoleto) |
