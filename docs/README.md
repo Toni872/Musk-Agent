@@ -22,6 +22,8 @@ docs/
 | `producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo de cursos (fase 2) |
 | `producto/matriz-validacion-cursos.md` | Validación de contenido por curso; origen de `app/content.py` |
 | `producto/escuela-musk-base-conocimiento.md` | Base de conocimiento de la escuela; fuente de los 35 pasajes de `app/kb.py` |
+| `producto/glosario-dominio.md` | Vocabulario canónico: negocio, motor conversacional, métricas y proceso |
+| `producto/nfr-piloto.md` | Requisitos no funcionales del piloto: rendimiento, seguridad, privacidad, coste |
 
 ## cliente/
 
@@ -40,6 +42,7 @@ docs/
 |---|---|
 | `operacion/decisiones-operativas-nicolas.md` | Decisiones de operación: llamada, aviso, cadencia |
 | `operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
+| `operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
 
 ## guiones/
 
