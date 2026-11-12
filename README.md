@@ -19,7 +19,7 @@ Abre `http://localhost:4173`. También en Docker:
 
 ```
 docker build -t musk-agent .
-docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
+docker run --rm --env-file .env -e DATABASE_URL=sqlite+aiosqlite:////data/musk.db -v musk-data:/data -p 4173:8000 musk-agent
 ```
 
 Verificación: `uv run pytest` (201 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
