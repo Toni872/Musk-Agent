@@ -75,7 +75,7 @@ class SessionStateOut(BaseModel):
     pending_decisions: list[str]
     qualification_answers: list[QualificationOut]
     handoff: HandoffOut | None = None
-    metrics: dict[str, int] = Field(default_factory=dict)
+    metrics: dict[str, int | float | bool] = Field(default_factory=dict)
 
 
 class ReportMessage(BaseModel):

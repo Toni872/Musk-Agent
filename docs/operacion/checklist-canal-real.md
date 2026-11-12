@@ -23,8 +23,8 @@ Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido
 | Salida (guardrails) | Listo |
 | Evaluación continua | Listo (en cada push) |
 | Entrada (guardrails) | Pendiente |
-| Trazas de tokens, latencia y coste | Parcial |
-| Fiabilidad (timeouts, reintentos, fallback) | Parcial |
+| Trazas de tokens, latencia y coste | Listo |
+| Fiabilidad (timeouts, reintentos, fallback) | Listo |
 | Herramientas con efectos | No aplica todavía |
 | Permisos, lotes y datos personales | Pendiente |
 | Aprobaciones de MUSK | Pendiente |
@@ -62,8 +62,8 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Bitácora por turno | Hecho | Registros visibles en el simulador: intención, acción, derivación y dudas. |
-| Comprobación en cada push | Hecho | `.github/workflows/python-ci.yml`: lint, tipos, 186 tests, informe del bucle de evaluación y disparador de protección del despliegue (§9). |
-| Traza de tokens, latencia y coste | Parcial | Hoy el modo por defecto es determinista (0 tokens). Si se enciende la reformulación con LLM, cada turno debe registrar tokens, latencia y coste. |
+| Comprobación en cada push | Hecho | `.github/workflows/python-ci.yml`: lint, tipos, 194 tests, informe del bucle de evaluación y disparador de protección del despliegue (§9). |
+| Traza de tokens, latencia y coste | Hecho | Cada llamada al proveedor registra tokens, latencia e intentos en las métricas de sesión y en el log `llm_call`; el coste estimado aparece si se configuran los precios. Nunca se envía al lead. |
 | Alertas de coste y de errores | Pendiente | Sin proveedor activo no hay coste que vigilar; hace falta antes de encender el LLM. |
 | Presupuesto por conversación | Pendiente | El motor no itera (un turno por mensaje), pero conviene fijar un tope de llamadas al proveedor por conversación. |
 
@@ -72,7 +72,7 @@ irreversibles o con coste.
 | Punto | Estado | Cómo se comprueba o qué falta |
 |---|---|---|
 | Degradación elegante | Hecho | Sin proveedor, o si falla/expira/devuelve vacío, el agente cae al modo determinista; si el guard bloquea, responde la duda (regla 5). |
-| Timeouts, reintentos y backoff | Parcial | Timeout de 30 s implementado (un fallo cae a determinista); sin reintentos ni backoff. |
+| Timeouts, reintentos y backoff | Hecho | Timeout de 30 s y reintentos con backoff exponencial y jitter para timeout, error de conexión, 429 y 5xx; los 4xx no se reintentan y el fallo cae a determinista. |
 | Caché | No aplica | Las respuestas deterministas ya son reproducibles; la caché tendría sentido para embeddings y para el LLM. |
 
 ## 6. Permisos y lotes

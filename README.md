@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **186 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **194 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -v musk-data:/app/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (186 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
+Verificación: `uv run pytest` (194 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
 
 ## Qué hace y qué no hace
 
@@ -88,8 +88,15 @@ Copia `.env.example` a `.env` y rellena:
 | `MUSK_LLM_MODEL` | Modelo (por defecto `gpt-4o-mini`) |
 | `MUSK_LLM_TEMPERATURE` | Temperatura (por defecto `0.2`) |
 | `MUSK_LLM_MAX_TOKENS` | Tope de tokens de salida (por defecto `700`) |
+| `MUSK_LLM_MAX_RETRIES` | Reintentos ante fallos transitorios: timeout, conexión, 429 y 5xx (por defecto `2`); los 4xx no se reintentan |
+| `MUSK_LLM_BACKOFF_BASE_SECONDS` | Base del backoff exponencial con jitter, en segundos (por defecto `0.5`) |
+| `MUSK_LLM_BACKOFF_MAX_SECONDS` | Tope del backoff, en segundos (por defecto `4.0`) |
+| `MUSK_LLM_PRICE_INPUT_PER_1M` | Precio de entrada por 1M tokens en USD (opcional; activa el trazado de coste) |
+| `MUSK_LLM_PRICE_OUTPUT_PER_1M` | Precio de salida por 1M tokens en USD (opcional) |
 
 Hacen falta `MUSK_LLM_BASE_URL` y `MUSK_LLM_API_KEY` para activar el modelo; sin ellas, modo determinista. **Groq** funciona sin tocar código: `https://api.groq.com/openai/v1` con `openai/gpt-oss-120b` (más capaz) o `openai/gpt-oss-20b` (más barato).
+
+Cada llamada al proveedor reintenta los fallos transitorios con backoff y registra tokens, latencia e intentos; si configuras los precios, también el coste estimado. Es telemetría de supervisión (métricas de sesión y log `llm_call`): nunca se envía al lead.
 
 En la app Python, `MAX_CALLS_PER_MINUTE` limita las llamadas a `/chat` por IP (por defecto `30`).
 
@@ -107,7 +114,7 @@ Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 186 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 194 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.

@@ -36,7 +36,7 @@ def build_provider() -> LLMProvider | None:
 
 
 def create_app(provider: LLMProvider | None, database: Database | None = None) -> FastAPI:
-    configure_logging()
+    configure_logging(get_settings().log_level)
     store = SessionStore(provider=provider, content=APPROVED_CONTENT)
     limiter = RateLimiter(max_calls=get_settings().max_calls_per_minute)
 

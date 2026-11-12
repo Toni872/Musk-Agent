@@ -20,7 +20,8 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from app.content import APPROVED_CONTENT, ApprovedContent, is_pending_decision
-from app.llm import LLMChatMessage, LLMProvider, LLMRequest
+from app.llm import LLMChatMessage, LLMProvider, LLMRequest, LLMResult
+from app.observability import logger
 from app.retrieval import FORBIDDEN_TOPIC_PATTERNS, RankedPassage, retrieve, retrieve_top_k
 from app.rules import (
     ANSWER_TRIGGERS,
@@ -102,6 +103,15 @@ class Metrics:
     handoffs: int = 0
     stops: int = 0
     provider_failures: int = 0
+    # LLM operational tracing (cost/latency/tokens). Never shown to the lead.
+    llm_calls: int = 0
+    llm_retries: int = 0
+    llm_prompt_tokens: int = 0
+    llm_completion_tokens: int = 0
+    llm_total_tokens: int = 0
+    llm_latency_ms: float = 0.0
+    llm_cost_usd: float = 0.0
+    llm_cost_known: bool = False
 
 
 # Maximum turns of history the model reads to follow the thread.
@@ -357,20 +367,19 @@ class MuskAgent:
             return self._deterministic_reply(message)
 
         try:
-            raw = (
-                await self._provider.complete(
-                    LLMRequest(
-                        system=self._build_turn_prompt(context),
-                        messages=self._build_history_messages(),
-                    )
+            result = await self._provider.complete(
+                LLMRequest(
+                    system=self._build_turn_prompt(context),
+                    messages=self._build_history_messages(),
                 )
-            ).strip()
+            )
         except Exception:
             self._metrics.provider_failures += 1
             self._push("grounding", "conversation", "provider failed: used fallback")
             return self._deterministic_reply(message)
 
-        raw = self._clean_reply(raw)
+        self._record_llm_usage(result)
+        raw = self._clean_reply(result.text.strip())
         if not raw:
             self._push("grounding", "conversation", "empty reply: used fallback")
             return self._deterministic_reply(message)
@@ -447,6 +456,27 @@ class MuskAgent:
     def _catalogue_reply(self) -> str:
         self._metrics.catalogue_fallbacks += 1
         return f"{_CATALOGUE_ANSWER} {self._next_call_question()}"
+
+    def _record_llm_usage(self, result: LLMResult) -> None:
+        """Accumulate operational LLM metrics; the lead never sees any of this."""
+        self._metrics.llm_calls += 1
+        self._metrics.llm_retries += max(0, result.attempts - 1)
+        self._metrics.llm_latency_ms += result.latency_ms
+        if result.usage is not None:
+            self._metrics.llm_prompt_tokens += result.usage.prompt_tokens
+            self._metrics.llm_completion_tokens += result.usage.completion_tokens
+            self._metrics.llm_total_tokens += result.usage.total_tokens
+        if result.cost_usd is not None:
+            self._metrics.llm_cost_usd += result.cost_usd
+            self._metrics.llm_cost_known = True
+        logger.info(
+            "llm_call",
+            latency_ms=round(result.latency_ms, 1),
+            attempts=result.attempts,
+            prompt_tokens=result.usage.prompt_tokens if result.usage else 0,
+            completion_tokens=result.usage.completion_tokens if result.usage else 0,
+            cost_usd=result.cost_usd,
+        )
 
     def _fallback_reply(self, message: str) -> str:
         if self._is_catalogue_question(message):

@@ -13,7 +13,10 @@ import logging
 import structlog
 
 
-def configure_logging() -> None:
+def configure_logging(level: str = "WARNING") -> None:
+    numeric_level = getattr(logging, level.upper(), logging.WARNING)
+    if not isinstance(numeric_level, int):
+        numeric_level = logging.WARNING
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -21,7 +24,7 @@ def configure_logging() -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING),
+        wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
     )
 
 
