@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+from sqlmodel import SQLModel
+
+from app import db as db_module
 from app.db import Conversation, ConversationRepository, Database, Message, normalize_database_url
 
 
@@ -91,10 +95,52 @@ def test_normalize_database_url_maps_neon_to_asyncpg() -> None:
     assert url.startswith("postgresql+asyncpg://user:secret@ep-x-pooler.eu.neon.tech/neondb")
     assert "sslmode" not in url
     assert "prepared_statement_cache_size=0" in url
-    assert connect_args == {"ssl": True, "statement_cache_size": 0}
+    assert connect_args == {"ssl": True, "statement_cache_size": 0, "timeout": 10}
 
 
 def test_normalize_database_url_leaves_sqlite_untouched() -> None:
     url, connect_args = normalize_database_url("sqlite+aiosqlite:///./musk.db")
     assert url == "sqlite+aiosqlite:///./musk.db"
     assert connect_args == {}
+
+
+async def test_init_retries_a_transient_wake_up_error(tmp_path, monkeypatch) -> None:
+    """A suspended Neon compute can reject the first connection; one retry absorbs it."""
+    database = Database(f"sqlite+aiosqlite:///{(tmp_path / 'retry.db').as_posix()}")
+    attempts = {"count": 0}
+    create_all = SQLModel.metadata.create_all
+
+    def flaky(bind, *args, **kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("neon compute waking up")
+        create_all(bind, *args, **kwargs)
+
+    monkeypatch.setattr(SQLModel.metadata, "create_all", flaky)
+    monkeypatch.setattr(db_module, "INIT_RETRY_SECONDS", 0.0)
+    try:
+        await database.init()
+    finally:
+        monkeypatch.undo()
+        await database.dispose()
+    assert attempts["count"] == 2
+
+
+async def test_init_surfaces_the_error_after_the_last_attempt(tmp_path, monkeypatch) -> None:
+    """Retries must not swallow a genuinely unavailable database."""
+    database = Database(f"sqlite+aiosqlite:///{(tmp_path / 'down.db').as_posix()}")
+    attempts = {"count": 0}
+
+    def always_fails(*args, **kwargs):
+        attempts["count"] += 1
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(SQLModel.metadata, "create_all", always_fails)
+    monkeypatch.setattr(db_module, "INIT_RETRY_SECONDS", 0.0)
+    try:
+        with pytest.raises(RuntimeError, match="database unavailable"):
+            await database.init()
+    finally:
+        monkeypatch.undo()
+        await database.dispose()
+    assert attempts["count"] == db_module.INIT_ATTEMPTS

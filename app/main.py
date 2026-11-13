@@ -2,8 +2,9 @@
 
 The agent runs server-side: the LLM provider (when configured) is built once
 and shared, each conversation is a session-scoped ``MuskAgent`` held by the
-in-memory ``SessionStore``, and every turn is persisted through the ``Database``
-when one is configured.
+``SessionStore`` (in memory, or in the configured database so stateless
+instances can rehydrate it), and every turn is persisted through the
+``Database`` when one is configured.
 """
 
 from __future__ import annotations
@@ -12,8 +13,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import structlog
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.auth import BasicAuthMiddleware, load_basic_auth_from_env
@@ -25,6 +28,8 @@ from app.observability import configure_logging
 from app.ratelimit import RateLimiter
 from app.routers import chat, health
 from app.session import SessionStore
+
+logger = structlog.get_logger(__name__)
 
 # Load .env into os.environ so the LLM provider config is visible when the app
 # boots under `uv run uvicorn` (uv does not source .env itself).
@@ -55,6 +60,19 @@ def create_app(
             await database.dispose()
 
     application = FastAPI(title="MUSK Agent", version="0.1.0", lifespan=lifespan)
+
+    @application.exception_handler(Exception)
+    async def log_unhandled_error(request: Request, error: Exception) -> JSONResponse:
+        """Surface the traceback in the platform logs instead of an empty 500 line."""
+        logger.error(
+            "unhandled_error",
+            path=request.url.path,
+            method=request.method,
+            error_type=type(error).__name__,
+            exc_info=error,
+        )
+        return JSONResponse({"detail": "internal_error"}, status_code=500)
+
     if basic_auth is not None:
         username, password = basic_auth
         application.add_middleware(BasicAuthMiddleware, username=username, password=password)

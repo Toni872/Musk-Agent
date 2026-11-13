@@ -8,13 +8,23 @@ messages. The store is SQLite for local runs and swaps to Postgres by changing
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+import structlog
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = structlog.get_logger(__name__)
+
+# A serverless database can be suspended when idle; the first connection after a
+# wake-up may fail. Retrying absorbs that transient error without masking a real
+# outage (the last attempt still raises).
+INIT_ATTEMPTS = 3
+INIT_RETRY_SECONDS = 0.5
 
 
 class Conversation(SQLModel, table=True):
@@ -73,17 +83,35 @@ def normalize_database_url(url: str) -> tuple[str, dict[str, Any]]:
     }
     query["prepared_statement_cache_size"] = "0"
     normalized = parsed.set(query=query).render_as_string(hide_password=False)
-    return normalized, {"ssl": True, "statement_cache_size": 0}
+    return normalized, {"ssl": True, "statement_cache_size": 0, "timeout": 10}
 
 
 class Database:
     def __init__(self, url: str) -> None:
         normalized, connect_args = normalize_database_url(url)
-        self._engine = create_async_engine(normalized, echo=False, connect_args=connect_args)
+        self._engine = create_async_engine(
+            normalized,
+            echo=False,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+        )
 
     async def init(self) -> None:
-        async with self._engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
+        for attempt in range(1, INIT_ATTEMPTS + 1):
+            try:
+                async with self._engine.begin() as conn:
+                    await conn.run_sync(SQLModel.metadata.create_all)
+                return
+            except Exception as error:
+                if attempt == INIT_ATTEMPTS:
+                    raise
+                logger.warning(
+                    "database_init_retry",
+                    attempt=attempt,
+                    attempts=INIT_ATTEMPTS,
+                    error=type(error).__name__,
+                )
+                await asyncio.sleep(INIT_RETRY_SECONDS * attempt)
 
     async def dispose(self) -> None:
         await self._engine.dispose()
