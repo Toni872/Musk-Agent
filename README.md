@@ -124,6 +124,17 @@ docker compose up -d --build
 
 La app exige HTTP Basic en todas las rutas salvo `/health`, así que el mismo par de credenciales protege también un `uv run uvicorn` directo; si dejas esas dos variables vacías, la autenticación se desactiva (solo para simulación local). Caddy reenvía la IP real del cliente y la app confía en `X-Forwarded-For` solo desde redes privadas de Docker (`FORWARDED_ALLOW_IPS`), de modo que el límite por IP del chat sigue siendo por cliente y no un cupo compartido. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
 
+## Despliegue (Vercel)
+
+`index.py` expone la app ASGI y `vercel.json` fija el preset FastAPI y anula el build de Node heredado. Vercel no tiene disco escribible ni memoria compartida entre invocaciones, así que **exige Postgres** (`DATABASE_URL=postgresql+asyncpg://…`, Neon vale) y el estado de cada sesión se serializa en la tabla `agent_session` después de cada turno; cualquier instancia lo rehidrata. Sin `DATABASE_URL`, la app usa SQLite local y falla en Vercel.
+
+Variables mínimas en el proyecto de Vercel: `DATABASE_URL`, `MUSK_LLM_BASE_URL`, `MUSK_LLM_API_KEY`, `MUSK_LLM_MODEL`. Opcional: `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` para proteger la demo pública. `/health` queda sin autenticación.
+
+```bash
+vercel env add DATABASE_URL production
+vercel --prod
+```
+
 ## Verificación
 
 - [ ] `uv run ruff check .` sin hallazgos.

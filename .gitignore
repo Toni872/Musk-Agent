@@ -41,3 +41,4 @@ coverage/
 
 # Agent skill registry: the generated index is versioned, its cache is not
 .atl/.skill-registry.cache.json
+.vercel

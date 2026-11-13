@@ -100,8 +100,9 @@ gestor de paquetes. Si una tarea parece exigir otro stack, para y pregunta.
   pytest con pytest-asyncio y pytest-cov sobre `tests/`.
 - **Frontend:** estático servido por la app (`app/static/`). Sin bundler ni
   framework de UI.
-- **Despliegue:** imagen Docker (`Dockerfile`, host 4173 → contenedor 8000) o
-  `docker compose up` con Caddy delante. Sin vía alternativa.
+- **Despliegue:** imagen Docker (`Dockerfile`, host 4173 → contenedor 8000),
+  `docker compose up` con Caddy delante, o Vercel (`index.py` + `vercel.json`,
+  preset FastAPI, Postgres obligatorio porque no hay disco ni memoria compartida).
 - **Integraciones:** ninguna real todavía (sin WhatsApp, sin CRM, sin proveedor de
   agenda). El LLM es opcional; sin él, el motor cae a modo determinista.
 
@@ -239,9 +240,10 @@ mostrar con su salida real.
   conversación con RAG; sin él, el agente cae al modo determinista con los pasajes
   aprobados.
 - El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
-  `8000`) o `docker compose up` con Caddy delante (TLS automático) y HTTP Basic
-  opcional por variables de entorno; no despliega solo. No hay vía de despliegue
-  alternativa.
+  `8000`), `docker compose up` con Caddy delante (TLS automático) y HTTP Basic
+  opcional, o **Vercel** (`index.py`, preset FastAPI) con Postgres en
+  `DATABASE_URL`: el estado de sesión se guarda en `agent_session` porque las
+  instancias no comparten memoria. Ninguna vía despliega sola.
 
 ## Mapa de documentación
 
