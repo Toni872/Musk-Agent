@@ -416,6 +416,34 @@ async def test_answers_the_catalogue_when_the_reply_is_rejected_by_the_guard() -
     assert agent.doubts == []
 
 
+async def test_answers_the_catalogue_when_a_rejected_reply_follows_an_info_request() -> None:
+    """A model that drops a percentage must not turn a course question into a doubt."""
+    agent = MuskAgent(
+        content=APPROVED_CONTENT,
+        provider=MockProvider("El 100% de nuestros alumnos encuentra trabajo."),
+        lead=LEAD,
+    )
+    result = await agent.run_turn("Bien, dame información de los cursos")
+
+    assert "Python" in result.reply
+    assert "Full Stack" in result.reply
+    assert len(result.rule_violations) > 0
+    assert agent.doubts == []
+
+
+async def test_answers_the_catalogue_when_asked_about_the_training_informally() -> None:
+    agent = MuskAgent(
+        content=APPROVED_CONTENT,
+        provider=MockProvider("Tenemos un 90% de práctica."),
+        lead=LEAD,
+    )
+    result = await agent.run_turn("háblame de la formación")
+
+    assert "Python" in result.reply
+    assert len(result.rule_violations) > 0
+    assert agent.doubts == []
+
+
 async def test_never_uses_the_catalogue_for_a_price_question() -> None:
     agent = MuskAgent(
         content=APPROVED_CONTENT, provider=MockProvider("Son 500 euros al mes."), lead=LEAD

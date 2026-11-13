@@ -602,6 +602,16 @@ class MuskAgent:
                 r"\b(cursos?|formacion(?:es)?|programas?)\b.*\b(ofreceis|teneis|tienen|impartis|da|hay)\b",
                 folded,
             )
+            or re.search(
+                r"\b(informacion|info|detalles?|dame|hablame|contadme|cuentame|"
+                r"quiero saber|me interesa|me interesaria|mas sobre)\b.*"
+                r"\b(cursos?|formacion(?:es)?|programas?|oferta)\b",
+                folded,
+            )
+            or re.search(
+                r"\b(cursos?|formacion(?:es)?|programas?)\b.*\b(informacion|info|detalles?)\b",
+                folded,
+            )
         )
 
     def _looks_like_question(self, message: str) -> bool:
