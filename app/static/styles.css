@@ -508,28 +508,6 @@ body[data-stopped='true'] .dot {
   font-weight: 500;
 }
 
-.msg--diagnostic {
-  max-width: 100%;
-  gap: 3px;
-  padding-left: 12px;
-  border-left: 2px solid rgba(168, 203, 0, 0.35);
-}
-
-.msg--diagnostic .msg-role {
-  color: var(--musk-lime);
-  opacity: 0.75;
-}
-
-.msg--diagnostic .msg-body {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #8f8f8b;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .msg--info .msg-body {
   padding: 12px 16px;
   border-left: 3px solid var(--musk-magenta);

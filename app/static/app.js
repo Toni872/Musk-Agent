@@ -5,12 +5,12 @@
 // Ported from the original TypeScript frontend (ui/main.ts + ui/chat.ts) to a
 // plain ES module that talks to the server-side Python agent:
 //   POST /sessions          -> initial state (opening, banner, pending decisions)
-//   POST /chat              -> one turn (reply + diagnostics + handoff)
+//   POST /chat              -> one turn (reply + handoff status)
 //   GET  /sessions/{id}/state -> full state for the side panel (records, doubts)
 //   POST /report.pdf        -> operator report as PDF
 // All conversation logic lives server-side; this file only renders and forwards.
 
-const ROLE_LABELS = { agent: "Agente", lead: "Lead", diagnostic: "Operador", info: "Aviso" };
+const ROLE_LABELS = { agent: "Agente", lead: "Lead", info: "Aviso" };
 
 const OPENING_PLACEHOLDER =
   "(none: decision still open with MUSK — a TODO placeholder is never sent)";
@@ -189,29 +189,7 @@ function applyServerState(data) {
 
 // ------------------------------------------------------------ turn formatting
 
-function formatDiagnostic(diagnostic) {
-  return (
-    `intent = ${diagnostic.intent} | action = ${diagnostic.action}` +
-    ` | suppressed = ${diagnostic.suppressed}` +
-    ` | registered doubts = ${diagnostic.registeredDoubts}`
-  );
-}
-
-function formatHandoff(handoff) {
-  const recipient = handoff.recipient ? ` destinataria=${handoff.recipient}` : "";
-  const bucket = handoff.bucket === "ilocalizable" ? "ilocalizables" : "no compradores";
-  return (
-    `aviso simulado = reason=${handoff.reason} lead=${handoff.lead_id}` +
-    ` contact=${handoff.contact} bucket=${bucket}${recipient}`
-  );
-}
-
-function formatHandoffSummary(handoff, updated = false) {
-  return `resumen para el comercial${updated ? " (actualizado)" : ""} = ${handoff.summary}`;
-}
-
 function pushTurn(result) {
-  const ruleViolations = result.rule_violations || [];
   if (result.reply !== "") {
     state.messages.push({ role: "agent", text: result.reply });
   } else if (result.suppressed) {
@@ -219,33 +197,6 @@ function pushTurn(result) {
       role: "agent",
       text: result.action === "stop" ? STOPPED_REPLY_PLACEHOLDER : HANDOFF_REPLY_PLACEHOLDER,
     });
-  }
-  state.messages.push({
-    role: "diagnostic",
-    text: formatDiagnostic({
-      intent: result.intent,
-      action: result.action,
-      suppressed: result.suppressed,
-      registeredDoubts: (result.registered_doubts || []).length,
-    }),
-  });
-  if (result.handoff) {
-    if (result.action === "handoff") {
-      state.messages.push({ role: "diagnostic", text: formatHandoff(result.handoff) });
-      state.messages.push({ role: "diagnostic", text: formatHandoffSummary(result.handoff) });
-    } else {
-      state.messages.push({ role: "diagnostic", text: formatHandoffSummary(result.handoff, true) });
-    }
-  }
-  if (ruleViolations.length > 0) {
-    state.messages.push({ role: "diagnostic", text: `guard = violations: ${ruleViolations.join(", ")}` });
-  }
-}
-
-function pushKbProvenance(recordsBefore) {
-  const records = state.records.slice(recordsBefore).filter((record) => record.kind === "kb");
-  for (const record of records) {
-    state.messages.push({ role: "diagnostic", text: record.detail });
   }
 }
 
@@ -355,15 +306,13 @@ async function handleSend(text) {
   applyBusy();
   try {
     state.messages.push({ role: "lead", text });
-    const recordsBefore = state.records.length;
     const result = await runTurn(state.sessionId, text);
     const fresh = await fetchState(state.sessionId);
     applyServerState(fresh);
     pushTurn(result);
-    pushKbProvenance(recordsBefore);
     render();
   } catch (error) {
-    state.messages.push({ role: "diagnostic", text: `error = ${error.message}` });
+    state.messages.push({ role: "info", text: `error = ${error.message}` });
     render();
   } finally {
     busy = false;
