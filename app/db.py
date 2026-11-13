@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,13 +50,36 @@ class AgentSession(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+def normalize_database_url(url: str) -> tuple[str, dict[str, Any]]:
+    """Map a hosted Postgres URL to the asyncpg dialect.
+
+    Neon (and Heroku) hand out ``postgresql://…?sslmode=require``, which SQLAlchemy
+    would route to psycopg2. asyncpg does not understand ``sslmode`` or
+    ``channel_binding``, so those are dropped and SSL is enabled explicitly. Neon's
+    ``-pooler`` host runs PgBouncer in transaction mode, which forbids cached
+    prepared statements, so both caches are disabled.
+    """
+    if url.startswith("postgres://"):
+        url = "postgresql+asyncpg://" + url[len("postgres://") :]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://") :]
+    if not url.startswith("postgresql+asyncpg://"):
+        return url, {}
+    parsed = make_url(url)
+    query = {
+        key: value
+        for key, value in parsed.query.items()
+        if key not in {"sslmode", "channel_binding", "ssl", "prepared_statement_cache_size"}
+    }
+    query["prepared_statement_cache_size"] = "0"
+    normalized = parsed.set(query=query).render_as_string(hide_password=False)
+    return normalized, {"ssl": True, "statement_cache_size": 0}
+
+
 class Database:
     def __init__(self, url: str) -> None:
-        connect_args: dict[str, Any] = {}
-        if url.startswith("postgresql+asyncpg"):
-            # Neon/PgBouncer transaction pooling forbids cached prepared statements.
-            connect_args["statement_cache_size"] = 0
-        self._engine = create_async_engine(url, echo=False, connect_args=connect_args)
+        normalized, connect_args = normalize_database_url(url)
+        self._engine = create_async_engine(normalized, echo=False, connect_args=connect_args)
 
     async def init(self) -> None:
         async with self._engine.begin() as conn:

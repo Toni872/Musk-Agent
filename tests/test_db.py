@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.db import Conversation, ConversationRepository, Database, Message
+from app.db import Conversation, ConversationRepository, Database, Message, normalize_database_url
 
 
 async def _make_db(path) -> Database:
@@ -82,3 +82,19 @@ async def test_save_conversation_updates_in_place(tmp_path) -> None:
             assert conversation.handoff_reason == "call_accepted"
     finally:
         await database.dispose()
+
+
+def test_normalize_database_url_maps_neon_to_asyncpg() -> None:
+    url, connect_args = normalize_database_url(
+        "postgresql://user:secret@ep-x-pooler.eu.neon.tech/neondb?sslmode=require"
+    )
+    assert url.startswith("postgresql+asyncpg://user:secret@ep-x-pooler.eu.neon.tech/neondb")
+    assert "sslmode" not in url
+    assert "prepared_statement_cache_size=0" in url
+    assert connect_args == {"ssl": True, "statement_cache_size": 0}
+
+
+def test_normalize_database_url_leaves_sqlite_untouched() -> None:
+    url, connect_args = normalize_database_url("sqlite+aiosqlite:///./musk.db")
+    assert url == "sqlite+aiosqlite:///./musk.db"
+    assert connect_args == {}
