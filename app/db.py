@@ -9,8 +9,9 @@ messages. The store is SQLite for local runs and swaps to Postgres by changing
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 import structlog
 from sqlalchemy.engine import make_url
@@ -19,6 +20,8 @@ from sqlmodel import Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 logger = structlog.get_logger(__name__)
+
+T = TypeVar("T")
 
 # A serverless database can be suspended when idle; the first connection after a
 # wake-up may fail. Retrying absorbs that transient error without masking a real
@@ -97,39 +100,55 @@ class Database:
         )
 
     async def init(self) -> None:
-        for attempt in range(1, INIT_ATTEMPTS + 1):
-            try:
-                async with self._engine.begin() as conn:
-                    await conn.run_sync(SQLModel.metadata.create_all)
-                return
-            except Exception as error:
-                if attempt == INIT_ATTEMPTS:
-                    raise
-                logger.warning(
-                    "database_init_retry",
-                    attempt=attempt,
-                    attempts=INIT_ATTEMPTS,
-                    error=type(error).__name__,
-                )
-                await asyncio.sleep(INIT_RETRY_SECONDS * attempt)
+        async def create_all() -> None:
+            async with self._engine.begin() as conn:
+                await conn.run_sync(SQLModel.metadata.create_all)
+
+        await self._retry("database_init_retry", create_all)
 
     async def dispose(self) -> None:
         await self._engine.dispose()
 
     async def load_session_state(self, session_id: str) -> str | None:
-        async with self.session() as session:
-            row = await session.get(AgentSession, session_id)
-            return row.state if row is not None else None
+        async def load() -> str | None:
+            async with self.session() as session:
+                row = await session.get(AgentSession, session_id)
+                return row.state if row is not None else None
+
+        return await self._retry("database_load_retry", load)
 
     async def save_session_state(self, session_id: str, state: str) -> None:
-        async with self.session() as session:
-            row = await session.get(AgentSession, session_id)
-            if row is None:
-                session.add(AgentSession(session_id=session_id, state=state))
-            else:
-                row.state = state
-                row.updated_at = datetime.now(UTC)
-            await session.commit()
+        async def save() -> None:
+            async with self.session() as session:
+                row = await session.get(AgentSession, session_id)
+                if row is None:
+                    session.add(AgentSession(session_id=session_id, state=state))
+                else:
+                    row.state = state
+                    row.updated_at = datetime.now(UTC)
+                await session.commit()
+
+        await self._retry("database_save_retry", save)
+
+    async def _retry(self, event: str, operation: Callable[[], Awaitable[T]]) -> T:
+        last_error: Exception | None = None
+        for attempt in range(1, INIT_ATTEMPTS + 1):
+            try:
+                return await operation()
+            except Exception as error:
+                last_error = error
+                if attempt == INIT_ATTEMPTS:
+                    break
+                logger.warning(
+                    event,
+                    attempt=attempt,
+                    attempts=INIT_ATTEMPTS,
+                    error=type(error).__name__,
+                )
+                await asyncio.sleep(INIT_RETRY_SECONDS * attempt)
+        if last_error is None:
+            raise RuntimeError(event)
+        raise last_error
 
     def session(self) -> AsyncSession:
         return AsyncSession(self._engine)
