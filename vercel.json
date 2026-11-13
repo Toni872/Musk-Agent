@@ -1,11 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "fastapi",
-  "buildCommand": "echo 'no build step for the Python app'",
-  "functions": {
-    "index.py": {
-      "includeFiles": "app/static/**",
-      "maxDuration": 30
-    }
-  }
+  "buildCommand": "echo 'no build step for the Python app'"
 }
