@@ -309,13 +309,13 @@ async def test_deterministic_never_echoes_a_weakly_matched_passage() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_appends_the_call_invitation_after_a_plain_statement() -> None:
+async def test_keeps_the_conversation_alive_without_pushing_the_call() -> None:
     provider = MockProvider("Python se usa mucho en análisis de datos.")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     result = await agent.run_turn("¿qué se aprende en python?")
 
     assert "Python se usa mucho" in result.reply
-    assert re.search(r"llamada", result.reply)
+    assert "llamada" not in result.reply
     assert result.reply.count("?") == 1
     assert result.reply.rstrip().endswith("?")
 
@@ -343,8 +343,8 @@ async def test_rotates_the_call_phrasing_across_consecutive_questions() -> None:
     agent = MuskAgent(
         content=APPROVED_CONTENT, provider=MockProvider("Te lo cuento con calma."), lead=LEAD
     )
-    first = await agent.run_turn("¿qué es Escuela Musk?")
-    second = await agent.run_turn("¿cómo es la metodología?")
+    first = await agent.run_turn("¿cómo se financia?")
+    second = await agent.run_turn("¿me dan certificado de la UE?")
 
     assert first.reply != second.reply
     assert re.search(r"llamada", first.reply)
@@ -357,8 +357,8 @@ async def test_never_invents_an_address_for_an_off_topic_question() -> None:
     result = await agent.run_turn("¿en qué calle estáis?")
 
     assert not re.search(r"calle\s+[a-záéíóú]", result.reply, re.IGNORECASE)
-    assert re.search(r"llamada", result.reply)
-    assert result.reply.rstrip().endswith("?")
+    assert "teléfono" in result.reply
+    assert result.reply.count("?") <= 1
 
 
 async def test_does_not_force_the_call_on_a_plain_statement_from_the_lead() -> None:
@@ -369,12 +369,57 @@ async def test_does_not_force_the_call_on_a_plain_statement_from_the_lead() -> N
     assert result.reply == reply
 
 
-async def test_prompt_carries_the_after_every_question_rule() -> None:
+async def test_prompt_carries_the_contextual_call_rule() -> None:
     provider = MockProvider("Claro.")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     await agent.run_turn("¿qué tal?")
 
-    assert re.search(r"Después de CADA pregunta", provider.calls[0].system, re.IGNORECASE)
+    assert re.search(r"no fuerces la llamada", provider.calls[0].system, re.IGNORECASE)
+
+
+# ---------------------------------------------------------------------------
+# Call policy: propose it when there is interest, not on every message
+# ---------------------------------------------------------------------------
+
+
+async def test_holds_the_call_until_there_is_real_interest() -> None:
+    provider = MockProvider("Python se usa mucho en análisis de datos.")
+    agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
+
+    first = await agent.run_turn("¿qué se aprende en python?")
+    second = await agent.run_turn("¿y en front end?")
+
+    assert "llamada" not in first.reply
+    assert first.reply.count("?") == 1
+    assert re.search(r"llamada", second.reply)
+
+
+async def test_proposes_the_call_as_soon_as_the_lead_asks_about_financing() -> None:
+    provider = MockProvider("Sí, hay opciones de financiación y dos años flexibles.")
+    agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
+    result = await agent.run_turn("¿cómo se financia?")
+
+    assert re.search(r"llamada", result.reply)
+    assert result.reply.count("?") == 1
+
+
+async def test_blocks_a_percentage_of_interest_end_to_end() -> None:
+    for reply in ("Un 5% de interés.", "El interés es del 5%."):
+        agent = MuskAgent(content=APPROVED_CONTENT, provider=MockProvider(reply), lead=LEAD)
+        result = await agent.run_turn("¿cómo se financia?")
+
+        assert "5%" not in result.reply, result.reply
+        assert "interés" not in result.reply.lower(), result.reply
+        assert len(result.rule_violations) > 0
+
+
+async def test_does_not_repeat_the_call_when_the_interest_is_already_answered() -> None:
+    reply = "Sí, hay opciones de financiación y dos años flexibles. ¿Te va bien que te llamemos?"
+    agent = MuskAgent(content=APPROVED_CONTENT, provider=MockProvider(reply), lead=LEAD)
+    result = await agent.run_turn("¿cómo se financia?")
+
+    assert result.reply == reply
+    assert result.reply.count("?") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -431,7 +476,7 @@ async def test_answers_the_catalogue_when_a_rejected_reply_follows_an_info_reque
     assert agent.doubts == []
 
 
-async def test_answers_the_catalogue_when_asked_about_the_training_informally() -> None:
+async def test_allows_a_harmless_percentage_instead_of_dropping_the_reply() -> None:
     agent = MuskAgent(
         content=APPROVED_CONTENT,
         provider=MockProvider("Tenemos un 90% de práctica."),
@@ -439,8 +484,8 @@ async def test_answers_the_catalogue_when_asked_about_the_training_informally() 
     )
     result = await agent.run_turn("háblame de la formación")
 
-    assert "Python" in result.reply
-    assert len(result.rule_violations) > 0
+    assert result.reply.startswith("Tenemos un 90% de práctica.")
+    assert result.rule_violations == ()
     assert agent.doubts == []
 
 

@@ -118,21 +118,27 @@ no vale con lo que ya hay.
   suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
   catálogo cerrado, la descripción y la metodología aprobadas y las respuestas de
   la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
-  y termina con una sola pregunta, **orientada siempre a agendar la llamada**:
-  conversa y aclara dudas, pero cada mensaje lleva al lead a hablar con una
-  persona (directiva de Miguel —socio de Script9, no el cliente— del 30/10/2026).
-  La regla es explícita: **tras cada pregunta del lead**, el agente responde y
-  recomienda una llamada para darle más y mejor información; si la pregunta es
-  trivial (calle, horario, redes), contesta en una frase solo con información
-  aprobada y reconduce al curso y a la llamada. Un respaldo determinista colapsa
-  cualquier respuesta con dos o más preguntas a una sola pregunta de llamada, y
-  añade la invitación a la llamada cuando el modelo respondió con una afirmación
-  o con una pregunta de interés, rotando la formulación para no repetirse. Si el
+  y termina con **una sola pregunta**. La invitación a la llamada ya no va en
+  cada mensaje: se propone cuando el lead muestra interés real en avanzar
+  (precio, financiación, fechas, certificación, cómo apuntarse o una pregunta de
+  catálogo) o cuando pasan un par de turnos sin ofrecerla; en el resto de
+  mensajes el cierre es una pregunta de seguimiento corta y natural, sin empujar
+  la llamada (ajuste sobre la directiva de Miguel —socio de Script9, no el
+  cliente— del 30/10/2026: el agente conversa y lleva a la llamada, pero sin
+  repetirla cada turno). La cadencia vive en código como constante con nombre
+  (`_CALL_CADENCE_TURNS`). Un respaldo determinista colapsa cualquier respuesta
+  con dos o más preguntas a una sola (de llamada o de seguimiento, según el
+  interés), añade una pregunta de seguimiento cuando el modelo respondió con una
+  afirmación, y rotan tanto las formulaciones de llamada como las de seguimiento
+  para no repetirse. Si el
   proveedor falla o el guard rechaza la salida y el lead pregunta **qué ofrece la
   escuela**, se responde con el catálogo cerrado aprobado en lugar de escalar a
   la plantilla de duda (una pregunta de catálogo tiene respuesta cerrada).
 - **Guard de salida (`app/rules.py`).** `guard_reply` descarta cualquier respuesta
-  con importes, promesas de empleo, promociones o temario no aprobado. Distingue
+  con importes, promesas de empleo, promociones o temario no aprobado. Los
+  porcentajes se admiten solo como calificadores inocuos dentro de la misma frase
+  («100% online», «90% práctica»); cualquier porcentaje ligado a dinero,
+  financiación o empleo se descarta. Distingue
   una negación honesta («no garantizamos empleo») de una promesa: el patrón
   `garantiz*` se revisa mirando la negación inmediatamente anterior (sin
   lookbehind, que rompería Safari antiguo). Parada, petición de humano, teléfono

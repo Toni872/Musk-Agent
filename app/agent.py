@@ -126,16 +126,38 @@ _GENERIC_BRIDGE = (
     "explique una persona en una llamada para que te quede todo claro?"
 )
 
-# Miguel's directive (30/10/2026): after EVERY lead question the agent answers
-# and then recommends a call. These phrasings rotate so the deterministic
-# backstop does not repeat the same sentence verbatim turn after turn.
+# Business directive (Miguel, 30/10/2026): the agent converses and, when there is
+# real interest, drives the lead to a call with the team. It must NOT push the
+# call on every single message: repeating the same invitation made the agent
+# sound like a script. The deterministic backstop only closes with a call when
+# the lead shows intent, when a few turns have gone by without one, or when the
+# lead asks for the catalogue; otherwise it closes with a neutral follow-up
+# question so the conversation keeps moving.
 _CALL_QUESTIONS = (
     "¿Quieres que te lo explique una persona en una llamada?",
     "¿Te gustaría que te llamemos y te lo cuenten con calma en una llamada?",
     "¿Te va bien una llamada para que te lo expliquen todo?",
     "¿Te paso con el equipo para que te lo expliquen en una llamada?",
+    "¿Prefieres que te llame alguien del equipo y te lo cuente con detalle?",
+    "¿Te viene bien que te contacten y lo hablamos por teléfono?",
+)
+_FOLLOW_UP_QUESTIONS = (
+    "¿Hay algo más que quieras saber?",
+    "¿Te cuento algo más sobre la formación?",
+    "¿Qué más te gustaría saber?",
+    "¿Te resuelvo alguna otra duda?",
 )
 _CALL_QUESTION = _CALL_QUESTIONS[0]
+
+# Interest that justifies a call: money, calendar, certification, enrolment.
+_CALL_INTENT = re.compile(
+    r"\b(?:precios?|cuanto (?:cuesta|cuestan|cobra|vale)|costes?|pagos?|financi\w*|"
+    r"cuotas?|becas?|descuentos?|matricula\w*|fechas?|inicio|empieza\w*|comienzo|"
+    r"duracion|dura|horarios?|certificad\w*|titulos?|diplomas?|apunt\w*|inscrib\w*|"
+    r"plazas?|reservar|me interes(?:a|aria)|quiero (?:hacer|estudiar|apuntarme|empezar))\b"
+)
+# Turns without a call invitation before the backstop offers one anyway.
+_CALL_CADENCE_TURNS = 2
 
 # The list of programmes is closed and approved, so it can be given without the
 # model. It is the answer used when the provider fails or its output is rejected
@@ -228,6 +250,7 @@ class MuskAgent:
         self._call_proposed_last_turn = False
         self._call_proposal_count = 0
         self._call_question_index = 0
+        self._turns_since_call = 0
         self._metrics = Metrics()
 
     def export_state(self) -> dict[str, Any]:
@@ -245,6 +268,7 @@ class MuskAgent:
             "call_proposed_last_turn": self._call_proposed_last_turn,
             "call_proposal_count": self._call_proposal_count,
             "call_question_index": self._call_question_index,
+            "turns_since_call": self._turns_since_call,
             "metrics": asdict(self._metrics),
         }
 
@@ -284,6 +308,7 @@ class MuskAgent:
         self._call_proposed_last_turn = bool(state.get("call_proposed_last_turn", False))
         self._call_proposal_count = int(state.get("call_proposal_count", 0))
         self._call_question_index = int(state.get("call_question_index", 0))
+        self._turns_since_call = int(state.get("turns_since_call", 0))
         metrics = state.get("metrics")
         self._metrics = Metrics(**metrics) if isinstance(metrics, dict) else Metrics()
 
@@ -337,6 +362,7 @@ class MuskAgent:
         self._call_proposed_last_turn = False
         self._call_proposal_count = 0
         self._call_question_index = 0
+        self._turns_since_call = 0
         self._metrics = Metrics()
 
     def opening(self) -> str | None:
@@ -451,6 +477,7 @@ class MuskAgent:
         )
 
     async def _converse(self, message: str) -> TurnResult:
+        self._turns_since_call += 1
         ranked = retrieve_top_k(self._content.kb or (), message, _RAG_TOP_K)
         context = self._with_overview(ranked)
         if context:
@@ -483,24 +510,33 @@ class MuskAgent:
             self._push("grounding", "conversation", "empty reply: used fallback")
             return self._deterministic_reply(message)
 
-        # Miguel's directive: never chain questions.
+        # Never chain questions: one answer, one question.
+        wants_call = self._looks_like_question(message) and self._should_propose_call(message)
         if self._has_chained_questions(raw):
             self._push(
                 "grounding",
                 "conversation",
                 f'chained questions collapsed: "{_truncate(raw)}"',
             )
-            raw = self._collapse_to_call_question(raw)
+            closing = self._next_call_question() if wants_call else self._next_follow_up()
+            raw = self._collapse_to_question(raw, closing)
 
-        # Miguel's directive: after EVERY lead question the reply recommends the
-        # call; this is the deterministic backstop.
-        if self._looks_like_question(message) and not self._proposes_call(raw):
+        # Contextual call policy: the call is offered when there is interest,
+        # not on every single message.
+        if wants_call and not self._proposes_call(raw):
             self._push(
                 "grounding",
                 "conversation",
                 f'call invitation added after a question: "{_truncate(raw)}"',
             )
-            raw = self._collapse_to_call_question(raw)
+            raw = self._collapse_to_question(raw, self._next_call_question())
+        elif self._looks_like_question(message) and "?" not in raw:
+            self._push(
+                "grounding",
+                "conversation",
+                f'follow-up question added: "{_truncate(raw)}"',
+            )
+            raw = self._collapse_to_question(raw, self._next_follow_up())
 
         guard = guard_reply(raw)
         if not guard.ok:
@@ -539,7 +575,15 @@ class MuskAgent:
     def _deterministic_reply(self, message: str) -> TurnResult:
         match = retrieve(self._content.kb or (), message).match
         best = match.passage.answer if match is not None else None
-        reply = f"{best} {self._next_call_question()}" if best else self._fallback_reply(message)
+        if best is None:
+            reply = self._fallback_reply(message)
+        else:
+            closing = (
+                self._next_call_question()
+                if self._should_propose_call(message)
+                else self._next_follow_up()
+            )
+            reply = f"{best} {closing}"
         self._history.append(("assistant", reply))
         self._push("reply", "conversation", reply)
         return TurnResult(
@@ -648,6 +692,7 @@ class MuskAgent:
             self._doubt_messages.append(message)
             self._metrics.doubts_registered += 1
         self._push("doubt", "conversation", f'registered: "{message}"')
+        self._turns_since_call = 0
         return build_reply("doubt")
 
     def _clean_reply(self, raw: str) -> str:
@@ -675,15 +720,27 @@ class MuskAgent:
     def _next_call_question(self) -> str:
         question = _CALL_QUESTIONS[self._call_question_index % len(_CALL_QUESTIONS)]
         self._call_question_index += 1
+        self._turns_since_call = 0
         return question
 
-    def _collapse_to_call_question(self, text: str) -> str:
+    def _next_follow_up(self) -> str:
+        question = _FOLLOW_UP_QUESTIONS[self._call_question_index % len(_FOLLOW_UP_QUESTIONS)]
+        self._call_question_index += 1
+        return question
+
+    def _should_propose_call(self, message: str) -> bool:
+        if self._is_catalogue_question(message):
+            return True
+        if _CALL_INTENT.search(normalize_es(message)):
+            return True
+        return self._turns_since_call >= _CALL_CADENCE_TURNS
+
+    def _collapse_to_question(self, text: str, question: str) -> str:
         idx = text.find("¿")
         if idx < 0:
             idx = text.find("?")
         answer = text[:idx] if idx >= 0 else text
         answer = re.sub(r"[,;:.\s]+$", "", answer).strip()
-        question = self._next_call_question()
         return f"{answer}. {question}" if answer else question
 
     def _proposes_call(self, reply: str) -> bool:
@@ -713,20 +770,20 @@ class MuskAgent:
             [
                 "Eres el asistente de WhatsApp de Escuela Musk, una escuela online de programación, videojuegos e inteligencia artificial. Hablas en español de España, con tuteo, de forma cercana, cálida y profesional, como una persona que escucha de verdad.",
                 "",
-                "Tu objetivo es ayudar a la persona a decidir con calma y, sobre todo, llevarla a una llamada con el equipo: ahí es donde le explican el detalle (precio, financiación, calendario) que tú no puedes dar. Conversa y aclara sus dudas, pero en cada mensaje hazle entender que lo mejor para ella es hablar con una persona por teléfono. Nunca vendas ni presiones.",
+                "Tu objetivo es ayudar a la persona a decidir con calma y, cuando haya interés real, acercarla a una llamada con el equipo: ahí es donde le explican el detalle (precio, financiación, calendario) que tú no puedes dar. Nunca vendas ni presiones.",
                 "",
                 "CÓMO CONVERSAR (reglas de comportamiento, muy importantes):",
                 "0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa y en una o dos frases. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo; NO describas cada programa salvo que te pida uno concreto. La empatía va después, en una frase, no en lugar de la respuesta.",
                 "1. Sigue el hilo. Usa lo que la persona ya te ha contado: su situación, su tiempo, sus miedos, lo que busca. No repitas preguntas ya respondidas. No saltes de tema sin enlazar con lo anterior.",
                 "2. Empatiza, pero no en vez de responder. Valida lo que ha dicho con sus propias palabras y luego contesta a lo que preguntó.",
                 "3. Mensajes cortos, como de WhatsApp, en texto plano. Máximo dos o tres frases en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.",
-                "4. Después de CADA pregunta de la persona, responde primero con la información aprobada y enseguida recomiéndale una llamada para que le den más y mejor información. Termina SIEMPRE con UNA sola pregunta (un solo signo de interrogación, nunca dos) orientada a esa llamada: «¿te paso con el equipo?», «¿agendamos una llamada?», «¿te va bien que te contacten?». No encadenes dos preguntas y no repitas la misma formulación.",
-                "5. Lleva la conversación hacia la llamada en cada respuesta. Si la pregunta es trivial o no tiene que ver con el curso (la dirección, el horario de oficina, las redes), contéstala en una frase SOLO con información aprobada y reconduce al origen: recuérdale el curso que le interesa y ofrécele la llamada para contarle un poco más. Si ese dato no está aprobado, dilo con naturalidad y ofrece confirmarlo por teléfono; nunca inventes una dirección ni datos de contacto.",
+                "4. Cuando la persona muestre interés real en avanzar (pregunta por precio, financiación, fechas, duración, certificación o cómo apuntarse) o cuando lleve varios mensajes pidiendo información, recomiéndale una llamada con el equipo y termina con UNA sola pregunta (un solo signo de interrogación, nunca dos) orientada a esa llamada. Varía la formulación, no repitas la misma frase. En los demás mensajes contesta con naturalidad y no fuerces la llamada: si cierras con una pregunta, que sea corta y sobre lo que necesita.",
+                "5. Lleva la conversación hacia la llamada cuando encaje, sin repetirla en cada mensaje. Si la pregunta es trivial o no tiene que ver con el curso (la dirección, el horario de oficina, las redes), contéstala en una frase SOLO con información aprobada y reconduce al curso que le interesa; si el dato no está aprobado, dilo con naturalidad y ofrece confirmarlo por teléfono, sin inventar una dirección ni datos de contacto.",
                 "6. No mientas. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece confirmarlo con el equipo.",
                 "7. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.",
                 "",
                 "REGLAS DE SEGURIDAD (nunca las incumplas, bajo ninguna circunstancia):",
-                "- NUNCA des precios, importes, cifras de dinero, porcentajes, cuotas, intereses ni condiciones de pago. Ante una pregunta de precio o pago: dile que prefieres que se lo explique una persona, que SÍ hay opciones de financiación y dos años flexibles para completarla, y propón la llamada.",
+                "- NUNCA des precios, importes, cifras de dinero, cuotas, intereses ni condiciones de pago (tampoco porcentajes de interés o de financiación). Ante una pregunta de precio o pago: dile que prefieres que se lo explique una persona, que SÍ hay opciones de financiación y dos años flexibles para completarla, y propón la llamada.",
                 "- NUNCA prometas empleo, garantías, becas ni promociones que no estén en la información aprobada. Puedes decir con honestidad que no se garantiza un puesto de trabajo.",
                 "- NUNCA envíes el temario detallado (módulo a módulo). Sí puedes hablar del contenido general, las habilidades y las salidas.",
                 "- Si la persona pide parar, deja de insistir y despídete con respeto.",
@@ -755,7 +812,7 @@ class MuskAgent:
                 "Pasajes de la base de conocimiento relevantes a lo que acaba de preguntar:",
                 passages,
                 "",
-                "Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta orientada a agendar una llamada con el equipo. Hazlo con cualquier pregunta, también con las triviales: contéstala en una frase y reconduce al curso que le interesa y a la llamada.",
+                "Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta. Si la persona muestra interés en avanzar (precio, financiación, fechas, certificación, apuntarse), esa pregunta será para agendar una llamada con el equipo; si no, cierra con una pregunta breve y natural sobre lo que necesita, sin empujar la llamada. Si la pregunta es trivial (dirección, horario, redes), contéstala en una frase con información aprobada y reconduce al curso que le interesa.",
             ]
         )
 

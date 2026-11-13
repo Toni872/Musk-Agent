@@ -285,15 +285,18 @@ llamada». Hoy la respuesta es segura pero algo evasiva.
 Estas son las líneas rojas que ya están implementadas y probadas. Se respetan
 aunque el lead insista:
 
-1. No da precios, importes, porcentajes, cuotas, intereses ni condiciones de pago.
+1. No da precios, importes, cuotas, intereses ni porcentajes de financiación o
+   empleo (solo puede decir que la formación es, por ejemplo, 100% online o
+   práctica).
 2. No envía el temario detallado ni el dossier.
 3. No promete empleo, garantías, becas ni promociones no aprobadas.
 4. No inventa datos (dirección, horarios, condiciones): si no está aprobado, dice
    que se confirma con el equipo.
 5. No ofrece nada a los no compradores que no haya aprobado MUSK.
 6. Si el lead pide parar, para y lo registra.
-7. No encadena preguntas: cada mensaje termina con **una sola** pregunta, siempre
-   orientada a la llamada.
+7. No encadena preguntas: cada mensaje termina con **una sola** pregunta. La
+   invitación a la llamada llega cuando hay interés real (precio, financiación,
+   fechas, certificado, apuntarse), no en cada mensaje.
 
 ## 5. Qué necesitamos de ti
 

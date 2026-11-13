@@ -205,11 +205,28 @@ class _ForbiddenPattern:
     rule: int
 
 
+# Rule 1 and rule 4 protect money, conditions and promises, not the word
+# "percent": a lead may be told the training is "100% online". So a percentage
+# is denied by default and only allowed when its own sentence marks it as a
+# harmless qualifier. Anything about money, financing or jobs is a violation,
+# and a bare figure with no such qualifier is treated as an invented claim.
+_PERCENT = r"\b\d+(?:[.,]\d+)?\s*%"
+_PERCENT_RE = _rx(_PERCENT)
+_PERCENT_MONEY_CONTEXT = _rx(
+    r"\b(?:interes(?:es)?|financi\w*|cuotas?|pag[oa]\w*|abon\w*|aplaz\w*|descuent\w*|"
+    r"becas?|precios?|coste\w*|matricula\w*|eur|euros?)\b"
+)
+_PERCENT_JOB_CONTEXT = _rx(r"\b(?:emple\w*|trabaj\w*|contrat\w*|colocacion|insercion)\b")
+_PERCENT_HARMLESS_CONTEXT = _rx(
+    r"\b(?:online|en linea|practic\w*|flexible|a distancia|virtual)\b"
+)
+
 FORBIDDEN_OUTPUT_PATTERNS: tuple[_ForbiddenPattern, ...] = (
     _ForbiddenPattern("currency-symbol", _rx(r"€"), 1),
     _ForbiddenPattern("currency-word", _rx(r"\beuros?\b"), 1),
     _ForbiddenPattern("amount-with-currency", _rx(r"\b\d+(?:[.,]\d+)?\s*(?:€|eur)\b"), 1),
-    _ForbiddenPattern("percentage-condition", _rx(r"\b\d+(?:[.,]\d+)?\s*%"), 3),
+    # Handled in code, like the job promise: a bare percent is not enough.
+    _ForbiddenPattern("percentage-condition", _PERCENT_RE, 3),
     _ForbiddenPattern(
         "financing-condition",
         _rx(r"\b(sin intereses|interes cero|cuotas fijas|aplazado sin coste)\b"),
@@ -253,6 +270,30 @@ def _has_affirmative_guarantee(folded: str) -> bool:
     return False
 
 
+_SENTENCE_BREAK = _rx(r"[.!?\n;]")
+
+
+def _sentence_around(folded: str, start: int, end: int) -> str:
+    """Return the sentence that contains [start, end); no lookbehind needed."""
+    left = 0
+    for match in _SENTENCE_BREAK.finditer(folded, 0, start):
+        left = match.end()
+    right_match = _SENTENCE_BREAK.search(folded, end)
+    right = right_match.start() if right_match else len(folded)
+    return folded[left:right]
+
+
+def _has_unsafe_percentage(folded: str) -> bool:
+    """A percentage ships only when its own sentence marks it as harmless."""
+    for match in _PERCENT_RE.finditer(folded):
+        sentence = _sentence_around(folded, match.start(), match.end())
+        if _PERCENT_MONEY_CONTEXT.search(sentence) or _PERCENT_JOB_CONTEXT.search(sentence):
+            return True
+        if not _PERCENT_HARMLESS_CONTEXT.search(sentence):
+            return True
+    return False
+
+
 def guard_reply(reply: str) -> GuardResult:
     """Validate a reply before it reaches the lead; returns violations."""
     folded = _fold_for_guard(reply)
@@ -260,6 +301,10 @@ def guard_reply(reply: str) -> GuardResult:
     for entry in FORBIDDEN_OUTPUT_PATTERNS:
         if entry.id == "employment-promise":
             if _has_affirmative_guarantee(folded):
+                violations.append(GuardViolation(entry.id, entry.rule))
+            continue
+        if entry.id == "percentage-condition":
+            if _has_unsafe_percentage(folded):
                 violations.append(GuardViolation(entry.id, entry.rule))
             continue
         if entry.pattern.search(folded):

@@ -46,6 +46,33 @@ def test_guard_rejects_unapproved_promotions() -> None:
     assert guard_reply("Oferta especial de bienvenida.").ok is False
 
 
+def test_guard_allows_a_harmless_percentage() -> None:
+    # Rule 1 protects money and conditions, not the word "percent" itself.
+    assert guard_reply("La formación es 100% online.").ok is True
+    assert guard_reply("Tenemos un 90% de práctica.").ok is True
+    assert guard_reply("Un 80% de las plazas son prácticas.").ok is True
+    assert guard_reply("¿Te interesa? El 90% es práctico.").ok is True
+
+
+def test_guard_rejects_a_percentage_about_money_or_jobs() -> None:
+    for text in (
+        "Financiamos al 5% de interés.",
+        "Un 5% de interés.",
+        "El interés es del 5%.",
+        "La cuota baja un 10% este mes.",
+        "Pagas solo el 20% ahora.",
+        "El 100% de nuestros alumnos encuentra trabajo.",
+        "Tenemos un 98% de empleabilidad.",
+        "Es solo un 5%. Hablamos de la financiación cuando quieras.",
+        "Los intereses por la formación, por el temario, por las prácticas y por el "
+        "profesorado son del 5%.",
+        "Un 5% de los alumnos lo deja.",
+    ):
+        result = guard_reply(text)
+        assert result.ok is False, text
+        assert "percentage-condition" in [v.id for v in result.violations], text
+
+
 def test_guard_distinguishes_honest_denial_from_job_promise() -> None:
     # Direct port of the live-transcript regression.
     assert guard_reply("No garantizamos un puesto de trabajo al terminar.").ok is True
