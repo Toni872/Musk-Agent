@@ -43,7 +43,7 @@ def create_app(
     basic_auth: tuple[str, str] | None = None,
 ) -> FastAPI:
     configure_logging(get_settings().log_level)
-    store = SessionStore(provider=provider, content=APPROVED_CONTENT)
+    store = SessionStore(provider=provider, database=database, content=APPROVED_CONTENT)
     limiter = RateLimiter(max_calls=get_settings().max_calls_per_minute)
 
     @asynccontextmanager

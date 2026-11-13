@@ -204,3 +204,19 @@ def test_chat_persists_when_database_configured(tmp_path) -> None:
             assert [m.role for m in messages] == ["lead", "assistant"]
 
     asyncio.run(check())
+
+
+def test_session_state_survives_a_new_app_instance(tmp_path) -> None:
+    """Serverless: a new instance must rehydrate the conversation from the database."""
+    url = f"sqlite+aiosqlite:///{tmp_path.joinpath('sessions.db').as_posix()}"
+    with TestClient(create_app(provider=None, database=Database(url))) as first:
+        response = first.post(
+            "/chat", json={"session_id": "s8", "message": "¿cuánto cuesta?", "lead": _lead()}
+        )
+        assert response.status_code == 200
+
+    with TestClient(create_app(provider=None, database=Database(url))) as second:
+        body = second.get("/sessions/s8/state").json()
+
+    assert body["turn_count"] == 1
+    assert body["doubts"]

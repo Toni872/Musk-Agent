@@ -15,9 +15,9 @@ been proposed overall.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal, cast
 
 from app.content import APPROVED_CONTENT, ApprovedContent, is_pending_decision
 from app.llm import LLMChatMessage, LLMProvider, LLMRequest, LLMResult
@@ -158,6 +158,48 @@ def _truncate(text: str, max_length: int = 160) -> str:
     return text if len(text) <= max_length else f"{text[: max_length - 1]}…"
 
 
+def _handoff_from_state(data: dict[str, Any]) -> HandoffContext:
+    after_handoff = data.get("after_handoff")
+    return HandoffContext(
+        reason=cast(HandoffReason, data["reason"]),
+        lead_id=str(data["lead_id"]),
+        contact=str(data["contact"]),
+        bucket=cast(LeadBucket, data["bucket"]),
+        last_message=str(data["last_message"]),
+        summary=str(data["summary"]),
+        formation=str(data["formation"]),
+        doubts=tuple(str(item) for item in data.get("doubts") or ()),
+        recipient=str(data["recipient"]) if data.get("recipient") is not None else None,
+        loss_reason=(
+            str(data["loss_reason"]) if data.get("loss_reason") is not None else None
+        ),
+        after_handoff=(
+            tuple(str(item) for item in after_handoff)
+            if isinstance(after_handoff, list)
+            else None
+        ),
+    )
+
+
+def _record_from_state(data: dict[str, Any]) -> ConversationRecord:
+    kb = data.get("kb")
+    return ConversationRecord(
+        kind=cast(RecordKind, data["kind"]),
+        detail=str(data["detail"]),
+        timestamp=str(data["timestamp"]),
+        intent=str(data["intent"]) if data.get("intent") is not None else None,
+        kb=(
+            KbRecord(
+                passage_id=str(kb["passage_id"]),
+                score=float(kb["score"]),
+                coverage=float(kb["coverage"]),
+            )
+            if isinstance(kb, dict)
+            else None
+        ),
+    )
+
+
 class MuskAgent:
     """Empathic, thread-following conversation engine over the approved content."""
 
@@ -187,6 +229,63 @@ class MuskAgent:
         self._call_proposal_count = 0
         self._call_question_index = 0
         self._metrics = Metrics()
+
+    def export_state(self) -> dict[str, Any]:
+        """Serialize the mutable conversation state so any instance can rehydrate it."""
+        handoff = self._last_handoff_context
+        return {
+            "lead": asdict(self._lead),
+            "stopped": self._stopped,
+            "handoff_fired": self._handoff_fired,
+            "handoff": asdict(handoff) if handoff is not None else None,
+            "records": [asdict(record) for record in self._conversation_records],
+            "doubts": list(self._doubt_messages),
+            "history": [{"role": role, "text": text} for role, text in self._history],
+            "opening_seeded": self._opening_seeded,
+            "call_proposed_last_turn": self._call_proposed_last_turn,
+            "call_proposal_count": self._call_proposal_count,
+            "call_question_index": self._call_question_index,
+            "metrics": asdict(self._metrics),
+        }
+
+    def load_state(self, state: dict[str, Any]) -> None:
+        """Restore the mutable conversation state written by :meth:`export_state`."""
+        lead = state.get("lead")
+        if isinstance(lead, dict):
+            self._lead = LeadContact(
+                id=str(lead["id"]),
+                contact=str(lead["contact"]),
+                bucket=cast(LeadBucket, lead["bucket"]),
+                loss_reason=(
+                    str(lead["loss_reason"]) if lead.get("loss_reason") is not None else None
+                ),
+            )
+        self._stopped = bool(state.get("stopped", False))
+        self._handoff_fired = bool(state.get("handoff_fired", False))
+        handoff = state.get("handoff")
+        self._last_handoff_context = (
+            _handoff_from_state(handoff) if isinstance(handoff, dict) else None
+        )
+        records = state.get("records")
+        self._conversation_records = (
+            [_record_from_state(item) for item in records if isinstance(item, dict)]
+            if isinstance(records, list)
+            else []
+        )
+        doubts = state.get("doubts")
+        self._doubt_messages = [str(item) for item in doubts] if isinstance(doubts, list) else []
+        history = state.get("history")
+        self._history = (
+            [(str(item["role"]), str(item["text"])) for item in history if isinstance(item, dict)]
+            if isinstance(history, list)
+            else []
+        )
+        self._opening_seeded = bool(state.get("opening_seeded", False))
+        self._call_proposed_last_turn = bool(state.get("call_proposed_last_turn", False))
+        self._call_proposal_count = int(state.get("call_proposal_count", 0))
+        self._call_question_index = int(state.get("call_question_index", 0))
+        metrics = state.get("metrics")
+        self._metrics = Metrics(**metrics) if isinstance(metrics, dict) else Metrics()
 
     @property
     def records(self) -> list[ConversationRecord]:
