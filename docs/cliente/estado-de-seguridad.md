@@ -20,12 +20,12 @@ protege los **datos** de los leads; **no cambia lo que la agente dice**.
 | Tope de tamaño | Que no se pueda colar un archivo gigante | El mensaje tiene un máximo |
 | Papeles con fecha de caducidad (retención) | Que los datos no vivan para siempre | A los 90 días sin actividad, se borran |
 | No gritar datos por la ventana (redacción) | Que el teléfono/email del lead no salga hacia el proveedor de IA | Antes de mandar el texto, se tapan los datos |
+| Cada empleado con su llave (cuentas por operador) | Saber **quién** miró o hizo qué, en vez de una sola clave compartida | Cada persona con su usuario y contraseña + registro de accesos |
 
 ## Qué falta (y qué protegerá)
 
 | Pendiente | Qué protegerá | Quién lo decide |
 |---|---|---|
-| Cada empleado con su llave + libro de visitas (cuentas por operador y auditoría) | Saber **quién** miró o hizo qué, en vez de una sola clave compartida | Tú (quiénes son) |
 | Seguro probado (copias de seguridad + restauración) | Poder recuperar la base si se rompe o se borra por error | Tú (cada cuánto, dónde) |
 | Cifrado del disco (cifrado en reposo) | Que si roban el disco, no se pueda leer | Se decide con las copias |
 | Contrato con el proveedor de IA (DPA) | Que el tercero que recibe el texto no entrene con tus datos | Tú + MUSK |
@@ -42,7 +42,7 @@ Todo lo demás lo ejecuto yo y te muestro el recibo.
 
 ## Cómo sé que está bien
 
-Cada cambio termina con la suite completa en verde (hoy **253 pruebas**), el
+Cada cambio termina con la suite completa en verde (hoy **262 pruebas**), el
 análisis de tipos y el linter limpios, y una comprobación de que el texto que
 sale respeta las 11 reglas duras. Si algo se rompiera, una prueba lo pilla antes
 de que llegue a un lead real.

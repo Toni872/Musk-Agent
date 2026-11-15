@@ -236,7 +236,7 @@ mostrar con su salida real.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (253 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (262 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
   lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un

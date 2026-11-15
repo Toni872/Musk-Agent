@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **253 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **262 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -e DATABASE_URL=sqlite+aiosqlite:////data/musk.db -v musk-data:/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (253 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`. Retención y borrado de datos: `uv run python -m app.retention --dry-run` (ver `docs/operacion/retencion-y-borrado.md`).
+Verificación: `uv run pytest` (262 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`. Retención y borrado de datos: `uv run python -m app.retention --dry-run` (ver `docs/operacion/retencion-y-borrado.md`).
 
 ## Qué hace y qué no hace
 
@@ -128,6 +128,8 @@ Los datos guardados caducan: `MUSK_RETENTION_DAYS` (90 por defecto) fija cuánto
 
 Antes de que el texto de un lead llegue al LLM, `app/redaction.py` sustituye email, teléfono y documento (DNI/NIE) por marcadores; la copia guardada y la recuperación conservan el original. Los nombres no se redactan (decisión abierta). El DPA con el proveedor sigue pendiente de MUSK.
 
+En vez de una sola clave compartida, `MUSK_OPERATORS` (`nombre:contraseña` separados por coma) da a cada persona su cuenta y registra quién accedió a qué (evento `access`, visible con `log_level=INFO`). La pareja única `MUSK_BASIC_AUTH_USER`/`MUSK_BASIC_AUTH_PASSWORD` sigue funcionando como un solo operador.
+
 ## Despliegue (Vercel)
 
 `index.py` expone la app ASGI y `vercel.json` fija el preset FastAPI y anula el build de Node heredado. Vercel no tiene disco escribible ni memoria compartida entre invocaciones, así que **exige Postgres** (`DATABASE_URL=postgresql+asyncpg://…`, Neon vale) y el estado de cada sesión se serializa en la tabla `agent_session` después de cada turno; cualquier instancia lo rehidrata. Sin `DATABASE_URL`, la app usa SQLite local y falla en Vercel.
@@ -143,7 +145,7 @@ vercel --prod
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 253 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 262 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] `uv run python -m app.retention --dry-run` informa sin borrar nada.

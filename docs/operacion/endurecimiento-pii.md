@@ -129,6 +129,12 @@ En curso. Bloquea el uso con PII real:
   teléfono y documento (DNI/NIE) por marcadores en el historial que se envía al
   modelo; los datos guardados y la recuperación conservan el texto original. Los
   nombres no se redactan (decisión abierta): hacerlo degradaría la conversación.
+- **B3. Cuentas por operador y auditoría:** **hecho**. `MUSK_OPERATORS`
+  (`nombre:contraseña` separados por coma) da a cada persona su cuenta; la pareja
+  única `MUSK_BASIC_AUTH_USER` / `MUSK_BASIC_AUTH_PASSWORD` sigue funcionando
+  como un solo operador. El middleware adjunta el operador a la petición y
+  registra un evento `access` (quién, método y ruta) a nivel INFO: la auditoría
+  es visible con `log_level=INFO`. Los nombres definitivos se fijan al desplegar.
 - **Cifrado en reposo:** volumen/BD y copias. Pendiente. Se decide junto con la
   política de copias (Fase B), no antes: cifrar las copias sin tener copias es
   adelantarse.
@@ -136,8 +142,6 @@ En curso. Bloquea el uso con PII real:
   el texto limpio sigue yendo al proveedor. Falta firmar un DPA y elegir un
   proveedor que no entrene con los datos, y cubrir las copias que el proveedor
   haga (trazas, datasets). Pendiente, decisión de MUSK.
-- **Cuentas por operador y auditoría:** quién ve qué, con registro (zero-trust
-  por petición). Pendiente.
 - **Copias de seguridad con restauración probada.** Pendiente.
 - **Base legal, transparencia y DPA** Script9↔MUSK; aviso en el primer mensaje.
   Pendiente.
