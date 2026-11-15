@@ -12,6 +12,10 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Conservative default, NOT a decision agreed with MUSK: pending `TODO(decisión)`
+# in docs/operacion/retencion-y-borrado.md. It is configurable per deployment.
+RETENTION_DAYS_DEFAULT = 90
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -25,6 +29,10 @@ class Settings(BaseSettings):
     # Public, unauthenticated demo (synthetic data only). Without Basic Auth
     # credentials the app refuses every non-public request unless this is on.
     public_demo: bool = Field(default=False, validation_alias="MUSK_PUBLIC_DEMO")
+    # How long stored lead data survives before the retention sweep may delete it.
+    retention_days: int = Field(
+        default=RETENTION_DAYS_DEFAULT, ge=1, validation_alias="MUSK_RETENTION_DAYS"
+    )
 
 
 @lru_cache
