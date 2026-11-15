@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     retention_days: int = Field(
         default=RETENTION_DAYS_DEFAULT, ge=1, validation_alias="MUSK_RETENTION_DAYS"
     )
+    # Fernet key for encrypting backups at rest. When absent, backups are plain.
+    encryption_key: str | None = Field(default=None, validation_alias="MUSK_ENCRYPTION_KEY")
 
 
 @lru_cache

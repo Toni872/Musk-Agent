@@ -3,6 +3,8 @@
 import sqlite3
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+
 from app.backup import (
     create_backup,
     main,
@@ -85,3 +87,53 @@ def test_cli_create_and_verify(tmp_path: Path) -> None:
     created = list(backups.glob("musk-*.db"))
     assert len(created) == 1
     assert main(["verify", "--file", str(created[0])]) == 0
+
+
+def _key() -> str:
+    return Fernet.generate_key().decode()
+
+
+def test_encrypted_backup_hides_the_plaintext(tmp_path: Path) -> None:
+    db_path = tmp_path / "musk.db"
+    backups = tmp_path / "backups"
+    _seed(db_path)
+    key = _key()
+
+    backup = create_backup(db_path, backups, key=key)
+    assert backup.suffix == ".enc"
+    # The raw bytes must not contain the plaintext lead name.
+    assert b"ana" not in backup.read_bytes()
+    assert verify_backup(backup, key=key) is True
+
+
+def test_encrypted_backup_restores_round_trip(tmp_path: Path) -> None:
+    db_path = tmp_path / "musk.db"
+    backups = tmp_path / "backups"
+    _seed(db_path)
+    key = _key()
+
+    backup = create_backup(db_path, backups, key=key)
+    assert verify_backup(backup, key=key) is True
+
+    db_path.unlink()
+    restore_backup(backup, db_path, key=key)
+    connection = sqlite3.connect(str(db_path))
+    try:
+        assert connection.execute("SELECT name FROM lead WHERE id = 1").fetchone() == ("ana",)
+    finally:
+        connection.close()
+
+
+def test_encrypted_backup_rejects_the_wrong_key(tmp_path: Path) -> None:
+    db_path = tmp_path / "musk.db"
+    backups = tmp_path / "backups"
+    _seed(db_path)
+
+    backup = create_backup(db_path, backups, key=_key())
+    assert verify_backup(backup, key=_key()) is False
+    try:
+        restore_backup(backup, db_path, key=_key())
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("esperaba ValueError por una clave distinta")
