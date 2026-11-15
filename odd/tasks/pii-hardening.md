@@ -46,3 +46,8 @@ merge los decide el humano. Runner: `uv run pytest`.
 - **L5** (siguiente): Fase A4 — límite de peticiones en todos los endpoints,
   topes de tamaño y sacar `session_id` de los logs; después Fase B (retención,
   cifrado, redacción antes del LLM, cuentas y DPA).
+- **L6** (verificación independiente, 15-11-2026): bloqueante encontrado — el
+  campo `public_demo` no tenía alias, así que `pydantic-settings` leía
+  `PUBLIC_DEMO` y no `MUSK_PUBLIC_DEMO`; el flag documentado no funcionaba en el
+  despliegue real. Corregido con `validation_alias="MUSK_PUBLIC_DEMO"` y cubierto
+  por `tests/test_security_env.py` (S2, S3).

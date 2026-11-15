@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", populate_by_name=True
+    )
 
     log_level: str = "WARNING"
     database_url: str = "sqlite+aiosqlite:///./musk.db"
@@ -21,7 +24,7 @@ class Settings(BaseSettings):
     max_calls_per_minute: int = 30
     # Public, unauthenticated demo (synthetic data only). Without Basic Auth
     # credentials the app refuses every non-public request unless this is on.
-    public_demo: bool = False
+    public_demo: bool = Field(default=False, validation_alias="MUSK_PUBLIC_DEMO")
 
 
 @lru_cache
