@@ -518,3 +518,16 @@ async def test_still_escalates_a_question_the_base_cannot_answer() -> None:
 
     assert result.reply == build_reply("doubt")
     assert agent.doubts == ["¿tenéis wifi en clase?"]
+
+
+async def test_history_sent_to_the_llm_is_redacted() -> None:
+    provider = MockProvider("Claro, te cuento. ¿Qué más te gustaría saber?")
+    agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
+
+    await agent.run_turn("mi correo es juan.perez@ejemplo.com, ¿me escribís?")
+
+    assert provider.calls, "the turn should reach the LLM"
+    sent = " ".join(m.content for m in provider.calls[0].messages)
+    assert "juan.perez@ejemplo.com" not in sent
+    assert "[email]" in sent
+
