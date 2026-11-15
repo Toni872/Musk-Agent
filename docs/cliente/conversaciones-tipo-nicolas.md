@@ -187,8 +187,8 @@ pregunta con más riesgo de promesa.
 **Cuándo ocurre:** petición explícita de humano. Es un disparador confirmado.
 
 > **LEAD:** prefiero hablar con una persona
-> **AGENTE:** Claro, prefieres hablar con una persona. Dejo anotado y te pongo con el
-> equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?
+> **AGENTE:** Claro, mejor que hables con una persona. Te paso con el equipo. ¿Me
+> confirmas tu teléfono o el mejor momento para que te contacten?
 
 **Aviso que se genera (simulado, destinataria Laura):**
 
@@ -220,8 +220,8 @@ confirmado.
 > todas las opciones. ¿Te paso con el equipo para que te cuenten más en detalle?
 >
 > **LEAD:** vale, llámame al 612 345 678
-> **AGENTE:** Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en
-> contacto contigo para acordar el detalle.
+> **AGENTE:** Perfecto, el equipo se pondrá en contacto contigo para concretar la
+> llamada. ¡Gracias!
 
 **Aviso que se genera (simulado):**
 
@@ -246,8 +246,8 @@ confirma la aceptación y no promete una hora que no puede cumplir.
 **Cuándo ocurre:** el lead pide que no le escriban más. Se respeta siempre.
 
 > **LEAD:** no me escribas más, por favor
-> **AGENTE:** Entendido, respeto tu decisión: no vuelvo a escribirte. Queda
-> registrado como "no continuar".
+> **AGENTE:** Perfecto, respeto tu decisión y no te vuelvo a escribir. Gracias por tu
+> tiempo.
 
 **Qué hace el agente:** se despide sin insistir, no vuelve a escribir en ese hilo y
 registra la parada.
@@ -323,9 +323,9 @@ aunque el lead insista:
 ## 7. Anexo: qué pasa si el agente no sabe o falla
 
 - Si la pregunta no tiene respuesta aprobada, **no improvisa**: registra la duda y
-  ofrece contacto humano («Lo dejo anotado para que una persona del equipo te lo
-  confirme. ¿Te viene bien que te contacten para aclararlo?»). Las dudas quedan en el
-  informe de la sesión para revisarlas.
+  ofrece contacto humano («Prefiero que esto te lo confirme una persona del equipo
+  para no darte algo a medias. ¿Te viene bien que te contacten?»). Las dudas quedan
+  en el informe de la sesión para revisarlas.
 - Si el proveedor del modelo falla o la respuesta no pasa el filtro de seguridad,
   tampoco improvisa: si la pregunta pide el catálogo («¿qué ofrecéis?»), responde
   con la lista cerrada de programas; en cualquier otro caso registra la duda y

@@ -90,7 +90,8 @@ async def test_stop_registers_no_continuar() -> None:
     assert result.action == "stop"
     assert result.registered_no_continuar is True
     assert agent.is_stopped is True
-    assert "no continuar" in result.reply
+    assert result.reply == build_reply("stop")
+    assert "no continuar" not in result.reply
 
 
 async def test_a_later_turn_is_suppressed() -> None:
@@ -347,8 +348,8 @@ async def test_rotates_the_call_phrasing_across_consecutive_questions() -> None:
     second = await agent.run_turn("¿me dan certificado de la UE?")
 
     assert first.reply != second.reply
-    assert re.search(r"llamada", first.reply)
-    assert re.search(r"llamada", second.reply)
+    assert re.search(r"llam", first.reply)
+    assert re.search(r"llam", second.reply)
 
 
 async def test_never_invents_an_address_for_an_off_topic_question() -> None:
@@ -377,6 +378,18 @@ async def test_prompt_carries_the_contextual_call_rule() -> None:
     assert re.search(r"no fuerces la llamada", provider.calls[0].system, re.IGNORECASE)
 
 
+async def test_prompt_asks_for_a_natural_human_tone() -> None:
+    provider = MockProvider("Claro.")
+    agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
+    await agent.run_turn("¿qué tal?")
+
+    system = provider.calls[0].system
+    assert re.search(r"su nombre", system)
+    assert re.search(r"frases hechas", system, re.IGNORECASE)
+    assert re.search(r"longitud de las frases", system, re.IGNORECASE)
+    assert re.search(r"buena pregunta", system, re.IGNORECASE)  # as a forbidden example
+
+
 # ---------------------------------------------------------------------------
 # Call policy: propose it when there is interest, not on every message
 # ---------------------------------------------------------------------------
@@ -391,7 +404,7 @@ async def test_holds_the_call_until_there_is_real_interest() -> None:
 
     assert "llamada" not in first.reply
     assert first.reply.count("?") == 1
-    assert re.search(r"llamada", second.reply)
+    assert re.search(r"llam", second.reply)  # covers llamada/llamen/llame/llamar
 
 
 async def test_proposes_the_call_as_soon_as_the_lead_asks_about_financing() -> None:

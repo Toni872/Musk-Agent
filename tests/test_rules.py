@@ -155,10 +155,25 @@ def test_extract_spanish_phone_requires_cue_or_whole_number() -> None:
 
 
 def test_reply_templates_exist_and_are_lead_facing() -> None:
-    assert "no continuar" in build_reply("stop")
+    assert "respeto tu decisión" in build_reply("stop")
     assert "persona" in build_reply("humanRequest")
     assert "llamada" in build_reply("callAccepted")
     assert "persona del equipo" in build_reply("doubt")
+
+
+def test_reply_templates_hide_internal_jargon_and_bot_cliches() -> None:
+    # Internal labels and AI clichés must never reach the lead.
+    for reply_id in ("stop", "humanRequest", "callAccepted", "doubt"):
+        text = build_reply(reply_id).lower()
+        for phrase in (
+            "anotado",
+            "registrado",
+            "no continuar",
+            "buena pregunta",
+            "excelente pregunta",
+            "me alegra",
+        ):
+            assert phrase not in text, (reply_id, phrase)
 
 
 def test_all_eleven_rules_are_present() -> None:

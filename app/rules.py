@@ -318,15 +318,16 @@ def guard_reply(reply: str) -> GuardResult:
 # ---------------------------------------------------------------------------
 
 REPLY_TEMPLATES: dict[str, str] = {
-    # Rule 7: stop acknowledgement, registered as "no continuar".
-    "stop": 'Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar".',
+    # Rule 7: stop acknowledgement. The "no continuar" label is registered
+    # internally (registered_no_continuar), never told to the lead.
+    "stop": "Perfecto, respeto tu decisión y no te vuelvo a escribir. Gracias por tu tiempo.",
     # Rule 9 (confirmed trigger: lead asks for a person).
-    "humanRequest": "Claro, prefieres hablar con una persona. Dejo anotado y te pongo con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?",
+    "humanRequest": "Claro, mejor que hables con una persona. Te paso con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?",
     # Rule 9 (confirmed trigger: lead accepts/agrees to a call).
-    "callAccepted": "Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle.",
+    "callAccepted": "Perfecto, el equipo se pondrá en contacto contigo para concretar la llamada. ¡Gracias!",
     # Safety fallback when the model produced nothing usable: register the doubt
     # and propose a human (rule 5), never invent an answer.
-    "doubt": "Lo dejo anotado para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo?",
+    "doubt": "Prefiero que esto te lo confirme una persona del equipo para no darte algo a medias. ¿Te viene bien que te contacten?",
 }
 
 

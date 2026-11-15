@@ -12,6 +12,12 @@ Actualización (27 de octubre de 2026): perfil único en `app/content.py`; las
 referencias al perfil DEMO de más abajo describen el copy que ahora vive ahí,
 pendiente de firma.
 
+Actualización (13 de noviembre de 2026): las plantillas de cara al lead de
+`app/rules.py` y las preguntas de cierre de `app/agent.py` se reescribieron para un
+tono más humano y cercano, con formulaciones variadas y sin perífrasis internas.
+Ese copy sigue pendiente de firma de MUSK (regla 11), como el resto del copy
+unificado; los apartados 5 y 7 reflejan el texto aplicado.
+
 Relacionado: `app/content.py` (perfil único con copy unificado pendiente de firma
 de MUSK), `AGENTS.md` ("Decisiones abiertas"),
 `docs/operacion/decisiones-operativas-nicolas.md` (seguimiento, llamada, aviso y datos del
@@ -74,25 +80,26 @@ habilidades, salidas y metodología, que están construidos sobre esa formación
 ## 5. Revisión de dialecto (registro y español de España)
 
 Se han revisado las frases que ve el lead buscando formulaciones propias del
-español de América. Han aparecido tres en el contenido aprobado y dos en el de
-ejemplo, todas de la misma familia: la perífrasis "dejar anotado" y el uso
-americano de "contactar". El resto del texto revisado no presenta marcadores.
-
-Propuesta de corrección (nada aplicado hasta que Nicolás lo apruebe, regla 11):
+español de América. Aparecieron en el contenido de ejemplo ("portafolio") y, antes
+de la reescritura de tono del 13-11-2026, en la familia "dejar anotado" de las
+plantillas de `app/rules.py`. Esa reescritura ya sustituyó esas plantillas por un
+texto más humano, sin perífrasis ni "contactar a" (sigue pendiente de firma de
+MUSK). Estado de cada una:
 
 | Dónde | Ahora | Propuesta | Motivo |
 | --- | --- | --- | --- |
-| Respuesta de duda sin contenido aprobado | "…así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo?" | "…así que lo apunto como duda para que una persona del equipo te lo confirme. ¿Te viene bien que se pongan en contacto contigo?" | "dejar anotado" no es la fórmula española; "contactar a" es la variante americana |
-| El lead pide hablar con una persona | "Dejo anotado y te pongo con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?" | "Lo apunto y te pongo con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que se pongan en contacto contigo?" | Igual: perífrasis y "contactar" |
-| El lead acepta la llamada | "Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle." | "Perfecto, queda apuntado que te va bien la llamada. El equipo se pone en contacto contigo para concretar los detalles." | Igual, y "concretar los detalles" es más natural que "acordar el detalle" |
+| Respuesta de duda sin contenido aprobado | "Prefiero que esto te lo confirme una persona del equipo para no darte algo a medias. ¿Te viene bien que te contacten?" | *(aplicado el 13-11-2026 con la reescritura de tono)* | Se retiró la familia "dejar anotado"; el texto nuevo es más humano y sigue pendiente de firma de MUSK |
+| El lead pide hablar con una persona | "Claro, mejor que hables con una persona. Te paso con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?" | *(aplicado el 13-11-2026)* | Igual: sin perífrasis y sin "contactar a" |
+| El lead acepta la llamada | "Perfecto, el equipo se pondrá en contacto contigo para concretar la llamada. ¡Gracias!" | *(aplicado el 13-11-2026)* | Igual; "concretar la llamada" en lugar de "acordar el detalle" |
 | Contenido de ejemplo (2 apariciones) | "Un portafolio de proyectos propios" · "construir su propio portafolio" | "Un porfolio de proyectos propios" · "construir su propio porfolio" | El diccionario académico recoge "porfolio"; "portafolio" es la variante de América |
 
 Fuentes: Fundéu (RAE) documenta "contactar con" como forma frecuente en el
 español europeo frente a "contactar a"; el DLE recoge la forma "porfolio".
 
 **Tratamiento fijado:** tuteo y español de España (decisión de Script9, 18 de
-octubre de 2026). La redacción de estas frases solo necesita el visto bueno
-final de Nicolás antes de aplicarse (regla 11).
+octubre de 2026). La redacción de estas frases necesita el visto bueno final de
+Nicolás (regla 11); las tres plantillas del cuadro ya están aplicadas y el copy
+sigue pendiente de firma.
 
 ## 6. La muestra de ejemplo dice más que el contenido aprobado
 
@@ -127,18 +134,18 @@ sin perder la cercanía de MUSK.
 
 | Dónde | Ahora | Propuesta | Motivo |
 | --- | --- | --- | --- |
-| `app/agent.py` → respaldo determinista de precio | "No puedo compartir el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | "No puedo darte el precio ni los importes por aquí. Lo conversamos con detalle en una llamada con el equipo y te resolvemos todas las dudas. ${CALL_INVITATION}" | Imprecisión: "compartir" da a entender que el agente tiene el precio; en realidad no puede darlo, y la plantilla de financiación ya dice "No puedo darte…". |
-| Pregunta de llamada (`app/agent.py`) | "¿Me dejas tu contacto o un momento en el que te venga bien que te llamen?" | "¿Me dejas tu contacto o un momento en el que te venga bien para que te llamen?" | Redacción trabada: encadena dos "que" seguidos ("en el que… que te llamen"); con "para que te llamen" se lee bien y el sentido no cambia. |
-| `app/rules.py` → `REPLY_TEMPLATES["stop"]` | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar"." | "Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado." | Registro administrativo: expone al lead la etiqueta interna del sistema; "Queda registrado" comunica lo mismo sin jerga. |
+| `app/content.py` → respuesta de precio (`price_reply`) | "El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada." | *(aplicado)* | Ya no dice "compartir": usa "prefiero que te lo explique", coherente con la respuesta de financiación |
+| Preguntas de cierre (`app/agent.py`) | "¿Quieres que te lo explique una persona en una llamada?" · "¿Te va bien que te llamen y te lo cuenten con calma?" · "¿Prefieres una llamada para que te lo expliquen todo?" · … | *(aplicado el 13-11-2026)* | Set variado de preguntas de llamada y de seguimiento para no repetir la misma frase; la cadencia la decide el interés real |
+| `app/rules.py` → `REPLY_TEMPLATES["stop"]` | "Perfecto, respeto tu decisión y no te vuelvo a escribir. Gracias por tu tiempo." | *(aplicado el 13-11-2026)* | Ya no expone la etiqueta interna "no continuar" ni usa registro administrativo |
 
-Son tres cambios nuevos. Todo lo demás ya cumple el criterio y no se toca: se
-mantienen las fórmulas naturales ("Perfecto", "Claro", "Buena pregunta",
-"¡Hola!", "aquí estoy") y no hay marcadores americanos fuera del apartado 5,
-cuyas cinco frases ya tienen propuesta propia y no se repiten aquí. Nada está
-aplicado en el código (regla 11); al aplicar los cambios habrá que ajustar la
-aserción de `tests/test_rules.py` sobre la respuesta de parada
-(`/no continuar/i`) y las citas literales de `docs/guiones/GUION_DEMO.md` e
-`INSTRUCCIONES.md`.
+Los tres cambios del apartado 7 quedaron aplicados el 13-11-2026 con la
+reescritura de tono. Todo lo demás ya cumple el criterio y no se toca: se
+mantienen las fórmulas naturales ("Perfecto", "Claro", "¡Hola!", "aquí estoy").
+Se retira "Buena pregunta" por decisión de Script9 (13-11-2026): es una muletilla
+que hoy usan casi todos los asistentes de IA y resta naturalidad, igual que
+"excelente pregunta" o "me alegra que preguntes". El copy sigue pendiente de firma
+de MUSK (regla 11). No hay marcadores americanos fuera del apartado 5, cuya
+propuesta de "porfolio" sigue pendiente.
 
 ## 8. Copy nuevo pendiente de aprobación (contenido de la base de conocimiento)
 

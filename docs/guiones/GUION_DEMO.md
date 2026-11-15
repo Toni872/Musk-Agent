@@ -1,6 +1,6 @@
 # MUSK — Guion de demo (validación con Nicolás)
 
-> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **201 tests en 11 ficheros**.
+> **⚠ Desactualizado.** Este guion se capturó contra el motor **determinista anterior** (`provider=null`). Hoy el agente está **dirigido por LLM con RAG** (y cae a determinista si no hay clave o el proveedor falla). Los textos citados son de aquella versión y deben **re-verificarse** contra el agente actual antes de usarlos en una demo. Recuento actual: **216 tests en 11 ficheros**.
 
 > **Apertura y cualificación**: el perfil único ya incluye `initial_message` (apertura) y una única pregunta de cualificación `goal`, orientada a la llamada. No quedan marcadores `TODO(decisión)` en el contenido; el copy unificado está escrito, pero sigue pendiente de firma de MUSK. La presentación general puede incluir las cinco formaciones; el catálogo detallado sigue fuera de alcance.
 
@@ -33,10 +33,10 @@ Abre `http://localhost:4173` y pulsa **Empezar la demo**. El perfil único ya no
 | 3 | `¿cuánto cuesta?` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. | Regla 1 (precio; sin importes) |
 | 4 | `¿hay financiación?` | Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada. | Regla 3 (financiación y tiempo) |
 | 5 | `¿me pasáis el temario?` | No puedo enviarte el temario detallado por aquí. Sí te puedo contar el contenido general: las habilidades que trabajas, lo que aprendes y las salidas profesionales. Si te encaja, lo vemos con más detalle en una llamada. | Regla 2 (temario) |
-| 6 | `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda) — PIVOTE** |
+| 6 | `¿dais un título oficial?` | Prefiero que esto te lo confirme una persona del equipo para no darte algo a medias. ¿Te viene bien que te contacten? | **Regla 5 (duda) — PIVOTE** |
 | 7 | `¿necesito experiencia previa?` | No necesitas conocimientos previos: la metodología es progresiva y práctica, pensada para empezar desde la base. | FAQ requisitos |
 | 8 | `me parece muy caro` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. | Objeción de dinero (sin la palabra "precio"): misma respuesta del perfil que el turno 3 |
-| 9 | `bueno, me va bien una llamada` | Perfecto, dejo anotado que te va bien la llamada. El equipo se pone en contacto contigo para acordar el detalle. | **Handoff `call_accepted` — objetivo** |
+| 9 | `bueno, me va bien una llamada` | Perfecto, el equipo se pondrá en contacto contigo para concretar la llamada. ¡Gracias! | **Handoff `call_accepted` — objetivo** |
 
 Estado final observado de la conversación 1: `stopped=false records=13 doubts=1`.
 
@@ -55,13 +55,13 @@ Desde el perfil único, toda respuesta de la FAQ viaja en el mismo mensaje que l
 | `¿cómo son las clases?` | Se aprende con proyectos guiados y clases en directo, con acompañamiento y tutorías durante todo el programa. + pregunta `goal` | FAQ `metodologia` |
 | `¿cuánto dura el curso?` | Tienes dos años para completarla con flexibilidad, a tu ritmo entre sesiones. El calendario y las fechas de inicio los concretamos contigo en una llamada. Por aquí no puedo darte cifras. + pregunta `goal` | FAQ `duracion` (plazo aprobado; fechas siguen escalando) |
 | `quiero información sobre los precios` | El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada. + pregunta `goal` | Precisión: sigue siendo **regla 1** (precio) |
-| `¿dais un título oficial?` | Buena pregunta. No tengo una respuesta aprobada sobre eso, así que lo dejo anotado como duda para que una persona del equipo te lo confirme. ¿Te viene bien que te contacten para aclararlo? | **Regla 5 (duda)** — lo no aprobado sigue derivando y **no** arrastra la pregunta `goal` |
+| `¿dais un título oficial?` | Prefiero que esto te lo confirme una persona del equipo para no darte algo a medias. ¿Te viene bien que te contacten? | **Regla 5 (duda)** — lo no aprobado sigue derivando y **no** arrastra la pregunta `goal` |
 
 ## Conversación 2 — el lead pide parar (regla 7)
 
 | # | Escribe el lead | El agente responde (observado) |
 |---|---|---|
-| 10 | `no me escribáis más` | Entendido, respeto tu decisión: no vuelvo a escribirte. Queda registrado como "no continuar". |
+| 10 | `no me escribáis más` | Perfecto, respeto tu decisión y no te vuelvo a escribir. Gracias por tu tiempo. |
 | 11 | `gracias` | *(sin mensaje: conversación detenida — turno suprimido y sin registro)* |
 
 Estado final observado de la conversación 2: `stopped=true records=1`. El turno suprimido no deja registro: es la prueba de que la parada es real, no un silencio del agente.
@@ -142,7 +142,7 @@ Con el **perfil único**, la apertura y la pregunta `goal` ya están redactadas 
 ```powershell
 uv run mypy app    # cero errores
 uv run ruff check .  # sin hallazgos
-uv run pytest        # 201 tests, sin red
+uv run pytest        # 216 tests, sin red
 uv run python -m app.eval   # informe de recuperación (KB, dev y held-out)
 uv run python -m app.pilot_gate   # sin disparadores de despliegue
 ```
