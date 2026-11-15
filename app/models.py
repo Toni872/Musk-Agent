@@ -19,11 +19,9 @@ class LeadIn(BaseModel):
 class ChatRequest(BaseModel):
     session_id: str
     message: str
-    lead: LeadIn | None = None
 
 
 class SessionCreate(BaseModel):
-    session_id: str
     lead: LeadIn | None = None
 
 

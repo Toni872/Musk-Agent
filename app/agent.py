@@ -253,6 +253,10 @@ class MuskAgent:
         self._turns_since_call = 0
         self._metrics = Metrics()
 
+    @property
+    def lead(self) -> LeadContact:
+        return self._lead
+
     def export_state(self) -> dict[str, Any]:
         """Serialize the mutable conversation state so any instance can rehydrate it."""
         handoff = self._last_handoff_context

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./musk.db"
     # Per-client cap on cost-bearing /chat calls per minute.
     max_calls_per_minute: int = 30
+    # Public, unauthenticated demo (synthetic data only). Without Basic Auth
+    # credentials the app refuses every non-public request unless this is on.
+    public_demo: bool = False
 
 
 @lru_cache

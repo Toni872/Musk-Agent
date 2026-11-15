@@ -76,3 +76,24 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         user_ok = secrets.compare_digest(username.encode(), self._username.encode())
         password_ok = secrets.compare_digest(password.encode(), self._password.encode())
         return user_ok and password_ok
+
+
+class LockdownMiddleware(BaseHTTPMiddleware):
+    """Fail-closed default: refuse every non-public request.
+
+    Used when neither Basic Auth nor the public demo is configured. Without it,
+    forgetting ``MUSK_BASIC_AUTH_*`` would silently serve every conversation;
+    with it, a misconfigured deployment fails safe (401) instead of open.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path in _PUBLIC_PATHS:
+            return await call_next(request)
+        return JSONResponse(
+            {"detail": "authentication required"},
+            status_code=401,
+            headers={"WWW-Authenticate": _REALM},
+        )

@@ -39,10 +39,11 @@ def test_rejects_non_positive_limit() -> None:
 
 
 def test_chat_returns_429_when_the_limit_is_exceeded() -> None:
-    app = create_app(provider=None)
+    app = create_app(provider=None, public_demo=True)
     app.state.rate_limiter = RateLimiter(max_calls=1)
     with TestClient(app) as client:
-        first = client.post("/chat", json={"session_id": "rl1", "message": "hola"})
-        second = client.post("/chat", json={"session_id": "rl1", "message": "hola"})
+        session_id = client.post("/sessions", json={}).json()["session_id"]
+        first = client.post("/chat", json={"session_id": session_id, "message": "hola"})
+        second = client.post("/chat", json={"session_id": session_id, "message": "hola"})
     assert first.status_code == 200
     assert second.status_code == 429
