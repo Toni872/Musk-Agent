@@ -125,13 +125,26 @@ En curso. Bloquea el uso con PII real:
   (`MUSK_RETENTION_DAYS`, 90 por defecto) y sigue pendiente de firma. El detalle
   operativo, con qué se guarda, qué se borra y qué no, está en
   `retencion-y-borrado.md`.
-- **Cifrado en reposo:** volumen/BD y copias. Pendiente.
-- **Proveedor del LLM:** redactar teléfono/identificadores antes de enviar y
-  firmar un DPA; elegir proveedor que no entrene con los datos. Pendiente.
-- **Cuentas por operador y auditoría:** quién ve qué, con registro. Pendiente.
+- **B2. Redacción antes del LLM:** **hecho**. `app/redaction.py` sustituye email,
+  teléfono y documento (DNI/NIE) por marcadores en el historial que se envía al
+  modelo; los datos guardados y la recuperación conservan el texto original. Los
+  nombres no se redactan (decisión abierta): hacerlo degradaría la conversación.
+- **Cifrado en reposo:** volumen/BD y copias. Pendiente. Se decide junto con la
+  política de copias (Fase B), no antes: cifrar las copias sin tener copias es
+  adelantarse.
+- **Proveedor del LLM (DPA):** la redacción reduce el envío pero no lo elimina:
+  el texto limpio sigue yendo al proveedor. Falta firmar un DPA y elegir un
+  proveedor que no entrene con los datos, y cubrir las copias que el proveedor
+  haga (trazas, datasets). Pendiente, decisión de MUSK.
+- **Cuentas por operador y auditoría:** quién ve qué, con registro (zero-trust
+  por petición). Pendiente.
 - **Copias de seguridad con restauración probada.** Pendiente.
 - **Base legal, transparencia y DPA** Script9↔MUSK; aviso en el primer mensaje.
   Pendiente.
+
+Nota de método: la pseudonimización (`session_ref`, hash truncado del id de
+sesión) no es anonimización; un hash se puede correlacionar. Queda como defensa
+en profundidad, no como anonimización declarada.
 
 ## Fase C — piloto con lote real
 

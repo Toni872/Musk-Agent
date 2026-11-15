@@ -121,7 +121,10 @@ no vale con lo que ya hay.
   recupera los pasajes más cercanos (`retrieve_top_k`, BM25) y los pasa al modelo
   como contexto, anclando siempre la presentación de la escuela (`kb-escuela`)
   para que una pregunta corta («¿qué formación?») no se conteste con un pasaje
-  suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
+  suelto. Antes de mandar el historial al modelo, `app/redaction.py` sustituye
+  email, teléfono y documento (DNI/NIE) por marcadores (`[email]`, `[telefono]`,
+  `[documento]`): la copia que sale está redactada, la guardada y la que usa la
+  recuperación conservan el texto original. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
   catálogo cerrado, la descripción y la metodología aprobadas y las respuestas de
   la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
   y termina con **una sola pregunta**. La invitación a la llamada ya no va en
@@ -233,7 +236,7 @@ mostrar con su salida real.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (241 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (253 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
   lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un
