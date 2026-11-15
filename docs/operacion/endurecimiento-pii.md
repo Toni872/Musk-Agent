@@ -1,6 +1,6 @@
 # Endurecimiento antes de datos reales (PII)
 
-Estado: **Fase A en curso** (rama `security/pii-hardening`).
+Estado: **Fase A completa** (rama `security/pii-hardening`); Fase B pendiente.
 Última actualización: 15-11-2026.
 
 Este documento explica, en dos niveles, qué protegemos antes de que entren leads
@@ -33,8 +33,8 @@ Riesgos encontrados antes de tocar nada:
 | 2 | IDOR: el cliente elegía el `session_id`; se podía leer la sesión de otro | Alta | **Corregido (A2)** |
 | 3 | `/chat` y `/state` creaban sesión con un id arbitrario si no existía | Alta | **Corregido (A2)** |
 | 4 | Sin CSP ni `frame-ancestors` en el despliegue real | Media | **Corregido (A3)** |
-| 5 | Límite de peticiones solo en `/chat`; `/sessions` y `/state` sin tope | Media | Pendiente (A4) |
-| 6 | Sin topes de tamaño de mensaje/cuerpo | Media | Pendiente (A4) |
+| 5 | Límite de peticiones solo en `/chat`; `/sessions` y `/state` sin tope | Media | **Corregido (A4)** |
+| 6 | Sin topes de tamaño de mensaje/cuerpo | Media | **Corregido (A4)** |
 | 7 | Sin retención, borrado ni cifrado en reposo de la PII | Alta | Pendiente (Fase B) |
 | 8 | La PII viaja al proveedor del LLM sin redacción ni DPA | Alta | Pendiente (Fase B) |
 | 9 | Cuenta única compartida, sin auditoría de quién ve qué | Media | Pendiente (Fase B) |
@@ -82,11 +82,38 @@ Riesgos encontrados antes de tocar nada:
   la autenticación.
 - **Verificar.** `curl -sI https://<tu-dominio>/ | Select-String content-security-policy`.
 
-### A4. Pendiente de esta fase
+### A4. Límite global, topes de tamaño y sesión fuera de la URL
 
-- Aplicar el límite de peticiones a **todos** los endpoints, no solo a `/chat`.
-- Poner topes de tamaño al mensaje y al cuerpo de la petición.
-- Dejar de escribir `session_id` en las trazas/logs de acceso.
+- **Técnico.** El límite de peticiones pasa a ser una dependencia del router
+  (`app/routers/chat.py`), así que cubre `/chat`, `/sessions`, `/session/state`,
+  `/session/pdf` y `/report.pdf`; la clave sigue siendo la IP del cliente y el
+  tope, `max_calls_per_minute` (30 por defecto, configurable). `app/limits.py`
+  añade `RequestSizeLimitMiddleware`: rechaza con `413` un cuerpo mayor de 256 KiB
+  (`MAX_REQUEST_BYTES`) antes de que FastAPI lo parsee, y también un cuerpo
+  *chunked* sin `Content-Length`. `app/models.py` fija topes por campo como
+  constantes con nombre (`MAX_MESSAGE_CHARS = 1000`, id de lead, contacto y
+  motivo de pérdida) y devuelve `422` si se superan. Las lecturas dejan de llevar
+  el id en la URL: `GET /session`, `GET /session/state` y `GET /session/pdf`
+  esperan la cabecera `X-Session-Id` y responden `401` si falta; las rutas
+  antiguas `/sessions/{id}...` desaparecen. El log de cada turno escribe
+  `session_ref` (sha256 truncado a 12 caracteres) en lugar del `session_id`
+  completo, y el PDF de aviso usa un nombre de fichero fijo
+  (`aviso-musk.pdf`), que no refleja datos del lead.
+- **Negocio.** Un id en la URL acaba en el log del servidor, en el historial del
+  navegador, en la caché del proxy y en cualquier `Referer`: sacarlo de la ruta
+  reduce copias involuntarias de la PII. Los topes evitan que un mensaje gigante o
+  un cuerpo malformado tumben el proceso, y el límite en todas las rutas cierra la
+  puerta a crear sesiones en bucle. Ninguno de estos cambios altera lo que ve el
+  lead: solo cuánto se acepta y dónde queda registrado.
+- **Verificar.** `uv run pytest -q tests/test_limits.py tests/test_api.py tests/test_ratelimit.py`.
+  Manual: `POST /chat` con 300 KB devuelve `413`; `GET /session/state` sin
+  `X-Session-Id` devuelve `401`; dos peticiones seguidas a `/sessions` con el tope
+  a 1 devuelven `429` en la segunda.
+
+### A5. Cierre de la fase
+
+Fase A queda cerrada con A1–A4. Lo que sigue (retención, cifrado, proveedor del
+LLM, cuentas por operador) es **Fase B** y bloquea el lote real.
 
 ## Fase B — antes del lote real
 
@@ -109,8 +136,10 @@ Todavía **no** implementado. Bloquea el uso con PII real:
 ## Decisiones abiertas (no asumir)
 
 Plazo de retención · texto de base legal y transparencia · proveedor del LLM y
-DPA · número y reparto de cuentas de operador · umbrales del límite de
-peticiones · cabeceras de seguridad en Vercel (demo). Cada una se marca
+DPA · número y reparto de cuentas de operador · cabeceras de seguridad en Vercel
+(demo). El tope de peticiones arranca en 30/min por IP (`max_calls_per_minute`,
+configurable) y el del mensaje en 1000 caracteres: son valores conservadores por
+defecto, no una cifra negociada con MUSK. Cada decisión pendiente se marca
 `TODO(decisión)` mientras no haya decisión escrita.
 
 ## Comandos de verificación

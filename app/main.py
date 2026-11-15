@@ -23,6 +23,7 @@ from app.auth import BasicAuthMiddleware, LockdownMiddleware, load_basic_auth_fr
 from app.config import get_settings
 from app.content import APPROVED_CONTENT
 from app.db import Database
+from app.limits import RequestSizeLimitMiddleware
 from app.llm import LLMProvider, OpenAICompatibleLLM, load_llm_config_from_env
 from app.observability import configure_logging
 from app.ratelimit import RateLimiter
@@ -61,6 +62,9 @@ def create_app(
             await database.dispose()
 
     application = FastAPI(title="MUSK Agent", version="0.1.0", lifespan=lifespan)
+    # Inner middleware: auth runs first (outer), so unauthenticated calls get
+    # 401 before a body is read. Size limit still protects public demos.
+    application.add_middleware(RequestSizeLimitMiddleware)
 
     @application.exception_handler(Exception)
     async def log_unhandled_error(request: Request, error: Exception) -> JSONResponse:

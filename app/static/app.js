@@ -6,7 +6,7 @@
 // plain ES module that talks to the server-side Python agent:
 //   POST /sessions          -> initial state (opening, banner, pending decisions)
 //   POST /chat              -> one turn (reply + handoff status)
-//   GET  /sessions/{id}/state -> full state for the side panel (records, doubts)
+//   GET  /session/state      -> full state for the side panel (X-Session-Id header)
 //   POST /report.pdf        -> operator report as PDF
 // All conversation logic lives server-side; this file only renders and forwards.
 
@@ -159,7 +159,7 @@ function createSession() {
 }
 
 function fetchState(sessionId) {
-  return fetch(`/sessions/${encodeURIComponent(sessionId)}/state`).then((response) => {
+  return fetch("/session/state", { headers: { "X-Session-Id": sessionId } }).then((response) => {
     if (!response.ok) throw new Error(`state ${response.status}`);
     return response.json();
   });

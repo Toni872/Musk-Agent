@@ -16,12 +16,21 @@ merge los decide el humano. Runner: `uv run pytest`.
   protege todas las rutas salvo `/health`.
 - **S4.** El `session_id` lo emite el servidor (`secrets.token_urlsafe(32)`) y
   `POST /sessions` no acepta uno del cliente.
-- **S5.** `POST /chat` y `GET /state/{id}` responden `404` ante un id desconocido
-  y no crean sesiones.
+- **S5.** `POST /chat` y `GET /session/state` responden `404` ante un id
+  desconocido y no crean sesiones.
 - **S6.** `Caddyfile` envía `Content-Security-Policy` con `'self'` + fuentes de
   Google Fonts y `frame-ancestors 'none'`.
 - **S7.** La documentación técnica y de negocio queda actualizada y el gate
   completo sigue verde; las once reglas duras no cambian.
+- **S8.** El límite de peticiones cubre **todas** las rutas del router (no solo
+  `/chat`): superarlo devuelve `429`.
+- **S9.** `RequestSizeLimitMiddleware` rechaza con `413` un cuerpo mayor de
+  256 KiB antes de parsearlo, y topes por campo (`MAX_MESSAGE_CHARS = 1000`, id de
+  lead, contacto, motivo) devuelven `422`.
+- **S10.** El `session_id` no viaja en la URL ni en el log: las lecturas usan la
+  cabecera `X-Session-Id` (`401` si falta), las rutas `/sessions/{id}...`
+  desaparecen, el log escribe `session_ref` (sha256 truncado) y el PDF de aviso
+  usa un nombre de fichero fijo.
 
 ## Tasks
 
@@ -32,6 +41,8 @@ merge los decide el humano. Runner: `uv run pytest`.
 | T3 | S6 | inline | hecho | `Caddyfile` |
 | T4 | S7 | inline | hecho | `docs/operacion/endurecimiento-pii.md`, `docs/README.md`, `README.md`, `AGENTS.md`, `docs/producto/nfr-piloto.md`, `docs/operacion/checklist-canal-real.md`, `.env.example` |
 | T5 | gate | inline | hecho | ruff, mypy strict, 222 tests, eval sin cambios, pilot_gate limpio |
+| T6 | S8, S9, S10 | inline | hecho | `app/limits.py` (nuevo), `app/models.py`, `app/routers/chat.py`, `app/main.py`, `app/static/app.js`, `app/static/index.html`, `tests/test_limits.py` (nuevo), `tests/test_api.py`, `tests/test_ratelimit.py` |
+| T7 | gate | inline | hecho | ruff limpio, mypy strict (24 ficheros), 231 tests, eval sin cambios, pilot_gate limpio |
 
 ## Log
 
@@ -51,3 +62,9 @@ merge los decide el humano. Runner: `uv run pytest`.
   `PUBLIC_DEMO` y no `MUSK_PUBLIC_DEMO`; el flag documentado no funcionaba en el
   despliegue real. Corregido con `validation_alias="MUSK_PUBLIC_DEMO"` y cubierto
   por `tests/test_security_env.py` (S2, S3).
+- **L7** (15-11-2026, autorización): «continua» tras el informe de Fase A → se
+  implementa A4 en TDD (rojo en `tests/test_limits.py`, verde tras `app/limits.py`
+  y los topes). El límite pasa a dependencia del router, el tamaño se corta en
+  middleware (401 antes que 413 porque auth es el middleware exterior), el id de
+  sesión sale de la URL hacia `X-Session-Id` y el log usa `session_ref`. Rutas
+  antiguas `/sessions/{id}...` eliminadas; `index.html` sube a `v=py4`.

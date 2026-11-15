@@ -8,17 +8,25 @@ from pydantic import BaseModel, Field
 
 LeadBucket = Literal["ilocalizable", "no_comprador"]
 
+# Size caps live in code as named constants (spec S9): a lead message is a
+# short chat turn, not a document, and the fields below bound PII blobs.
+MAX_SESSION_ID_CHARS = 64
+MAX_MESSAGE_CHARS = 1000
+MAX_LEAD_ID_CHARS = 64
+MAX_CONTACT_CHARS = 40
+MAX_LOSS_REASON_CHARS = 240
+
 
 class LeadIn(BaseModel):
-    id: str
-    contact: str
+    id: str = Field(max_length=MAX_LEAD_ID_CHARS)
+    contact: str = Field(max_length=MAX_CONTACT_CHARS)
     bucket: LeadBucket
-    loss_reason: str | None = None
+    loss_reason: str | None = Field(default=None, max_length=MAX_LOSS_REASON_CHARS)
 
 
 class ChatRequest(BaseModel):
-    session_id: str
-    message: str
+    session_id: str = Field(min_length=1, max_length=MAX_SESSION_ID_CHARS)
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
 
 
 class SessionCreate(BaseModel):
