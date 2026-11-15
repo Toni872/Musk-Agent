@@ -34,6 +34,7 @@ docs/
 | `cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para validar con MUSK |
 | `cliente/guia-comercial.md` | Guía de uso para el comercial (handoff y registro) |
 | `cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
+| `cliente/estado-de-seguridad.md` | Estado de la seguridad en lenguaje llano (para Nicolás): qué protege, qué falta y qué decisiones son suyas |
 | `cliente/MUSK_Validacion_Funcional_MVP_Script9_28092026.pdf` | Validación funcional original del MVP (copia de referencia) |
 
 ## operacion/

@@ -281,6 +281,7 @@ mostrar con su salida real.
 | `docs/cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para que MUSK las valide |
 | `docs/cliente/guia-comercial.md` | Guía de uso para el comercial |
 | `docs/cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
+| `docs/cliente/estado-de-seguridad.md` | Estado de la seguridad en lenguaje llano (qué protege, qué falta, decisiones de Nicolás) |
 | `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
 | `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `docs/operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
