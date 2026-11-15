@@ -68,3 +68,6 @@ merge los decide el humano. Runner: `uv run pytest`.
   middleware (401 antes que 413 porque auth es el middleware exterior), el id de
   sesión sale de la URL hacia `X-Session-Id` y el log usa `session_ref`. Rutas
   antiguas `/sessions/{id}...` eliminadas; `index.html` sube a `v=py4`.
+- **L8** (15-11-2026): Fase B empieza por retención y borrado (B1). Tiene su
+  propio documento de trabajo, `odd/tasks/retencion-borrado.md`, para no mezclar
+  dos unidades; este documento guarda el plan por fases y la auditoría.

@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **201 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **241 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -e DATABASE_URL=sqlite+aiosqlite:////data/musk.db -v musk-data:/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (201 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`.
+Verificación: `uv run pytest` (241 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`. Retención y borrado de datos: `uv run python -m app.retention --dry-run` (ver `docs/operacion/retencion-y-borrado.md`).
 
 ## Qué hace y qué no hace
 
@@ -124,6 +124,8 @@ docker compose up -d --build
 
 La app es **fail-closed**: exige HTTP Basic en todas las rutas salvo `/health` cuando `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` están definidas. Si faltan ambas y no hay `MUSK_PUBLIC_DEMO=true`, responde `401` en todo salvo `/health` y registra `authentication_not_configured`: ya no se abre sola. `MUSK_PUBLIC_DEMO=true` desactiva la autenticación a propósito y solo sirve para una demo pública con datos sintéticos. Caddy reenvía la IP real del cliente y la app confía en `X-Forwarded-For` solo desde redes privadas de Docker (`FORWARDED_ALLOW_IPS`), de modo que el límite por IP del chat sigue siendo por cliente y no un cupo compartido. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
 
+Los datos guardados caducan: `MUSK_RETENTION_DAYS` (90 por defecto) fija cuánto sobrevive un lead desde su última actividad. `uv run python -m app.retention --dry-run` informa y `--yes` borra; `--lead <id>` atiende una supresión. Sin `--yes` no se borra nada. Detalle en `docs/operacion/retencion-y-borrado.md`.
+
 ## Despliegue (Vercel)
 
 `index.py` expone la app ASGI y `vercel.json` fija el preset FastAPI y anula el build de Node heredado. Vercel no tiene disco escribible ni memoria compartida entre invocaciones, así que **exige Postgres** (`DATABASE_URL=postgresql+asyncpg://…`, Neon vale) y el estado de cada sesión se serializa en la tabla `agent_session` después de cada turno; cualquier instancia lo rehidrata. Sin `DATABASE_URL`, la app usa SQLite local y falla en Vercel.
@@ -139,9 +141,10 @@ vercel --prod
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 201 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 241 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
+- [ ] `uv run python -m app.retention --dry-run` informa sin borrar nada.
 - [ ] Ningún archivo contiene importes, umbrales de conversión ni cadencias como constantes.
 
 ## Comprobación automática (CI)

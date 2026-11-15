@@ -57,7 +57,7 @@ para un producto en producción abierta.
 |---|---|---|---|
 | Inventario de datos personales | Teléfono del lead y texto de la conversación, documentados | `docs/operacion/reset-datos.md` | Documentado |
 | Base legal y transparencia | Definida por MUSK antes del lote real | Decisión del cliente | **Pendiente (bloqueante)** |
-| Retención y borrado | Plazo definido y procedimiento de supresión | Requiere decisión y procedimiento técnico | **Pendiente (bloqueante)** |
+| Retención y borrado | Plazo configurable y procedimiento de supresión | `app/retention.py`; `uv run pytest -q tests/test_retention.py`; `docs/operacion/retencion-y-borrado.md` | Implementado; el plazo (90 días por defecto) sigue pendiente de firma |
 | Derechos de acceso y portabilidad | Exportación por lead | No implementado | **Pendiente** |
 | Datos en simulación | Sin datos personales reales | Regla del proyecto en `AGENTS.md` | Cumplido |
 
@@ -102,6 +102,8 @@ sería complejidad sin uso.
 - `uv run python -m app.pilot_gate` sin fallos: ninguna condición bloqueante del
   piloto está abierta.
 - `curl -s http://localhost:4173/health` devuelve `{"status":"ok"}`.
-- Los cuatro puntos marcados como bloqueantes (base legal, retención, backup y
-  copia probada) siguen abiertos hasta que MUSK y Script9 los cierren; el
-  documento no los da por hechos.
+- Los puntos todavía abiertos (base legal y transparencia, backup y restauración
+  probada, cifrado en reposo, DPA del proveedor del LLM, cuentas por operador)
+  siguen abiertos hasta que MUSK y Script9 los cierren. La retención y el borrado
+  están implementados con plazo configurable, pero el plazo definitivo sigue
+  pendiente de firma.

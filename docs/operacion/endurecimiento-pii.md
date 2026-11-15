@@ -35,7 +35,7 @@ Riesgos encontrados antes de tocar nada:
 | 4 | Sin CSP ni `frame-ancestors` en el despliegue real | Media | **Corregido (A3)** |
 | 5 | Límite de peticiones solo en `/chat`; `/sessions` y `/state` sin tope | Media | **Corregido (A4)** |
 | 6 | Sin topes de tamaño de mensaje/cuerpo | Media | **Corregido (A4)** |
-| 7 | Sin retención, borrado ni cifrado en reposo de la PII | Alta | Pendiente (Fase B) |
+| 7 | Sin retención, borrado ni cifrado en reposo de la PII | Alta | **Parcial (B1: plazo y borrado; falta cifrado)** |
 | 8 | La PII viaja al proveedor del LLM sin redacción ni DPA | Alta | Pendiente (Fase B) |
 | 9 | Cuenta única compartida, sin auditoría de quién ve qué | Media | Pendiente (Fase B) |
 
@@ -117,15 +117,21 @@ LLM, cuentas por operador) es **Fase B** y bloquea el lote real.
 
 ## Fase B — antes del lote real
 
-Todavía **no** implementado. Bloquea el uso con PII real:
+En curso. Bloquea el uso con PII real:
 
-- **Retención y borrado:** plazo definido y procedimiento de supresión por lead.
-- **Cifrado en reposo:** volumen/BD y copias.
+- **B1. Retención y borrado:** **hecho**. `app/retention.py` borra por antigüedad
+  (`purge_expired`) y por lead (`delete_lead`), desde la línea de comandos y con
+  `--yes` obligatorio para borrar de verdad. El plazo es configurable
+  (`MUSK_RETENTION_DAYS`, 90 por defecto) y sigue pendiente de firma. El detalle
+  operativo, con qué se guarda, qué se borra y qué no, está en
+  `retencion-y-borrado.md`.
+- **Cifrado en reposo:** volumen/BD y copias. Pendiente.
 - **Proveedor del LLM:** redactar teléfono/identificadores antes de enviar y
-  firmar un DPA; elegir proveedor que no entrene con los datos.
-- **Cuentas por operador y auditoría:** quién ve qué, con registro.
-- **Copias de seguridad con restauración probada.**
+  firmar un DPA; elegir proveedor que no entrene con los datos. Pendiente.
+- **Cuentas por operador y auditoría:** quién ve qué, con registro. Pendiente.
+- **Copias de seguridad con restauración probada.** Pendiente.
 - **Base legal, transparencia y DPA** Script9↔MUSK; aviso en el primer mensaje.
+  Pendiente.
 
 ## Fase C — piloto con lote real
 
@@ -135,7 +141,8 @@ Todavía **no** implementado. Bloquea el uso con PII real:
 
 ## Decisiones abiertas (no asumir)
 
-Plazo de retención · texto de base legal y transparencia · proveedor del LLM y
+Plazo de retención (arranca en 90 días configurables, `MUSK_RETENTION_DAYS`;
+pendiente de firma) · texto de base legal y transparencia · proveedor del LLM y
 DPA · número y reparto de cuentas de operador · cabeceras de seguridad en Vercel
 (demo). El tope de peticiones arranca en 30/min por IP (`max_calls_per_minute`,
 configurable) y el del mensaje en 1000 caracteres: son valores conservadores por

@@ -75,7 +75,13 @@ contenido del motor: no hay perfil de demo alternativo ni flag `--demo`.
 Tamaño de muestra y fecha de lanzamiento · cadencia de seguimiento y reglas de
 parada · nombres definitivos de las etiquetas conversacionales · cobertura de Laura
 para los avisos · configuración del canal WhatsApp · base legal / privacidad /
-transparencia del lote real · umbrales de éxito.
+transparencia del lote real · plazo de retención de datos (`MUSK_RETENTION_DAYS`,
+90 por defecto, sin firmar) · umbrales de éxito.
+
+Retención y borrado: `app/retention.py` ya barre por antigüedad y permite la
+supresión por lead desde la línea de comandos (sin `--yes` no borra). El plazo y
+la automatización del barrido siguen pendientes de decisión; el procedimiento
+operativo está en `docs/operacion/retencion-y-borrado.md`.
 
 Ya no queda ningún `TODO(decisión)` en `app/content.py`. El mensaje inicial, la
 presentación de MUSK, la FAQ y los 35 pasajes de la base de conocimiento están
@@ -227,7 +233,7 @@ mostrar con su salida real.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (201 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (241 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
   lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un
@@ -275,6 +281,7 @@ mostrar con su salida real.
 | `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
 | `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `docs/operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
+| `docs/operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
 | `docs/guiones/GUION_DEMO.md` | Guion de demo con las respuestas observadas |
 | `docs/guiones/guion-neuroventas.md` | Guion por momento: texto real, objetivo y mecanismo |
 | `docs/archivo/` | Material histórico (plan de retrieval híbrido, guía de costes, export obsoleto) |

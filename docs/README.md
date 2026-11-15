@@ -44,6 +44,7 @@ docs/
 | `operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
 | `operacion/endurecimiento-pii.md` | Endurecimiento antes de datos reales (PII): auth, sesión, cabeceras y plan por fases |
+| `operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
 
 ## guiones/
 
