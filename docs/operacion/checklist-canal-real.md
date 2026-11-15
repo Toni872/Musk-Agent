@@ -116,9 +116,11 @@ leyendo el `app.js`.
 **Qué hay implementado.** `docker-compose.yml` publica solo Caddy (80/443), que
 termina TLS con certificado automático para `MUSK_DOMAIN` y añade cabeceras de
 seguridad; la app queda en la red interna y exige HTTP Basic en todas las rutas
-salvo `/health` cuando `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` están
-definidas. Sin esas dos variables la autenticación se desactiva, así que publicar
-una URL sin ellas vuelve a dejar el simulador abierto.
+salvo `/health`. La autenticación es **fail-closed**: sin `MUSK_BASIC_AUTH_USER`
+y `MUSK_BASIC_AUTH_PASSWORD` la app responde 401 en todo salvo `/health`, así que
+una URL publicada sin credenciales NO queda abierta. `MUSK_PUBLIC_DEMO=true`
+desactiva la autenticación a propósito y solo vale para una demo con datos
+sintéticos, nunca con leads reales.
 
 **Qué vigila el disparador.** `uv run python -m app.pilot_gate` —y el paso
 equivalente de CI— falla cuando hay un `.env` versionado (salvo `.env.example`):

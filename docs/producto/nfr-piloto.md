@@ -44,7 +44,7 @@ para un producto en producción abierta.
 | Requisito | Objetivo | Cómo se verifica | Estado |
 |---|---|---|---|
 | Transporte cifrado | TLS en el dominio público, HTTP plano solo en la red interna | Configuración de Caddy (`Caddyfile`, `docker-compose.yml`) | Implementado en el despliegue con Compose |
-| Autenticación de acceso | HTTP Basic opcional en todas las rutas salvo `/health` | `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD`; test de `app/auth.py` | Implementado |
+| Autenticación de acceso | HTTP Basic fail-closed en todas las rutas salvo `/health`; apertura pública solo con `MUSK_PUBLIC_DEMO=true` (demo sintética) | `MUSK_BASIC_AUTH_USER`/`MUSK_BASIC_AUTH_PASSWORD`, `MUSK_PUBLIC_DEMO`; tests de `app/auth.py` (401 por defecto) | Implementado |
 | Cabeceras reenviadas | `X-Forwarded-For` solo se acepta desde la red interna | `FORWARDED_ALLOW_IPS` en `docker-compose.yml` y test de confianza | Implementado |
 | Secretos | Ningún secreto en el repositorio, en la imagen ni en los logs | Revisión del diff y `.gitignore`; variables de entorno en Compose | Implementado (clave del LLM en el entorno del servidor) |
 | Salida del agente | Ninguna respuesta con importes, promesas de empleo, promociones ni temario no aprobado | `guard_reply` y tests de `app/rules.py` | Implementado |

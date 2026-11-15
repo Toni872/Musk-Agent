@@ -247,8 +247,10 @@ mostrar con su salida real.
   aprobados.
 - El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
   `8000`), `docker compose up` con Caddy delante (TLS automático) y HTTP Basic
-  opcional, o **Vercel** (`index.py`, preset FastAPI) con Postgres en
-  `DATABASE_URL`: el estado de sesión se guarda en `agent_session` porque las
+  **fail-closed** (sin credenciales ni `MUSK_PUBLIC_DEMO=true` la app responde 401
+  salvo `/health`), o **Vercel** (`index.py`, preset FastAPI) con Postgres en
+  `DATABASE_URL`, solo como **demo con datos sintéticos** (`MUSK_PUBLIC_DEMO=true`):
+  nunca un lead real. El estado de sesión se guarda en `agent_session` porque las
   instancias no comparten memoria. Ninguna vía despliega sola.
 
 ## Mapa de documentación

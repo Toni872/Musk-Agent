@@ -122,13 +122,13 @@ Manual: construye la imagen y ejecútala (ver «Estado actual»). El repositorio
 docker compose up -d --build
 ```
 
-La app exige HTTP Basic en todas las rutas salvo `/health`, así que el mismo par de credenciales protege también un `uv run uvicorn` directo; si dejas esas dos variables vacías, la autenticación se desactiva (solo para simulación local). Caddy reenvía la IP real del cliente y la app confía en `X-Forwarded-For` solo desde redes privadas de Docker (`FORWARDED_ALLOW_IPS`), de modo que el límite por IP del chat sigue siendo por cliente y no un cupo compartido. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
+La app es **fail-closed**: exige HTTP Basic en todas las rutas salvo `/health` cuando `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` están definidas. Si faltan ambas y no hay `MUSK_PUBLIC_DEMO=true`, responde `401` en todo salvo `/health` y registra `authentication_not_configured`: ya no se abre sola. `MUSK_PUBLIC_DEMO=true` desactiva la autenticación a propósito y solo sirve para una demo pública con datos sintéticos. Caddy reenvía la IP real del cliente y la app confía en `X-Forwarded-For` solo desde redes privadas de Docker (`FORWARDED_ALLOW_IPS`), de modo que el límite por IP del chat sigue siendo por cliente y no un cupo compartido. Antes de publicar una URL accesible, `uv run python -m app.pilot_gate` bloquea el arranque si hay configuración real versionada.
 
 ## Despliegue (Vercel)
 
 `index.py` expone la app ASGI y `vercel.json` fija el preset FastAPI y anula el build de Node heredado. Vercel no tiene disco escribible ni memoria compartida entre invocaciones, así que **exige Postgres** (`DATABASE_URL=postgresql+asyncpg://…`, Neon vale) y el estado de cada sesión se serializa en la tabla `agent_session` después de cada turno; cualquier instancia lo rehidrata. Sin `DATABASE_URL`, la app usa SQLite local y falla en Vercel.
 
-Variables mínimas en el proyecto de Vercel: `DATABASE_URL`, `MUSK_LLM_BASE_URL`, `MUSK_LLM_API_KEY`, `MUSK_LLM_MODEL`. Opcional: `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD` para proteger la demo pública. `/health` queda sin autenticación.
+Variables mínimas en el proyecto de Vercel: `DATABASE_URL`, `MUSK_LLM_BASE_URL`, `MUSK_LLM_API_KEY`, `MUSK_LLM_MODEL` y `MUSK_PUBLIC_DEMO=true` (sin ella la app responde `401` salvo `/health`). Vercel es **solo demo con datos sintéticos**: nunca debe recibir un lead real. `/health` queda sin autenticación.
 
 ```bash
 vercel env add DATABASE_URL production

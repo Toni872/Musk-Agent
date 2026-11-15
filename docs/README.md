@@ -43,6 +43,7 @@ docs/
 | `operacion/decisiones-operativas-nicolas.md` | Decisiones de operación: llamada, aviso, cadencia |
 | `operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
+| `operacion/endurecimiento-pii.md` | Endurecimiento antes de datos reales (PII): auth, sesión, cabeceras y plan por fases |
 
 ## guiones/
 
