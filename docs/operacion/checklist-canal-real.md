@@ -122,6 +122,13 @@ una URL publicada sin credenciales NO queda abierta. `MUSK_PUBLIC_DEMO=true`
 desactiva la autenticación a propósito y solo vale para una demo con datos
 sintéticos, nunca con leads reales.
 
+**Cifrado en reposo (disco y copias).** El disco del host debe estar cifrado:
+LUKS en Linux, BitLocker en Windows, o un proveedor con discos cifrados. Las
+copias de seguridad se cifran con `MUSK_ENCRYPTION_KEY` (ver `.env.example`), de
+modo que una copia que salga de la máquina es ilegible sin la clave. Comprobación
+antes del lote real: el volumen de datos está en un sistema cifrado y
+`uv run python -m app.backup create` genera un fichero `.db.enc` (no `.db`).
+
 **Qué vigila el disparador.** `uv run python -m app.pilot_gate` —y el paso
 equivalente de CI— falla cuando hay un `.env` versionado (salvo `.env.example`):
 configuración real dentro del repositorio. Es la única señal que vigila el gate.

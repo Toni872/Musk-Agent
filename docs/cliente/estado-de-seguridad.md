@@ -22,12 +22,12 @@ protege los **datos** de los leads; **no cambia lo que la agente dice**.
 | No gritar datos por la ventana (redacción) | Que el teléfono/email del lead no salga hacia el proveedor de IA | Antes de mandar el texto, se tapan los datos |
 | Cada empleado con su llave (cuentas por operador) | Saber **quién** miró o hizo qué, en vez de una sola clave compartida | Cada persona con su usuario y contraseña + registro de accesos |
 | Seguro probado (copias de seguridad + restauración) | Poder recuperar la base si se rompe o se borra por error | Una copia consistente y su restauración, comprobadas |
+| Cifrado en reposo | Que si roban el disco o se filtra una copia, no se pueda leer | Las copias van cifradas con una clave; el disco del servidor se cifra al desplegar |
 
 ## Qué falta (y qué protegerá)
 
 | Pendiente | Qué protegerá | Quién lo decide |
 |---|---|---|
-| Cifrado del disco (cifrado en reposo) | Que si roban el disco, no se pueda leer | Se decide con las copias |
 | Contrato con el proveedor de IA (DPA) | Que el tercero que recibe el texto no entrene con tus datos | Tú + MUSK |
 | Base legal y texto de transparencia | Que el lead sepa qué se hace con sus datos | Tú + MUSK |
 
@@ -47,7 +47,7 @@ El detalle técnico y de comandos está consolidado en el PDF
 
 ## Cómo sé que está bien
 
-Cada cambio termina con la suite completa en verde (hoy **269 pruebas**), el
+Cada cambio termina con la suite completa en verde (hoy **272 pruebas**), el
 análisis de tipos y el linter limpios, y una comprobación de que el texto que
 sale respeta las 11 reglas duras. Si algo se rompiera, una prueba lo pilla antes
 de que llegue a un lead real.

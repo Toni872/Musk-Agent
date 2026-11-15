@@ -141,8 +141,12 @@ En curso. Bloquea el uso con PII real:
   (`restore`). La restauración está probada de punta a punta por
   `tests/test_backup.py`. La cadencia (cron) y dónde van las copias quedan como
   decisión de MUSK; la dirección por defecto es `backups/` (git-ignored).
-- **Cifrado en reposo:** volumen/BD y copias. Pendiente. Ahora que las copias
-  existen, se decide dónde y con qué claves se cifra.
+- **B5. Cifrado en reposo:** **hecho**. Las copias de seguridad se cifran con
+  Fernet (`MUSK_ENCRYPTION_KEY`) en `app/backup.py`; sin la clave, la copia es
+  ilegible aunque salga de la máquina. La base viva en disco se protege con el
+  cifrado de disco del host (LUKS/BitLocker o un proveedor con discos cifrados),
+  requisito de despliegue en `checklist-canal-real.md`. En Vercel/Neon lo cubre
+  el proveedor.
 - **Proveedor del LLM (DPA):** la redacción reduce el envío pero no lo elimina:
   el texto limpio sigue yendo al proveedor. Falta firmar un DPA y elegir un
   proveedor que no entrene con los datos, y cubrir las copias que el proveedor

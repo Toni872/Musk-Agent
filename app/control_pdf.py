@@ -79,6 +79,7 @@ _CONTENT: list[_Section] = [
                     ["Retención y borrado", "90 días desde la última actividad; supresión por lead."],
                     ["Redacción antes del LLM", "Email, teléfono y DNI/NIE se tapan antes de salir."],
                     ["Copia de seguridad y restauración", "Snapshot consistente de la base y restauración probada."],
+                    ["Cifrado en reposo", "Las copias van cifradas con MUSK_ENCRYPTION_KEY; el disco del host se cifra (LUKS/BitLocker)."],
                 ],
             ),
         ],
@@ -94,6 +95,7 @@ _CONTENT: list[_Section] = [
                     ["MUSK_BASIC_AUTH_USER / _PASSWORD", "Credencial única compartida (un solo operador)", "vacío"],
                     ["MUSK_PUBLIC_DEMO", "Demo pública sin auth (solo datos sintéticos)", "false"],
                     ["MUSK_RETENTION_DAYS", "Días de conservación desde la última actividad", "90"],
+                    ["MUSK_ENCRYPTION_KEY", "Clave Fernet que cifra las copias de seguridad", "vacío (copias sin cifrar)"],
                     ["DATABASE_URL", "Ubicación de la base de datos", "SQLite local"],
                     ["MUSK_LLM_BASE_URL / _API_KEY", "Proveedor del LLM (sin ellos, modo determinista)", "vacío"],
                     ["MUSK_LLM_MODEL", "Modelo del proveedor", "openai/gpt-oss-120b"],
@@ -136,6 +138,11 @@ _CONTENT: list[_Section] = [
                 "uv run python -m app.backup verify --file backups/musk-<fecha>.db\n"
                 "uv run python -m app.backup restore --file backups/musk-<fecha>.db",
             ),
+            ("p", "Clave de cifrado de las copias (generar una vez y guardarla en .env):"),
+            (
+                "code",
+                "uv run python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+            ),
             ("p", "En Docker, los comandos corren dentro del contenedor:"),
             (
                 "code",
@@ -164,9 +171,9 @@ _CONTENT: list[_Section] = [
             (
                 "bullets",
                 [
-                    "Secretos: .env (local, git-ignored). Nunca se versionan ni se publican.",
+                    "Secretos: .env (local, git-ignored), incluida MUSK_ENCRYPTION_KEY. Nunca se versionan ni se publican.",
                     "Base local: ./musk.db. En Docker: /data/musk.db, volumen musk-data.",
-                    "Copias: directorio backups/ (local) o /data/backups (Docker), git-ignored.",
+                    "Copias: directorio backups/ (local) o /data/backups (Docker), git-ignored; con MUSK_ENCRYPTION_KEY quedan como .db.enc.",
                     "Código de seguridad: app/auth.py, app/limits.py, app/retention.py, app/redaction.py, app/backup.py.",
                     "Procedimientos: docs/operacion/ (retención, endurecimiento, reset).",
                 ],

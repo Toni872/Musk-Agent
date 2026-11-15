@@ -98,12 +98,12 @@ no están resueltos:
 | Requisito | Estado | Por qué |
 |---|---|---|
 | Migraciones versionadas | Pendiente | `create_all` no altera tablas existentes. Hace falta decidir entre Alembic o SQL versionado antes del primer cambio de esquema con datos reales |
-| Copia de seguridad automática | Pendiente | Sin backup no hay recuperación; el volumen es el único soporte |
-| Restauración probada | Pendiente | Un backup sin prueba de restauración no es un backup |
+| Copia de seguridad automática | Parcial (B4) | `app/backup.py` crea la copia; la cadencia automática (cron) y el destino siguen `TODO(decisión)` |
+| Restauración probada | Hecho (B4) | `tests/test_backup.py` prueba el ida y vuelta completo |
 | Retención y borrado | Hecho (B1) | `app/retention.py` y `docs/operacion/retencion-y-borrado.md`: barrido por antigüedad y supresión por lead; el plazo (`MUSK_RETENTION_DAYS`) sigue pendiente de firma |
 | Exportación por lead | Pendiente | Cubre el derecho de acceso y portabilidad |
 | Base legal y transparencia | Pendiente | Decisión de MUSK, no técnica |
-| Cifrado en reposo | Pendiente | Depende del proveedor de infraestructura |
+| Cifrado en reposo | Hecho (B5) | Copias cifradas con `MUSK_ENCRYPTION_KEY`; el disco del host se cifra al desplegar (LUKS/BitLocker) |
 
 El detalle operativo de canal, avisos y derivación está en
 `docs/operacion/checklist-canal-real.md`; este documento cubre solo los datos.
