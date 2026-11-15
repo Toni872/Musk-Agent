@@ -63,8 +63,8 @@ Riesgos encontrados antes de tocar nada:
   (`secrets.token_urlsafe(32)`). `POST /sessions` ya no acepta `session_id` del
   cliente: lo genera el servidor y lo devuelve. `ChatRequest` deja de llevar
   `lead`; la persistencia usa el lead guardado en la sesión (`agent.lead`).
-  `POST /chat` y `GET /state/{id}` usan `store.get` y responden `404` si el id no
-  existe: ya no crean sesiones al vuelo. La UI (`app.js`) guarda el id que
+  `POST /chat` y `GET /session/state` usan `store.get` y responden `404` si el id
+  no existe: ya no crean sesiones al vuelo. La UI (`app.js`) guarda el id que
   devuelve el servidor y no inventa ninguno.
 - **Negocio.** El cliente ya no puede elegir ni adivinar el identificador de otra
   persona para leer su conversación. Un id aleatorio de 256 bits hace inviable
