@@ -101,3 +101,14 @@ def test_handoff_pdf_filename_does_not_leak_the_session_id() -> None:
     disposition = response.headers["content-disposition"]
     assert 'filename="aviso-musk.pdf"' in disposition
     assert session_id not in disposition
+
+
+def test_auth_runs_before_the_size_guard() -> None:
+    """An unauthenticated caller gets 401, not 413: auth is the outer middleware."""
+    oversized = {"lead": {"id": "x" * 300_000, "contact": "+34", "bucket": "ilocalizable"}}
+    app = create_app(provider=None, basic_auth=("musk", "secreto"))
+    with TestClient(app) as client:
+        anonymous = client.post("/sessions", json=oversized)
+        authorized = client.post("/sessions", json=oversized, auth=("musk", "secreto"))
+    assert anonymous.status_code == 401
+    assert authorized.status_code == 413
