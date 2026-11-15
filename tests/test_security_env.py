@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.auth import load_basic_auth_from_env
+from app.auth import load_operators_from_env
 from app.config import Settings
 from app.main import create_app
 
@@ -39,7 +39,7 @@ def test_documented_basic_auth_env_protects_routes(
     monkeypatch.setenv("MUSK_BASIC_AUTH_USER", "musk")
     monkeypatch.setenv("MUSK_BASIC_AUTH_PASSWORD", "secreto")
     with TestClient(
-        create_app(provider=None, basic_auth=load_basic_auth_from_env())
+        create_app(provider=None, basic_auth=load_operators_from_env())
     ) as client:
         assert client.get("/").status_code == 401
         assert client.get("/", auth=("musk", "secreto")).status_code == 200

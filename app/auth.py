@@ -15,6 +15,7 @@ import os
 import secrets
 from collections.abc import Mapping
 
+import structlog
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -38,6 +39,45 @@ def load_basic_auth_from_env(env: Mapping[str, str] | None = None) -> tuple[str,
     return username, password
 
 
+def _parse_operators(raw: str) -> dict[str, str]:
+    """Parse ``name:password`` pairs separated by commas.
+
+    Malformed entries (no colon, empty name or empty password) are skipped so a
+    typo in one operator does not disable the others or silently open the app.
+    Passwords must not contain commas; that is the documented format limit.
+    """
+    operators: dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        name, separator, password = entry.partition(":")
+        name = name.strip()
+        if not separator or not name or not password:
+            continue
+        operators[name] = password
+    return operators
+
+
+def load_operators_from_env(env: Mapping[str, str] | None = None) -> dict[str, str] | None:
+    """Return the operator -> password mapping, or ``None`` when disabled.
+
+    ``MUSK_OPERATORS`` (``name:password`` comma-separated) enables per-operator
+    accounts. When absent, the single ``MUSK_BASIC_AUTH_USER`` / password pair
+    still works and is treated as one operator. An empty or malformed
+    ``MUSK_OPERATORS`` yields ``None``, so the app fails closed instead of
+    opening.
+    """
+    source = os.environ if env is None else env
+    raw = (source.get("MUSK_OPERATORS") or "").strip()
+    if raw:
+        return _parse_operators(raw) or None
+    single = load_basic_auth_from_env(source)
+    if single is None:
+        return None
+    return {single[0]: single[1]}
+
+
 def _decode(header: str) -> tuple[str, str] | None:
     scheme, _, payload = header.partition(" ")
     if scheme.lower() != "basic" or not payload:
@@ -53,19 +93,33 @@ def _decode(header: str) -> tuple[str, str] | None:
 
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
-    """Require HTTP Basic credentials on every path except the health probe."""
+    """Require HTTP Basic credentials on every path except the health probe.
 
-    def __init__(self, app: ASGIApp, *, username: str, password: str) -> None:
+    Accepts a mapping of operator name to password so each person has their own
+    account. On a successful match the operator name is attached to
+    ``request.state.operator`` and an ``access`` event is logged, giving the
+    audit trail of who opened what. The event is emitted at INFO, so it is
+    visible when the deployment runs with ``log_level`` at INFO or lower.
+    """
+
+    def __init__(self, app: ASGIApp, *, credentials: Mapping[str, str]) -> None:
         super().__init__(app)
-        self._username = username
-        self._password = password
+        self._credentials = dict(credentials)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.url.path in _PUBLIC_PATHS:
             return await call_next(request)
         credentials = _decode(request.headers.get("authorization", ""))
         if credentials is not None and self._matches(*credentials):
-            return await call_next(request)
+            request.state.operator = credentials[0]
+            response = await call_next(request)
+            structlog.get_logger("app.auth").info(
+                "access",
+                operator=credentials[0],
+                method=request.method,
+                path=request.url.path,
+            )
+            return response
         return JSONResponse(
             {"detail": "authentication required"},
             status_code=401,
@@ -73,9 +127,10 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         )
 
     def _matches(self, username: str, password: str) -> bool:
-        user_ok = secrets.compare_digest(username.encode(), self._username.encode())
-        password_ok = secrets.compare_digest(password.encode(), self._password.encode())
-        return user_ok and password_ok
+        expected = self._credentials.get(username)
+        if expected is None:
+            return False
+        return secrets.compare_digest(password.encode(), expected.encode())
 
 
 class LockdownMiddleware(BaseHTTPMiddleware):

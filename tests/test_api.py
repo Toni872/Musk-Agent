@@ -16,7 +16,7 @@ def _client() -> TestClient:
 
 
 def _auth_client() -> TestClient:
-    return TestClient(create_app(provider=None, basic_auth=("musk", "secreto")))
+    return TestClient(create_app(provider=None, basic_auth={"musk": "secreto"}))
 
 
 def _locked_client() -> TestClient:

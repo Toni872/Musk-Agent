@@ -106,7 +106,7 @@ def test_handoff_pdf_filename_does_not_leak_the_session_id() -> None:
 def test_auth_runs_before_the_size_guard() -> None:
     """An unauthenticated caller gets 401, not 413: auth is the outer middleware."""
     oversized = {"lead": {"id": "x" * 300_000, "contact": "+34", "bucket": "ilocalizable"}}
-    app = create_app(provider=None, basic_auth=("musk", "secreto"))
+    app = create_app(provider=None, basic_auth={"musk": "secreto"})
     with TestClient(app) as client:
         anonymous = client.post("/sessions", json=oversized)
         authorized = client.post("/sessions", json=oversized, auth=("musk", "secreto"))
