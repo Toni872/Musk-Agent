@@ -135,14 +135,18 @@ En curso. Bloquea el uso con PII real:
   como un solo operador. El middleware adjunta el operador a la petición y
   registra un evento `access` (quién, método y ruta) a nivel INFO: la auditoría
   es visible con `log_level=INFO`. Los nombres definitivos se fijan al desplegar.
-- **Cifrado en reposo:** volumen/BD y copias. Pendiente. Se decide junto con la
-  política de copias (Fase B), no antes: cifrar las copias sin tener copias es
-  adelantarse.
+- **B4. Copias de seguridad con restauración probada:** **hecho**.
+  `app/backup.py` crea una instantánea consistente de la base SQLite con la API
+  de backup de SQLite (`create`), la comprueba (`verify`) y la restaura en frío
+  (`restore`). La restauración está probada de punta a punta por
+  `tests/test_backup.py`. La cadencia (cron) y dónde van las copias quedan como
+  decisión de MUSK; la dirección por defecto es `backups/` (git-ignored).
+- **Cifrado en reposo:** volumen/BD y copias. Pendiente. Ahora que las copias
+  existen, se decide dónde y con qué claves se cifra.
 - **Proveedor del LLM (DPA):** la redacción reduce el envío pero no lo elimina:
   el texto limpio sigue yendo al proveedor. Falta firmar un DPA y elegir un
   proveedor que no entrene con los datos, y cubrir las copias que el proveedor
   haga (trazas, datasets). Pendiente, decisión de MUSK.
-- **Copias de seguridad con restauración probada.** Pendiente.
 - **Base legal, transparencia y DPA** Script9↔MUSK; aviso en el primer mensaje.
   Pendiente.
 

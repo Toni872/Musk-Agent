@@ -46,6 +46,7 @@ docs/
 | `operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
 | `operacion/endurecimiento-pii.md` | Endurecimiento antes de datos reales (PII): auth, sesión, cabeceras y plan por fases |
 | `operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
+| `operacion/control-accesos-musk.pdf` | PDF consolidado de control de accesos (técnico y comandos), regenerable con `python -m app.control_pdf` |
 
 ## guiones/
 

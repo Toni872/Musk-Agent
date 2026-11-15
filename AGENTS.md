@@ -236,7 +236,7 @@ mostrar con su salida real.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (262 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (269 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
   lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un
@@ -286,6 +286,7 @@ mostrar con su salida real.
 | `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `docs/operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
 | `docs/operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
+| `docs/operacion/control-accesos-musk.pdf` | PDF consolidado de control de accesos (técnico y comandos), regenerable con `python -m app.control_pdf` |
 | `docs/guiones/GUION_DEMO.md` | Guion de demo con las respuestas observadas |
 | `docs/guiones/guion-neuroventas.md` | Guion por momento: texto real, objetivo y mecanismo |
 | `docs/archivo/` | Material histórico (plan de retrieval híbrido, guía de costes, export obsoleto) |

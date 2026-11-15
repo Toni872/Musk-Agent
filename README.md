@@ -6,7 +6,7 @@ No está conectado a WhatsApp, no usa leads reales ni integra CRM. El motor conv
 
 ## Estado actual: motor en Python
 
-El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **262 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
+El motor es una aplicación **FastAPI en Python** (`app/`), con el suelo de seguridad, los endpoints y **269 tests**. Es la única versión del proyecto: el arnés TypeScript se retiró.
 
 Arranque local (Python 3.12 + uv):
 
@@ -22,7 +22,7 @@ docker build -t musk-agent .
 docker run --rm --env-file .env -e DATABASE_URL=sqlite+aiosqlite:////data/musk.db -v musk-data:/data -p 4173:8000 musk-agent
 ```
 
-Verificación: `uv run pytest` (262 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`. Retención y borrado de datos: `uv run python -m app.retention --dry-run` (ver `docs/operacion/retencion-y-borrado.md`).
+Verificación: `uv run pytest` (269 tests), `uv run mypy app` y `uv run ruff check .`. Evaluación de la recuperación: `uv run python -m app.eval`. Retención y borrado de datos: `uv run python -m app.retention --dry-run` (ver `docs/operacion/retencion-y-borrado.md`). Copias de seguridad: `uv run python -m app.backup create` (ver `docs/operacion/endurecimiento-pii.md`).
 
 ## Qué hace y qué no hace
 
@@ -145,7 +145,7 @@ vercel --prod
 
 - [ ] `uv run ruff check .` sin hallazgos.
 - [ ] `uv run mypy app` sin errores.
-- [ ] `uv run pytest` pasa: 262 tests, cero fallos, sin red.
+- [ ] `uv run pytest` pasa: 269 tests, cero fallos, sin red.
 - [ ] `uv run python -m app.eval` imprime el informe sin regresar por debajo de los suelos.
 - [ ] `uv run python -m app.pilot_gate` no encuentra configuración real versionada.
 - [ ] `uv run python -m app.retention --dry-run` informa sin borrar nada.

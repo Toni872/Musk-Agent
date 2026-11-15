@@ -145,9 +145,9 @@ base, así que el borrado es el real del despliegue.
 
 | Resto | Estado | Dónde se resuelve |
 |---|---|---|
-| Copias de seguridad de la base | **Pendiente** | Fase B: política de copias y borrado en copias |
+| Copias de seguridad de la base | Existen (`app.backup`), pero este barrido **no las toca** | Su cadencia, rotación y borrado son `TODO(decisión)` |
 | Cifrado en reposo del volumen y de las copias | **Pendiente** | Fase B |
-| Datos enviados al proveedor del LLM | **Pendiente**: hoy viaja el texto del turno; falta redacción y DPA | Fase B |
+| Datos enviados al proveedor del LLM | **Parcial**: el texto sale redactado; falta el DPA | Fase B |
 | Logs del proxy (Caddy) y del host | La URL ya no lleva el id de sesión (A4), pero la IP sí aparece | Fase B: plazo de logs |
 | PDF descargados por el operador | Fuera del sistema | Procedimiento manual del comercial |
 
