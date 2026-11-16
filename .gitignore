@@ -18,6 +18,7 @@ musk.db-journal
 musk.db-wal
 musk.db-shm
 data/
+backups/
 
 # Local environment / secrets
 .env

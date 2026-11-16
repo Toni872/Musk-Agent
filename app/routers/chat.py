@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict
 from typing import cast
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 
 from app.agent import HandoffContext, LeadContact, MuskAgent, TurnResult
 from app.db import Conversation, ConversationRepository, Database, Message
@@ -23,14 +24,38 @@ from app.models import (
 from app.observability import logger
 from app.pdf import build_conversation_pdf, build_handoff_pdf
 from app.ratelimit import RateLimiter
-from app.session import SessionStore
+from app.session import SessionStore, new_session_id
 
-router = APIRouter(tags=["chat"])
-
+_SESSION_HEADER = "X-Session-Id"
 _BANNER = (
     "Content: perfil único de Escuela Musk (contenido curado; firma final de redacción pendiente)."
 )
 _BANNER_DETERMINISTIC = _BANNER + " — modo determinista (sin modelo LLM)"
+
+
+async def _enforce_rate_limit(request: Request) -> None:
+    """Per-client cap applied to every route in this router (spec S8)."""
+    limiter = cast(RateLimiter, request.app.state.rate_limiter)
+    client_ip = request.client.host if request.client is not None else "unknown"
+    if not limiter.allow(client_ip):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
+
+router = APIRouter(tags=["chat"], dependencies=[Depends(_enforce_rate_limit)])
+
+
+def _session_id_from_header(
+    session_id: str | None = Header(default=None, alias=_SESSION_HEADER),
+) -> str:
+    """Read the session id from a header so it never lands in access logs."""
+    if not session_id:
+        raise HTTPException(status_code=401, detail="session header required")
+    return session_id
+
+
+def _session_ref(session_id: str) -> str:
+    """Log-safe, non-reversible reference to a session id."""
+    return hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:12]
 
 
 def _store(request: Request) -> SessionStore:
@@ -85,13 +110,13 @@ async def _persist(
     if database is None:
         return
 
-    lead = payload.lead
+    lead = agent.lead
     conversation = Conversation(
         id=payload.session_id,
-        lead_id=lead.id if lead else "sim-lead",
-        contact=lead.contact if lead else "simulated-contact",
-        bucket=lead.bucket if lead else "ilocalizable",
-        loss_reason=lead.loss_reason if lead else None,
+        lead_id=lead.id,
+        contact=lead.contact,
+        bucket=lead.bucket,
+        loss_reason=lead.loss_reason,
         is_stopped=agent.is_stopped,
         handoff_fired=agent.handoff is not None,
         handoff_reason=agent.handoff.reason if agent.handoff else None,
@@ -126,18 +151,15 @@ async def _persist(
 
 @router.post("/chat", response_model=TurnOut)
 async def create_turn(payload: ChatRequest, request: Request) -> TurnOut:
-    limiter = cast(RateLimiter, request.app.state.rate_limiter)
-    client_ip = request.client.host if request.client is not None else "unknown"
-    if not limiter.allow(client_ip):
-        raise HTTPException(status_code=429, detail="rate limit exceeded")
-
     store = _store(request)
-    agent = await store.get_or_create(payload.session_id, _to_lead(payload.lead))
+    agent = await store.get(payload.session_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail="session not found")
     result = await agent.run_turn(payload.message)
     await store.save(payload.session_id, agent)
     logger.info(
         "turn",
-        session_id=payload.session_id,
+        session_ref=_session_ref(payload.session_id),
         intent=result.intent,
         action=result.action,
         suppressed=result.suppressed,
@@ -148,8 +170,10 @@ async def create_turn(payload: ChatRequest, request: Request) -> TurnOut:
     return _to_turn_out(result)
 
 
-@router.get("/sessions/{session_id}")
-async def session_status(session_id: str, request: Request) -> dict[str, object]:
+@router.get("/session")
+async def session_status(
+    request: Request, session_id: str = Depends(_session_id_from_header)
+) -> dict[str, object]:
     agent = await _store(request).get(session_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="session not found")
@@ -164,15 +188,17 @@ async def session_status(session_id: str, request: Request) -> dict[str, object]
     }
 
 
-@router.get("/sessions/{session_id}/pdf")
-async def session_pdf(session_id: str, request: Request) -> Response:
+@router.get("/session/pdf")
+async def session_pdf(
+    request: Request, session_id: str = Depends(_session_id_from_header)
+) -> Response:
     agent = await _store(request).get(session_id)
     if agent is None or agent.handoff is None:
         raise HTTPException(status_code=404, detail="handoff not available")
     return Response(
         content=build_handoff_pdf(agent.handoff),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="aviso-{session_id}.pdf"'},
+        headers={"Content-Disposition": 'attachment; filename="aviso-musk.pdf"'},
     )
 
 
@@ -207,17 +233,22 @@ def _session_state(store: SessionStore, session_id: str, agent: MuskAgent) -> Se
 
 @router.post("/sessions", response_model=SessionStateOut)
 async def create_session(payload: SessionCreate, request: Request) -> SessionStateOut:
-    """Open (or reuse) a session and return its initial state for the UI."""
+    """Open a session with a server-issued id and return its initial state."""
     store = _store(request)
-    agent = await store.get_or_create(payload.session_id, _to_lead(payload.lead))
-    return _session_state(store, payload.session_id, agent)
+    session_id = new_session_id()
+    agent = await store.get_or_create(session_id, _to_lead(payload.lead))
+    return _session_state(store, session_id, agent)
 
 
-@router.get("/sessions/{session_id}/state", response_model=SessionStateOut)
-async def session_state(session_id: str, request: Request) -> SessionStateOut:
+@router.get("/session/state", response_model=SessionStateOut)
+async def session_state(
+    request: Request, session_id: str = Depends(_session_id_from_header)
+) -> SessionStateOut:
     """Full conversation state the simulator UI renders (opening, records, doubts)."""
     store = _store(request)
-    agent = await store.get_or_create(session_id)
+    agent = await store.get(session_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail="session not found")
     return _session_state(store, session_id, agent)
 
 

@@ -8,6 +8,7 @@ serialized after every turn so any stateless instance (Vercel) can rehydrate it.
 from __future__ import annotations
 
 import json
+import secrets
 import threading
 
 from app.agent import LeadContact, MuskAgent
@@ -67,3 +68,13 @@ class SessionStore:
             return
         payload = json.dumps(agent.export_state(), ensure_ascii=False)
         await self._database.save_session_state(session_id, payload)
+
+
+def new_session_id() -> str:
+    """Return an unguessable, server-issued session identifier.
+
+    The id is the bearer capability for the conversation. It is minted here and
+    never derived from client input, so a caller cannot address another lead's
+    session by guessing or reusing an id.
+    """
+    return secrets.token_urlsafe(32)

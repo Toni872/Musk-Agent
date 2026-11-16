@@ -75,7 +75,13 @@ contenido del motor: no hay perfil de demo alternativo ni flag `--demo`.
 Tamaño de muestra y fecha de lanzamiento · cadencia de seguimiento y reglas de
 parada · nombres definitivos de las etiquetas conversacionales · cobertura de Laura
 para los avisos · configuración del canal WhatsApp · base legal / privacidad /
-transparencia del lote real · umbrales de éxito.
+transparencia del lote real · plazo de retención de datos (`MUSK_RETENTION_DAYS`,
+90 por defecto, sin firmar) · umbrales de éxito.
+
+Retención y borrado: `app/retention.py` ya barre por antigüedad y permite la
+supresión por lead desde la línea de comandos (sin `--yes` no borra). El plazo y
+la automatización del barrido siguen pendientes de decisión; el procedimiento
+operativo está en `docs/operacion/retencion-y-borrado.md`.
 
 Ya no queda ningún `TODO(decisión)` en `app/content.py`. El mensaje inicial, la
 presentación de MUSK, la FAQ y los 35 pasajes de la base de conocimiento están
@@ -115,7 +121,10 @@ no vale con lo que ya hay.
   recupera los pasajes más cercanos (`retrieve_top_k`, BM25) y los pasa al modelo
   como contexto, anclando siempre la presentación de la escuela (`kb-escuela`)
   para que una pregunta corta («¿qué formación?») no se conteste con un pasaje
-  suelto. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
+  suelto. Antes de mandar el historial al modelo, `app/redaction.py` sustituye
+  email, teléfono y documento (DNI/NIE) por marcadores (`[email]`, `[telefono]`,
+  `[documento]`): la copia que sale está redactada, la guardada y la que usa la
+  recuperación conservan el texto original. El prompt de sistema lleva el rol, el tono, las once reglas duras, el
   catálogo cerrado, la descripción y la metodología aprobadas y las respuestas de
   la FAQ. El modelo responde **primero** a lo preguntado, en texto plano y breve,
   y termina con **una sola pregunta**. La invitación a la llamada ya no va en
@@ -227,7 +236,7 @@ mostrar con su salida real.
 - **Motor: app Python** (`app/`, FastAPI + uv) servida en el puerto
   **4173** (`uv run uvicorn app.main:app --reload --port 4173`, o Docker con
   `Dockerfile`). Antes de tocar nada: `uv run ruff check .`, `uv run mypy app`,
-  `uv run pytest` (201 tests) y `uv run python -m app.eval`. CI de Python en
+  `uv run pytest` (272 tests) y `uv run python -m app.eval`. CI de Python en
   `.github/workflows/python-ci.yml` (incluye `uv run python -m app.pilot_gate`).
 - **Test primero en lógica de negocio.** Escribe el test rojo que falla, implanta
   lo mínimo para que pase y refactoriza con la suite en verde. No se acepta un
@@ -247,8 +256,10 @@ mostrar con su salida real.
   aprobados.
 - El deploy vigente es la **imagen Docker** (`Dockerfile`, host `4173` → contenedor
   `8000`), `docker compose up` con Caddy delante (TLS automático) y HTTP Basic
-  opcional, o **Vercel** (`index.py`, preset FastAPI) con Postgres en
-  `DATABASE_URL`: el estado de sesión se guarda en `agent_session` porque las
+  **fail-closed** (sin credenciales ni `MUSK_PUBLIC_DEMO=true` la app responde 401
+  salvo `/health`), o **Vercel** (`index.py`, preset FastAPI) con Postgres en
+  `DATABASE_URL`, solo como **demo con datos sintéticos** (`MUSK_PUBLIC_DEMO=true`):
+  nunca un lead real. El estado de sesión se guarda en `agent_session` porque las
   instancias no comparten memoria. Ninguna vía despliega sola.
 
 ## Mapa de documentación
@@ -270,9 +281,12 @@ mostrar con su salida real.
 | `docs/cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para que MUSK las valide |
 | `docs/cliente/guia-comercial.md` | Guía de uso para el comercial |
 | `docs/cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
+| `docs/cliente/estado-de-seguridad.md` | Estado de la seguridad en lenguaje llano (qué protege, qué falta, decisiones de Nicolás) |
 | `docs/operacion/decisiones-operativas-nicolas.md` | Decisiones de operación (llamada, aviso, cadencia) |
 | `docs/operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
 | `docs/operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
+| `docs/operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
+| `docs/operacion/control-accesos-musk.pdf` | PDF consolidado de control de accesos (técnico y comandos), regenerable con `python -m app.control_pdf` |
 | `docs/guiones/GUION_DEMO.md` | Guion de demo con las respuestas observadas |
 | `docs/guiones/guion-neuroventas.md` | Guion por momento: texto real, objetivo y mecanismo |
 | `docs/archivo/` | Material histórico (plan de retrieval híbrido, guía de costes, export obsoleto) |

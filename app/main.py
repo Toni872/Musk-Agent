@@ -9,7 +9,7 @@ instances can rehydrate it), and every turn is persisted through the
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,10 +19,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.auth import BasicAuthMiddleware, load_basic_auth_from_env
+from app.auth import BasicAuthMiddleware, LockdownMiddleware, load_operators_from_env
 from app.config import get_settings
 from app.content import APPROVED_CONTENT
 from app.db import Database
+from app.limits import RequestSizeLimitMiddleware
 from app.llm import LLMProvider, OpenAICompatibleLLM, load_llm_config_from_env
 from app.observability import configure_logging
 from app.ratelimit import RateLimiter
@@ -45,7 +46,8 @@ def create_app(
     provider: LLMProvider | None,
     database: Database | None = None,
     *,
-    basic_auth: tuple[str, str] | None = None,
+    basic_auth: Mapping[str, str] | None = None,
+    public_demo: bool = False,
 ) -> FastAPI:
     configure_logging(get_settings().log_level)
     store = SessionStore(provider=provider, database=database, content=APPROVED_CONTENT)
@@ -60,6 +62,9 @@ def create_app(
             await database.dispose()
 
     application = FastAPI(title="MUSK Agent", version="0.1.0", lifespan=lifespan)
+    # Inner middleware: auth runs first (outer), so unauthenticated calls get
+    # 401 before a body is read. Size limit still protects public demos.
+    application.add_middleware(RequestSizeLimitMiddleware)
 
     @application.exception_handler(Exception)
     async def log_unhandled_error(request: Request, error: Exception) -> JSONResponse:
@@ -74,8 +79,22 @@ def create_app(
         return JSONResponse({"detail": "internal_error"}, status_code=500)
 
     if basic_auth is not None:
-        username, password = basic_auth
-        application.add_middleware(BasicAuthMiddleware, username=username, password=password)
+        application.add_middleware(BasicAuthMiddleware, credentials=basic_auth)
+    elif public_demo:
+        logger.warning(
+            "public_demo_enabled",
+            note="authentication disabled: use only with synthetic data",
+        )
+    else:
+        logger.error(
+            "authentication_not_configured",
+            note=(
+                "refusing unauthenticated access; set MUSK_OPERATORS (or "
+                "MUSK_BASIC_AUTH_USER and MUSK_BASIC_AUTH_PASSWORD), or "
+                "MUSK_PUBLIC_DEMO=true for a public demo"
+            ),
+        )
+        application.add_middleware(LockdownMiddleware)
     application.state.session_store = store
     application.state.database = database
     application.state.rate_limiter = limiter
@@ -91,5 +110,6 @@ def create_app(
 app = create_app(
     build_provider(),
     Database(get_settings().database_url),
-    basic_auth=load_basic_auth_from_env(),
+    basic_auth=load_operators_from_env(),
+    public_demo=get_settings().public_demo,
 )

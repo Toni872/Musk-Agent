@@ -34,6 +34,7 @@ docs/
 | `cliente/conversaciones-tipo-nicolas.md` | Diez conversaciones tipo con transcripción real para validar con MUSK |
 | `cliente/guia-comercial.md` | Guía de uso para el comercial (handoff y registro) |
 | `cliente/gamma-preguntas-musk.md` | Batería de preguntas para probar el agente (demo) |
+| `cliente/estado-de-seguridad.md` | Estado de la seguridad en lenguaje llano (para Nicolás): qué protege, qué falta y qué decisiones son suyas |
 | `cliente/MUSK_Validacion_Funcional_MVP_Script9_28092026.pdf` | Validación funcional original del MVP (copia de referencia) |
 
 ## operacion/
@@ -42,7 +43,11 @@ docs/
 |---|---|
 | `operacion/decisiones-operativas-nicolas.md` | Decisiones de operación: llamada, aviso, cadencia |
 | `operacion/checklist-canal-real.md` | Qué cerrar antes de tocar un lead real |
+| `operacion/canal-whatsapp-opciones.md` | Comparativa del canal real de WhatsApp (Meta directa, Twilio, 360dialog): coste, alta y recomendación |
 | `operacion/reset-datos.md` | Reinicio, conservación y migración de `musk.db`; requisitos antes de datos reales |
+| `operacion/endurecimiento-pii.md` | Endurecimiento antes de datos reales (PII): auth, sesión, cabeceras y plan por fases |
+| `operacion/retencion-y-borrado.md` | Qué datos personales se guardan, cuánto tiempo y cómo se borran (barrido y supresión por lead) |
+| `operacion/control-accesos-musk.pdf` | PDF consolidado de control de accesos (técnico y comandos), regenerable con `python -m app.control_pdf` |
 
 ## guiones/
 

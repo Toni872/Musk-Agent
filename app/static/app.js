@@ -6,7 +6,7 @@
 // plain ES module that talks to the server-side Python agent:
 //   POST /sessions          -> initial state (opening, banner, pending decisions)
 //   POST /chat              -> one turn (reply + handoff status)
-//   GET  /sessions/{id}/state -> full state for the side panel (records, doubts)
+//   GET  /session/state      -> full state for the side panel (X-Session-Id header)
 //   POST /report.pdf        -> operator report as PDF
 // All conversation logic lives server-side; this file only renders and forwards.
 
@@ -127,12 +127,8 @@ const sendButton = getElement("send");
 const summaryEl = getElement("summary");
 const recordsEl = getElement("records");
 
-function newSessionId() {
-  return "ui-" + Math.random().toString(36).slice(2, 10);
-}
-
 const state = {
-  sessionId: newSessionId(),
+  sessionId: null,
   banner: "",
   messages: [],
   stopped: false,
@@ -158,22 +154,23 @@ async function postJson(url, body) {
   return response.json();
 }
 
-function createSession(sessionId) {
-  return postJson("/sessions", { session_id: sessionId, lead: DEFAULT_LEAD });
+function createSession() {
+  return postJson("/sessions", { lead: DEFAULT_LEAD });
 }
 
 function fetchState(sessionId) {
-  return fetch(`/sessions/${encodeURIComponent(sessionId)}/state`).then((response) => {
+  return fetch("/session/state", { headers: { "X-Session-Id": sessionId } }).then((response) => {
     if (!response.ok) throw new Error(`state ${response.status}`);
     return response.json();
   });
 }
 
 function runTurn(sessionId, message) {
-  return postJson("/chat", { session_id: sessionId, message, lead: DEFAULT_LEAD });
+  return postJson("/chat", { session_id: sessionId, message });
 }
 
 function applyServerState(data) {
+  if (data.session_id) state.sessionId = data.session_id;
   state.banner = data.banner || "";
   state.stopped = Boolean(data.stopped);
   state.records = data.records || [];
@@ -285,7 +282,7 @@ function applyBusy() {
 
 async function init() {
   try {
-    const data = await createSession(state.sessionId);
+    const data = await createSession();
     applyServerState(data);
     state.messages = [];
     const opening = data.opening;
@@ -301,7 +298,7 @@ async function init() {
 }
 
 async function handleSend(text) {
-  if (busy) return;
+  if (busy || !state.sessionId) return;
   busy = true;
   applyBusy();
   try {
@@ -494,7 +491,7 @@ composer.addEventListener("submit", (event) => {
 
 resetButton.addEventListener("click", async () => {
   if (!confirm("¿Reiniciar la sesión? Se borrará la conversación actual.")) return;
-  state.sessionId = newSessionId();
+  state.sessionId = null;
   await init();
   input.focus();
 });

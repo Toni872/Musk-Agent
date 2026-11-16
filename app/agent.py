@@ -22,6 +22,7 @@ from typing import Any, Literal, cast
 from app.content import APPROVED_CONTENT, ApprovedContent, is_pending_decision
 from app.llm import LLMChatMessage, LLMProvider, LLMRequest, LLMResult
 from app.observability import logger
+from app.redaction import redact
 from app.retrieval import FORBIDDEN_TOPIC_PATTERNS, RankedPassage, retrieve, retrieve_top_k
 from app.rules import (
     ANSWER_TRIGGERS,
@@ -252,6 +253,10 @@ class MuskAgent:
         self._call_question_index = 0
         self._turns_since_call = 0
         self._metrics = Metrics()
+
+    @property
+    def lead(self) -> LeadContact:
+        return self._lead
 
     def export_state(self) -> dict[str, Any]:
         """Serialize the mutable conversation state so any instance can rehydrate it."""
@@ -755,8 +760,12 @@ class MuskAgent:
         )
 
     def _build_history_messages(self) -> tuple[LLMChatMessage, ...]:
+        # Only the model sees the redacted copy; storage and retrieval keep the
+        # original text. Redacting every message (not just the lead's) also
+        # closes the path where an assistant reply echoed a phone or email and
+        # would be sent back on the next turn.
         return tuple(
-            LLMChatMessage(role="user" if role == "lead" else "assistant", content=text)
+            LLMChatMessage(role="user" if role == "lead" else "assistant", content=redact(text))
             for role, text in self._history[-_HISTORY_WINDOW:]
         )
 

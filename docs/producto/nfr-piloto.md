@@ -44,7 +44,7 @@ para un producto en producción abierta.
 | Requisito | Objetivo | Cómo se verifica | Estado |
 |---|---|---|---|
 | Transporte cifrado | TLS en el dominio público, HTTP plano solo en la red interna | Configuración de Caddy (`Caddyfile`, `docker-compose.yml`) | Implementado en el despliegue con Compose |
-| Autenticación de acceso | HTTP Basic opcional en todas las rutas salvo `/health` | `MUSK_BASIC_AUTH_USER` y `MUSK_BASIC_AUTH_PASSWORD`; test de `app/auth.py` | Implementado |
+| Autenticación de acceso | HTTP Basic fail-closed en todas las rutas salvo `/health`; apertura pública solo con `MUSK_PUBLIC_DEMO=true` (demo sintética) | `MUSK_BASIC_AUTH_USER`/`MUSK_BASIC_AUTH_PASSWORD`, `MUSK_PUBLIC_DEMO`; tests de `app/auth.py` (401 por defecto) | Implementado |
 | Cabeceras reenviadas | `X-Forwarded-For` solo se acepta desde la red interna | `FORWARDED_ALLOW_IPS` en `docker-compose.yml` y test de confianza | Implementado |
 | Secretos | Ningún secreto en el repositorio, en la imagen ni en los logs | Revisión del diff y `.gitignore`; variables de entorno en Compose | Implementado (clave del LLM en el entorno del servidor) |
 | Salida del agente | Ninguna respuesta con importes, promesas de empleo, promociones ni temario no aprobado | `guard_reply` y tests de `app/rules.py` | Implementado |
@@ -57,7 +57,7 @@ para un producto en producción abierta.
 |---|---|---|---|
 | Inventario de datos personales | Teléfono del lead y texto de la conversación, documentados | `docs/operacion/reset-datos.md` | Documentado |
 | Base legal y transparencia | Definida por MUSK antes del lote real | Decisión del cliente | **Pendiente (bloqueante)** |
-| Retención y borrado | Plazo definido y procedimiento de supresión | Requiere decisión y procedimiento técnico | **Pendiente (bloqueante)** |
+| Retención y borrado | Plazo configurable y procedimiento de supresión | `app/retention.py`; `uv run pytest -q tests/test_retention.py`; `docs/operacion/retencion-y-borrado.md` | Implementado; el plazo (90 días por defecto) sigue pendiente de firma |
 | Derechos de acceso y portabilidad | Exportación por lead | No implementado | **Pendiente** |
 | Datos en simulación | Sin datos personales reales | Regla del proyecto en `AGENTS.md` | Cumplido |
 
@@ -102,6 +102,8 @@ sería complejidad sin uso.
 - `uv run python -m app.pilot_gate` sin fallos: ninguna condición bloqueante del
   piloto está abierta.
 - `curl -s http://localhost:4173/health` devuelve `{"status":"ok"}`.
-- Los cuatro puntos marcados como bloqueantes (base legal, retención, backup y
-  copia probada) siguen abiertos hasta que MUSK y Script9 los cierren; el
-  documento no los da por hechos.
+- Los puntos todavía abiertos (base legal y transparencia, backup y restauración
+  probada, cifrado en reposo, DPA del proveedor del LLM, cuentas por operador)
+  siguen abiertos hasta que MUSK y Script9 los cierren. La retención y el borrado
+  están implementados con plazo configurable, pero el plazo definitivo sigue
+  pendiente de firma.

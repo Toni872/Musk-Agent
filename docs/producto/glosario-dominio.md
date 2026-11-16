@@ -65,7 +65,7 @@ Dos reglas de uso:
 | Solicitud de llamada | El lead pide o acepta una llamada | `call_accepted` | lead caliente |
 | Llamada realizada | La llamada ocurrió según el comercial. Se registra aparte de la solicitud | — | conversión |
 | Denominador y periodo | Cada métrica se informa sobre el total del lote y el rango de fechas. Sin ellos, el porcentaje no significa nada | — | tasa suelta |
-| Informe PDF | Documento descargable con la conversación, los registros y la derivación | `/sessions/{id}/pdf`, `/report.pdf` | export, acta |
+| Informe PDF | Documento descargable con la conversación, los registros y la derivación | `/session/pdf` (cabecera `X-Session-Id`), `/report.pdf` | export, acta |
 
 ## Proceso de proyecto
 

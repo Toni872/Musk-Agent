@@ -16,11 +16,15 @@ La persistencia vive en dos tablas de `app/db.py`:
 |---|---|---|
 | `conversation` | `id`, `lead_id`, `contact`, `bucket`, `loss_reason`, `is_stopped`, `handoff_fired`, `handoff_reason`, `handoff_summary`, `created_at` | `contact` es un teléfono: dato personal |
 | `message` | `conversation_id`, `role`, `content`, `action`, `intent`, `rule_violations`, `registered_doubt`, `created_at` | `content` es texto libre del lead: puede contener datos personales |
+| `agent_session` | `session_id`, `state` (JSON con historial, lead, dudas y registros), `updated_at` | Repite el lead y el texto de la conversación |
 
 Se guarda un registro por turno para poder medir si WhatsApp reactiva leads. No
 se guardan credenciales, tokens ni datos de pago. Los logs estructurados
 registran latencia, intentos, tokens y coste del LLM, nunca el texto de la
 conversación (`app/agent.py`, evento `llm_call`).
+
+Cuánto tiempo se conserva cada fila y cómo se borra —por antigüedad o por lead—
+está en `docs/operacion/retencion-y-borrado.md`.
 
 ## Dónde vive el fichero
 
@@ -94,12 +98,12 @@ no están resueltos:
 | Requisito | Estado | Por qué |
 |---|---|---|
 | Migraciones versionadas | Pendiente | `create_all` no altera tablas existentes. Hace falta decidir entre Alembic o SQL versionado antes del primer cambio de esquema con datos reales |
-| Copia de seguridad automática | Pendiente | Sin backup no hay recuperación; el volumen es el único soporte |
-| Restauración probada | Pendiente | Un backup sin prueba de restauración no es un backup |
-| Retención y borrado | Pendiente | Qué se conserva, cuánto y cómo se atiende una supresión (`TODO(decisión)` abierto en `AGENTS.md`) |
+| Copia de seguridad automática | Parcial (B4) | `app/backup.py` crea la copia; la cadencia automática (cron) y el destino siguen `TODO(decisión)` |
+| Restauración probada | Hecho (B4) | `tests/test_backup.py` prueba el ida y vuelta completo |
+| Retención y borrado | Hecho (B1) | `app/retention.py` y `docs/operacion/retencion-y-borrado.md`: barrido por antigüedad y supresión por lead; el plazo (`MUSK_RETENTION_DAYS`) sigue pendiente de firma |
 | Exportación por lead | Pendiente | Cubre el derecho de acceso y portabilidad |
 | Base legal y transparencia | Pendiente | Decisión de MUSK, no técnica |
-| Cifrado en reposo | Pendiente | Depende del proveedor de infraestructura |
+| Cifrado en reposo | Hecho (B5) | Copias cifradas con `MUSK_ENCRYPTION_KEY`; el disco del host se cifra al desplegar (LUKS/BitLocker) |
 
 El detalle operativo de canal, avisos y derivación está en
 `docs/operacion/checklist-canal-real.md`; este documento cubre solo los datos.
