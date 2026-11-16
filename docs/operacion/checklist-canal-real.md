@@ -14,7 +14,8 @@ falta para la demo, pero todo esto hay que cerrarlo antes del primer envío real
 reglas duras de `AGENTS.md` y con lo que este repositorio ya implementa.
 
 Relacionado: `AGENTS.md`, `docs/producto/musk-mvp-spec.md`, `docs/cliente/pedido-nicolas.md`,
-`docs/operacion/decisiones-operativas-nicolas.md`.
+`docs/operacion/decisiones-operativas-nicolas.md`,
+`docs/operacion/canal-whatsapp-opciones.md`.
 
 ## Resumen
 
