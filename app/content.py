@@ -107,8 +107,8 @@ APPROVED_CONTENT: ApprovedContent = ApprovedContent(
     ),
     methodology="Clases en directo, tutorías y proyectos guiados, con acompañamiento durante todo el programa.",
     company_presentation="Escuela Musk es la escuela de formación tecnológica que imparte esta formación, con un método práctico y acompañado.",
-    price_reply="El precio prefiero que te lo explique una persona. Sí hay opciones de financiación y dos años flexibles para completarla. Si quieres, te paso con el equipo y te lo cuenta en una llamada.",
-    financing_reply="Sí, hay opciones de financiación. Tienes dos años para completar la formación con flexibilidad. El equipo puede explicarte las opciones en una llamada.",
+    price_reply="Ese detalle prefiero que te lo explique una persona del equipo. Sí hay opciones de financiación y puedes completarla en dos años con flexibilidad.",
+    financing_reply="Sí, hay opciones de financiación y puedes completarla en dos años con flexibilidad.",
     # Simulated notification destination only; no WhatsApp message is sent.
     handoff_recipient="Laura",
     # Same specific-to-general order as before: findApprovedAnswer() returns the
@@ -316,5 +316,5 @@ APPROVED_CONTENT: ApprovedContent = ApprovedContent(
     kb=KB_PASSAGES,
     # The lead already interacted with MUSK, so the opening acknowledges that
     # ("retomo el contacto") instead of pretending this is a cold message.
-    initial_message="Hola, soy el asistente de Escuela Musk. Te escribo sobre la formación, pero sin prisa: si ahora no es buen momento, me lo dices y hablamos otro día. ¿Cómo llevas la semana?",
+    initial_message="Hola, soy el asistente de Escuela Musk. Te escribo por la formación, sin prisa: si no es buen momento, me lo dices y lo vemos otro día. ¿Cómo te va?",
 )

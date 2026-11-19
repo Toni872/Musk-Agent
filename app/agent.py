@@ -121,11 +121,9 @@ _HISTORY_WINDOW = 20
 _RAG_TOP_K = 4
 
 # A safe, always-approved bridge for when the model produced nothing usable and
-# the lead did not actually ask a question (e.g. "sí, cuéntame más").
-_GENERIC_BRIDGE = (
-    "Te lo cuento con gusto. ¿Prefieres que siga contándote por aquí o que te lo "
-    "explique una persona en una llamada para que te quede todo claro?"
-)
+# the lead did not actually ask a question (e.g. "sí, cuéntame más"). It keeps
+# the conversation moving with a neutral follow-up, without pushing the call.
+_GENERIC_BRIDGE = "Te lo cuento con gusto. ¿Qué te gustaría saber ahora?"
 
 # Business directive (Miguel, 30/10/2026): the agent converses and, when there is
 # real interest, drives the lead to a call with the team. It must NOT push the
@@ -135,18 +133,18 @@ _GENERIC_BRIDGE = (
 # lead asks for the catalogue; otherwise it closes with a neutral follow-up
 # question so the conversation keeps moving.
 _CALL_QUESTIONS = (
-    "¿Quieres que te lo explique una persona en una llamada?",
-    "¿Te va bien que te llamen y te lo cuenten con calma?",
-    "¿Prefieres una llamada para que te lo expliquen todo?",
-    "¿Te paso con el equipo y lo habláis en una llamada?",
-    "¿Quieres que te llame alguien del equipo y te lo cuente con detalle?",
-    "¿Te viene bien una llamada para hablarlo sin prisa?",
+    "¿Quieres que te lo explique una persona del equipo en una llamada?",
+    "¿Te viene bien que te llamen y te lo cuenten con calma?",
+    "¿Prefieres hablarlo en una llamada con el equipo?",
+    "¿Te va bien que te llame una persona del equipo para contártelo?",
+    "¿Quieres que una persona del equipo te lo explique en una llamada?",
+    "¿Te viene bien una llamada para verlo con tranquilidad?",
 )
 _FOLLOW_UP_QUESTIONS = (
-    "¿Hay algo más que te gustaría saber?",
-    "¿Quieres que te cuente algo más sobre la formación?",
-    "¿Qué otra cosa te apetece saber?",
-    "¿Hay algo con lo que todavía tengas dudas?",
+    "¿Qué te gustaría saber ahora?",
+    "¿Hay algo más que quieras saber sobre la formación?",
+    "¿Sobre qué parte te gustaría que te cuente más?",
+    "¿Qué más te gustaría saber para verlo más claro?",
 )
 _CALL_QUESTION = _CALL_QUESTIONS[0]
 
@@ -158,7 +156,7 @@ _CALL_INTENT = re.compile(
     r"plazas?|reservar|me interes(?:a|aria)|quiero (?:hacer|estudiar|apuntarme|empezar))\b"
 )
 # Turns without a call invitation before the backstop offers one anyway.
-_CALL_CADENCE_TURNS = 2
+_CALL_CADENCE_TURNS = 3
 
 # The list of programmes is closed and approved, so it can be given without the
 # model. It is the answer used when the provider fails or its output is rejected
@@ -589,6 +587,9 @@ class MuskAgent:
                 else self._next_follow_up()
             )
             reply = f"{best} {closing}"
+        self._call_proposed_last_turn = self._proposes_call(reply)
+        if self._call_proposed_last_turn:
+            self._call_proposal_count += 1
         self._history.append(("assistant", reply))
         self._push("reply", "conversation", reply)
         return TurnResult(
@@ -604,6 +605,44 @@ class MuskAgent:
     def _catalogue_reply(self) -> str:
         self._metrics.catalogue_fallbacks += 1
         return f"{_CATALOGUE_ANSWER} {self._next_call_question()}"
+
+    def _is_price_question(self, message: str) -> bool:
+        folded = normalize_es(message)
+        return bool(
+            re.search(
+                r"\b(precio|precios|cuesta|cuestan|cuanto cuesta|cuanto vale|"
+                r"coste|costar|costes|importe|importes|tarifa|tarifas|vale|valen|"
+                r"caro|barato|carisimo|euros?|presupuesto|dinero)\b",
+                folded,
+            )
+            or re.search(r"\bcuanto\b.*\b(cuesta|cuestan|vale|valen|cobra|cobran)\b", folded)
+        )
+
+    def _is_financing_question(self, message: str) -> bool:
+        folded = normalize_es(message)
+        if re.search(
+            r"\b(beca|becas|descuento|descuentos|promocion|promociones|subvencion|"
+            r"subvenciones|gratis|gratuita|gratuito)\b",
+            folded,
+        ):
+            return False
+        return bool(
+            re.search(
+                r"\b(financia\w*|cuota\w*|plazo\w*|mensualidad\w*|interes\w*|"
+                r"aplaz\w*|finanaciar)\b",
+                folded,
+            )
+            or re.search(r"\bpagar a plazos\b", folded)
+            or re.search(r"\bpago a plazos\b", folded)
+            or re.search(r"\b(como|se puede|puedo)\b.*\bpagar\b", folded)
+            or re.search(r"\bformas? de pago\b", folded)
+        )
+
+    def _approved_call_reply(self, base: str) -> str:
+        base = re.sub(r"\s+", " ", base).strip()
+        if not base:
+            return self._next_call_question()
+        return f"{base} {self._next_call_question()}"
 
     def _record_llm_usage(self, result: LLMResult) -> None:
         """Accumulate operational LLM metrics; the lead never sees any of this."""
@@ -629,6 +668,10 @@ class MuskAgent:
     def _fallback_reply(self, message: str) -> str:
         if self._is_catalogue_question(message):
             return self._catalogue_reply()
+        if self._is_price_question(message) and self._content.price_reply:
+            return self._approved_call_reply(self._content.price_reply)
+        if self._is_financing_question(message) and self._content.financing_reply:
+            return self._approved_call_reply(self._content.financing_reply)
         if self._looks_like_question(message):
             return self._register_doubt(message)
         return _GENERIC_BRIDGE
@@ -681,6 +724,10 @@ class MuskAgent:
             if self._is_catalogue_question(message)
             else self._register_doubt(message)
         )
+        self._call_proposed_last_turn = self._proposes_call(reply)
+        if self._call_proposed_last_turn:
+            self._call_proposal_count += 1
+        self._history.append(("assistant", reply))
         self._push("reply", "conversation", reply)
         return TurnResult(
             intent="conversation",
@@ -777,22 +824,23 @@ class MuskAgent:
         faq = "\n".join(f"- {entry.answer}" for entry in self._content.faq)
         return "\n".join(
             [
-                "Eres el asistente de WhatsApp de Escuela Musk, una escuela online de programación, videojuegos e inteligencia artificial. Hablas en español de España, con tuteo, de forma cercana, cálida y profesional, como una persona que escucha de verdad.",
+                "Eres el asistente de WhatsApp de Escuela Musk, una escuela online de programación, videojuegos e inteligencia artificial. Hablas en español de España, con tuteo, de forma cercana, clara y respetuosa, como una persona que escucha de verdad.",
                 "",
                 "Tu objetivo es ayudar a la persona a decidir con calma y, cuando haya interés real, acercarla a una llamada con el equipo: ahí es donde le explican el detalle (precio, financiación, calendario) que tú no puedes dar. Nunca vendas ni presiones.",
                 "",
-                "CÓMO CONVERSAR (reglas de comportamiento, muy importantes):",
-                "0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa y en una o dos frases. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo; NO describas cada programa salvo que te pida uno concreto. La empatía va después, en una frase, no en lugar de la respuesta.",
-                "1. Sigue el hilo. Usa lo que la persona ya te ha contado: su situación, su tiempo, sus miedos, lo que busca. No repitas preguntas ya respondidas. No saltes de tema sin enlazar con lo anterior.",
-                "2. Suena como una persona, no como un guion. Si te ha dado su nombre, úsalo con naturalidad. Recoge con tus propias palabras lo que le preocupa en lugar de halagar («entiendo que es una decisión importante» sí, «¡buena pregunta!» no). Varía la longitud de las frases y huye de las frases hechas de bot: nada de «buena pregunta», «excelente pregunta» ni «me alegra que preguntes».",
-                "3. Mensajes cortos, como de WhatsApp, en texto plano. Máximo dos o tres frases en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.",
-                "4. Cuando la persona muestre interés real en avanzar (pregunta por precio, financiación, fechas, duración, certificación o cómo apuntarse) o cuando lleve varios mensajes pidiendo información, recomiéndale una llamada con el equipo y termina con UNA sola pregunta (un solo signo de interrogación, nunca dos) orientada a esa llamada. Varía la formulación, no repitas la misma frase. En los demás mensajes contesta con naturalidad y no fuerces la llamada: si cierras con una pregunta, que sea corta y sobre lo que necesita.",
-                "5. Lleva la conversación hacia la llamada cuando encaje, sin repetirla en cada mensaje. Si la pregunta es trivial o no tiene que ver con el curso (la dirección, el horario de oficina, las redes), contéstala en una frase SOLO con información aprobada y reconduce al curso que le interesa; si el dato no está aprobado, dilo con naturalidad y ofrece confirmarlo por teléfono, sin inventar una dirección ni datos de contacto.",
-                "6. No mientas. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece confirmarlo con el equipo.",
-                "7. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.",
+                "VOZ Y CONTRATO DE SALIDA (muy importante):",
+                "0. Responde PRIMERO a lo que la persona acaba de preguntar, de forma directa. Si pregunta qué formación o qué cursos ofrecemos, nómbralos todos en una sola frase con el catálogo de abajo; NO describas cada programa salvo que te pida uno concreto.",
+                "1. Brevedad: una a tres frases cortas, en texto plano y en un solo párrafo. Nada de negritas (**), asteriscos, viñetas, listas numeradas ni encabezados. Nada de folletos.",
+                "2. Termina con UNA sola pregunta (un solo signo de interrogación, nunca dos). Si hay interés real en avanzar (precio, financiación, fechas, duración, certificación o cómo apuntarse) o ya lleváis varios mensajes, la pregunta puede invitar con naturalidad a una llamada con el equipo, variando la formulación. Si no hay ese interés, cierra con una pregunta breve y concreta sobre lo que necesita, sin empujar la llamada.",
+                "3. Sigue el hilo: usa lo que la persona ya te ha contado (situación, tiempo, dudas, lo que busca). No repitas preguntas ya respondidas y no saltes de tema sin enlazar con lo anterior.",
+                "4. Tono cercano y empático, sin presión. Si algo es confuso, puedes reconocerlo en una frase y responder con lo aprobado. Evita muletillas de bot: nada de «buena pregunta», «excelente pregunta» ni «me alegra que preguntes».",
+                "5. Si el mensaje es ambiguo, haz una sola pregunta dirigida para aclararlo (acota entre opciones), en lugar de pedir «cuéntame más» sin concreción.",
+                "6. Si algo no está en la información aprobada que tienes abajo, no lo inventes: dilo con naturalidad y ofrece la alternativa segura (contar lo que sí sabes o confirmarlo con una persona del equipo en una llamada).",
+                "7. Si la pregunta es trivial o no tiene que ver con el curso (dirección, horario de oficina, redes), contéstala en una frase SOLO con información aprobada y reconduce con amabilidad al curso que le interesa; si no hay información aprobada, ofrece confirmarlo en una llamada.",
+                "8. No copies ni repitas frases de los pasajes si no responden a lo que preguntó. Los pasajes son tu fuente, no un guion que haya que recitar.",
                 "",
                 "REGLAS DE SEGURIDAD (nunca las incumplas, bajo ninguna circunstancia):",
-                "- NUNCA des precios, importes, cifras de dinero, cuotas, intereses ni condiciones de pago (tampoco porcentajes de interés o de financiación). Ante una pregunta de precio o pago: dile que prefieres que se lo explique una persona, que SÍ hay opciones de financiación y dos años flexibles para completarla, y propón la llamada.",
+                "- NUNCA des precios, importes, cifras de dinero, cuotas, intereses ni condiciones de pago (tampoco porcentajes de interés o de financiación). Ante una pregunta de precio o pago: dile que prefieres que se lo explique una persona del equipo, que SÍ hay opciones de financiación y dos años flexibles para completarla, y propón la llamada.",
                 "- NUNCA prometas empleo, garantías, becas ni promociones que no estén en la información aprobada. Puedes decir con honestidad que no se garantiza un puesto de trabajo.",
                 "- NUNCA envíes el temario detallado (módulo a módulo). Sí puedes hablar del contenido general, las habilidades y las salidas.",
                 "- Si la persona pide parar, deja de insistir y despídete con respeto.",
@@ -821,7 +869,7 @@ class MuskAgent:
                 "Pasajes de la base de conocimiento relevantes a lo que acaba de preguntar:",
                 passages,
                 "",
-                "Ahora escribe TU respuesta: contesta primero a lo que preguntó, en texto plano y breve (dos o tres frases), y termina con una sola pregunta. Si la persona muestra interés en avanzar (precio, financiación, fechas, certificación, apuntarse), esa pregunta será para agendar una llamada con el equipo; si no, cierra con una pregunta breve y natural sobre lo que necesita, sin empujar la llamada. Si la pregunta es trivial (dirección, horario, redes), contéstala en una frase con información aprobada y reconduce al curso que le interesa.",
+                "Ahora escribe TU respuesta: responde primero a lo que preguntó, en texto plano y breve (una a tres frases), y termina con una sola pregunta. Si la persona muestra interés en avanzar (precio, financiación, fechas, certificación, apuntarse), que esa pregunta invite con naturalidad a una llamada con el equipo; si no, cierra con una pregunta breve y concreta sobre lo que necesita, sin empujar la llamada. Si falta información aprobada, dilo con naturalidad y ofrece la alternativa segura sin inventar. Si el mensaje es ambiguo, aclara con una sola pregunta dirigida.",
             ]
         )
 

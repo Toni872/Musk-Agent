@@ -22,7 +22,8 @@ docs/
 | `producto/musk-catalogo-cursos-propuesta.md` | Propuesta de catálogo de cursos (fase 2) |
 | `producto/matriz-validacion-cursos.md` | Validación de contenido por curso; origen de `app/content.py` |
 | `producto/escuela-musk-base-conocimiento.md` | Base de conocimiento de la escuela; fuente de los 35 pasajes de `app/kb.py` |
-| `producto/glosario-dominio.md` | Vocabulario canónico: negocio, motor conversacional, métricas y proceso |
+| `producto/guia-voz-agente.md` | Gu�a de voz y contrato de salida del agente (borrador, pendiente de firma de MUSK) |
+| `producto/glosario-dominio.md` | Vocabulario can�nico: negocio, motor conversacional, m�tricas y proceso |
 | `producto/nfr-piloto.md` | Requisitos no funcionales del piloto: rendimiento, seguridad, privacidad, coste |
 
 ## cliente/

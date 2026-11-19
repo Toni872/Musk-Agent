@@ -162,15 +162,15 @@ async def test_model_receives_the_retrieved_passage() -> None:
 
 
 async def test_system_prompt_carries_safety_and_call_steering() -> None:
-    provider = MockProvider("Claro. ¿Te va bien que te contacte el equipo?")
+    provider = MockProvider("Claro. ¿Te va bien que te llame el equipo?")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     await agent.run_turn("hola")
 
     system = provider.calls[0].system if provider.calls else ""
     assert re.search(r"NUNCA des precios", system, re.IGNORECASE)
     assert re.search(r"UNA sola pregunta", system, re.IGNORECASE)
-    assert re.search(r"lleva la conversación hacia la llamada", system, re.IGNORECASE)
-    assert re.search(r"agendar una llamada", system, re.IGNORECASE)
+    assert re.search(r"acercarla a una llamada", system, re.IGNORECASE)
+    assert re.search(r"llamada con el equipo", system, re.IGNORECASE)
 
 
 async def test_model_reads_the_thread() -> None:
@@ -375,7 +375,7 @@ async def test_prompt_carries_the_contextual_call_rule() -> None:
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     await agent.run_turn("¿qué tal?")
 
-    assert re.search(r"no fuerces la llamada", provider.calls[0].system, re.IGNORECASE)
+    assert re.search(r"sin empujar la llamada", provider.calls[0].system, re.IGNORECASE)
 
 
 async def test_prompt_asks_for_a_natural_human_tone() -> None:
@@ -384,9 +384,9 @@ async def test_prompt_asks_for_a_natural_human_tone() -> None:
     await agent.run_turn("¿qué tal?")
 
     system = provider.calls[0].system
-    assert re.search(r"su nombre", system)
-    assert re.search(r"frases hechas", system, re.IGNORECASE)
-    assert re.search(r"longitud de las frases", system, re.IGNORECASE)
+    assert re.search(r"sigue el hilo", system, re.IGNORECASE)
+    assert re.search(r"empátic", system, re.IGNORECASE)
+    assert re.search(r"muletillas de bot", system, re.IGNORECASE)
     assert re.search(r"buena pregunta", system, re.IGNORECASE)  # as a forbidden example
 
 
@@ -401,10 +401,13 @@ async def test_holds_the_call_until_there_is_real_interest() -> None:
 
     first = await agent.run_turn("¿qué se aprende en python?")
     second = await agent.run_turn("¿y en front end?")
+    third = await agent.run_turn("¿y cómo es la metodología?")
 
     assert "llamada" not in first.reply
     assert first.reply.count("?") == 1
-    assert re.search(r"llam", second.reply)  # covers llamada/llamen/llame/llamar
+    assert "llamada" not in second.reply
+    assert second.reply.count("?") == 1
+    assert re.search(r"llam", third.reply)  # covers llamada/llamen/llame/llamar
 
 
 async def test_proposes_the_call_as_soon_as_the_lead_asks_about_financing() -> None:

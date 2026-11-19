@@ -315,19 +315,21 @@ def guard_reply(reply: str) -> GuardResult:
 # ---------------------------------------------------------------------------
 # Approved reply templates (lead-facing, Spanish es-ES, tuteo). Kept minimal:
 # only the deterministic closings the engine sends outside the LLM.
+# Borrador alineado con la guía de voz; pendiente de revisión/firma de MUSK
+# (regla 11) antes de considerarse copy aprobado.
 # ---------------------------------------------------------------------------
 
 REPLY_TEMPLATES: dict[str, str] = {
     # Rule 7: stop acknowledgement. The "no continuar" label is registered
     # internally (registered_no_continuar), never told to the lead.
-    "stop": "Perfecto, respeto tu decisión y no te vuelvo a escribir. Gracias por tu tiempo.",
+    "stop": "De acuerdo, respeto tu decisión y no te escribo más. Gracias por tu tiempo.",
     # Rule 9 (confirmed trigger: lead asks for a person).
-    "humanRequest": "Claro, mejor que hables con una persona. Te paso con el equipo. ¿Me confirmas tu teléfono o el mejor momento para que te contacten?",
+    "humanRequest": "Claro, te pongo en contacto con una persona del equipo. ¿Me dejas tu teléfono o me dices qué momento te viene mejor para que te contacten?",
     # Rule 9 (confirmed trigger: lead accepts/agrees to a call).
-    "callAccepted": "Perfecto, el equipo se pondrá en contacto contigo para concretar la llamada. ¡Gracias!",
+    "callAccepted": "Genial, una persona del equipo se pondrá en contacto contigo para concretar la llamada. Gracias.",
     # Safety fallback when the model produced nothing usable: register the doubt
     # and propose a human (rule 5), never invent an answer.
-    "doubt": "Prefiero que esto te lo confirme una persona del equipo para no darte algo a medias. ¿Te viene bien que te contacten?",
+    "doubt": "Prefiero que te lo confirme una persona del equipo para darte una respuesta segura. ¿Te viene bien que te contacten?",
 }
 
 

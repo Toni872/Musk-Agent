@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi.testclient import TestClient
 
 from app.auth import load_basic_auth_from_env
@@ -157,15 +159,20 @@ def test_chat_answers_a_kb_question() -> None:
     assert "llamada" in body["reply"]
 
 
-def test_chat_price_question_registers_a_doubt() -> None:
+def test_chat_price_question_returns_approved_reply_without_doubt() -> None:
     with _client() as client:
         session_id = _open_session(client)
         response = client.post(
             "/chat", json={"session_id": session_id, "message": "¿cuánto cuesta?"}
         )
     body = response.json()
-    assert body["reply"] == build_reply("doubt")
-    assert body["registered_doubts"] == ["¿cuánto cuesta?"]
+    assert body["reply"] != build_reply("doubt")
+    assert "persona del equipo" in body["reply"]
+    assert "opciones de financiación" in body["reply"]
+    assert "dos años" in body["reply"]
+    assert re.search(r"llam", body["reply"])
+    assert body["reply"].count("?") == 1
+    assert body["registered_doubts"] == []
 
 
 def test_chat_stop_marks_no_continuar() -> None:
@@ -199,7 +206,7 @@ def test_session_status_reports_supervision_state() -> None:
         response = client.get("/session", headers=_headers(session_id))
     assert response.status_code == 200
     body = response.json()
-    assert body["doubts"] == ["¿cuánto cuesta?"]
+    assert body["doubts"] == []
     assert body["records_count"] > 0
 
 
@@ -214,7 +221,7 @@ def test_session_state_after_turn_reports_records_and_doubts() -> None:
         session_id = _open_session(client)
         client.post("/chat", json={"session_id": session_id, "message": "¿cuánto cuesta?"})
         body = client.get("/session/state", headers=_headers(session_id)).json()
-    assert body["doubts"] == ["¿cuánto cuesta?"]
+    assert body["doubts"] == []
     assert len(body["records"]) > 0
     assert body["turn_count"] >= 1
     assert {record["kind"] for record in body["records"]}
@@ -244,7 +251,7 @@ def test_session_status_reports_metrics() -> None:
         client.post("/chat", json={"session_id": session_id, "message": "¿cuánto cuesta?"})
         body = client.get("/session", headers=_headers(session_id)).json()
     assert body["metrics"]["turns"] >= 1
-    assert body["metrics"]["doubts_registered"] >= 1
+    assert body["metrics"]["doubts_registered"] == 0
 
 
 def test_chat_persists_when_database_configured(tmp_path) -> None:
@@ -282,4 +289,4 @@ def test_session_state_survives_a_new_app_instance(tmp_path) -> None:
         body = second.get("/session/state", headers=_headers(session_id)).json()
 
     assert body["turn_count"] == 1
-    assert body["doubts"]
+    assert body["doubts"] == []
