@@ -41,7 +41,6 @@ root.innerHTML = `
     <nav class="nav" aria-label="Secciones del simulador">
       <a class="nav__link" href="#simulador" data-scroll="simulador">Simulador</a>
       <a class="nav__link" href="#estado" data-scroll="estado">Estado</a>
-      <a class="nav__link" href="#registros" data-scroll="registros">Registros</a>
       <a class="nav__link" href="#contenido" data-scroll="contenido">Contenido</a>
     </nav>
   </header>
@@ -95,11 +94,6 @@ root.innerHTML = `
           <h3 class="panel__subtitle">Contenido</h3>
           <p class="banner" id="banner"></p>
         </div>
-
-        <div class="panel__block" id="registros">
-          <h3 class="panel__subtitle">Registros</h3>
-          <ol class="records" id="records"></ol>
-        </div>
       </aside>
     </div>
   </main>
@@ -125,7 +119,6 @@ const composer = getElement("composer");
 const input = getElement("input");
 const sendButton = getElement("send");
 const summaryEl = getElement("summary");
-const recordsEl = getElement("records");
 
 const state = {
   sessionId: null,
@@ -213,16 +206,8 @@ function render() {
   }
 
   const stopped = state.stopped ? "sí" : "no";
-  summaryEl.textContent = `Detenido: ${stopped} · Registros: ${state.records.length} · Turnos: ${state.turnCount} · Dudas: ${state.doubts.length}`;
-
-  if (state.records.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "records__empty";
-    empty.textContent = "Sin registros todavía.";
-    recordsEl.replaceChildren(empty);
-  } else {
-    recordsEl.replaceChildren(...state.records.map(renderRecord));
-  }
+  const handoff = state.handoff ? "sí" : "no";
+  summaryEl.textContent = `Detenido: ${stopped} · Aviso generado: ${handoff} · Turnos: ${state.turnCount} · Dudas: ${state.doubts.length}`;
 
   messagesEl.scrollTop = messagesEl.scrollHeight;
   applyBusy();
@@ -244,32 +229,7 @@ function renderMessage(message) {
   return item;
 }
 
-function formatRecordTime(timestamp) {
-  if (!timestamp) return "";
-  try {
-    const date = new Date(timestamp);
-    return `[${date.toLocaleString("es-ES")}] `;
-  } catch {
-    return "";
-  }
-}
-
-function renderRecord(record) {
-  const item = document.createElement("li");
-
-  const kind = document.createElement("span");
-  kind.className = "record__kind";
-  kind.textContent = record.kind;
-
-  const detail = document.createElement("span");
-  detail.className = "record__detail";
-  const intent = record.intent ? `(${record.intent}) ` : "";
-  const time = formatRecordTime(record.timestamp);
-  detail.textContent = `${time}${intent}${record.detail}`;
-
-  item.append(kind, detail);
-  return item;
-}
+// Diagnostic records are kept for exports/reports but not shown in the chat UI.
 
 function applyBusy() {
   input.disabled = busy;

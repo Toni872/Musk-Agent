@@ -101,8 +101,10 @@ def test_encrypted_backup_hides_the_plaintext(tmp_path: Path) -> None:
 
     backup = create_backup(db_path, backups, key=key)
     assert backup.suffix == ".enc"
-    # The raw bytes must not contain the plaintext lead name.
-    assert b"ana" not in backup.read_bytes()
+    # The raw bytes must not expose the plaintext SQLite snapshot.
+    raw = backup.read_bytes()
+    assert b"SQLite format 3" not in raw
+    assert b"CREATE TABLE lead" not in raw
     assert verify_backup(backup, key=key) is True
 
 

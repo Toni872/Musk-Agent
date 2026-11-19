@@ -161,16 +161,16 @@ async def test_model_receives_the_retrieved_passage() -> None:
     assert any(record.kind == "kb" for record in agent.records)
 
 
-async def test_system_prompt_carries_safety_and_call_steering() -> None:
-    provider = MockProvider("Claro. ¿Te va bien que te llame el equipo?")
+async def test_system_prompt_carries_safety_and_human_call_policy() -> None:
+    provider = MockProvider("¡Hola! ¿Qué tal? ¿En qué te puedo ayudar?")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     await agent.run_turn("hola")
 
     system = provider.calls[0].system if provider.calls else ""
     assert re.search(r"NUNCA des precios", system, re.IGNORECASE)
     assert re.search(r"UNA sola pregunta", system, re.IGNORECASE)
-    assert re.search(r"acercarla a una llamada", system, re.IGNORECASE)
-    assert re.search(r"llamada con el equipo", system, re.IGNORECASE)
+    assert re.search(r"persona del equipo|llamada", system, re.IGNORECASE)
+    assert re.search(r"sin presi[oó]n|no insistas|no propongas", system, re.IGNORECASE)
 
 
 async def test_model_reads_the_thread() -> None:
@@ -188,22 +188,25 @@ async def test_model_reads_the_thread() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_deterministic_answers_a_kb_question_with_a_call_question() -> None:
+async def test_deterministic_answers_a_kb_question_with_a_follow_up() -> None:
     agent = MuskAgent(content=APPROVED_CONTENT, provider=None, lead=LEAD)
     result = await agent.run_turn("¿me dan certificado de la UE?")
 
     assert result.intent == "conversation"
     assert _passage("kb-certificacion-arp") in result.reply
     assert result.reply.rstrip().endswith("?")
+    assert result.reply.count("?") == 1
+    assert agent._proposes_call(result.reply) is False
     assert result.registered_doubts == ()
 
 
-async def test_deterministic_steers_to_the_call_not_an_interest_question() -> None:
+async def test_deterministic_keeps_the_conversation_open_without_pushing_call() -> None:
     agent = MuskAgent(content=APPROVED_CONTENT, provider=None, lead=LEAD)
     result = await agent.run_turn("¿me dan certificado de la UE?")
 
-    assert "llamada" in result.reply
-    assert "te cuente algo más" not in result.reply
+    assert agent._proposes_call(result.reply) is False
+    assert result.reply.count("?") == 1
+    assert result.reply.rstrip().endswith("?")
 
 
 async def test_deterministic_registers_a_doubt_when_nothing_answers() -> None:
@@ -256,9 +259,10 @@ async def test_never_ships_chained_questions() -> None:
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     result = await agent.run_turn("¿qué formación tenéis?")
 
-    assert result.reply.count("?") <= 1
-    assert "llamada" in result.reply
+    assert result.reply.count("?") == 1
     assert "Cuál te llama" not in result.reply
+    assert "llamada" not in result.reply
+    assert "Tenemos Python, Front End y Back End" in result.reply
 
 
 async def test_always_gives_the_school_overview_for_a_short_question() -> None:
@@ -306,7 +310,7 @@ async def test_deterministic_never_echoes_a_weakly_matched_passage() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Miguel's rule: after every question, answer and recommend the call
+# Call/question policy: answer first, keep one natural closing question
 # ---------------------------------------------------------------------------
 
 
@@ -321,35 +325,36 @@ async def test_keeps_the_conversation_alive_without_pushing_the_call() -> None:
     assert result.reply.rstrip().endswith("?")
 
 
-async def test_replaces_an_interest_question_with_the_call_question() -> None:
+async def test_replaces_an_extra_question_with_a_follow_up() -> None:
     provider = MockProvider("Tenemos Python y Front End. ¿Cuál te interesa más?")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
     result = await agent.run_turn("¿qué formación tenéis?")
 
     assert "Tenemos Python y Front End" in result.reply
-    assert "Cuál te interesa" not in result.reply
-    assert re.search(r"llamada", result.reply)
     assert result.reply.count("?") == 1
+    assert agent._proposes_call(result.reply) is False
 
 
-async def test_leaves_a_reply_that_already_proposes_the_call_untouched() -> None:
+async def test_keeps_call_question_for_financing_interest() -> None:
     reply = "Sí, hay opciones de financiación y dos años flexibles. ¿Te va bien que te llamemos?"
     agent = MuskAgent(content=APPROVED_CONTENT, provider=MockProvider(reply), lead=LEAD)
     result = await agent.run_turn("¿hay financiación?")
 
     assert result.reply == reply
+    assert agent._proposes_call(result.reply) is True
 
 
-async def test_rotates_the_call_phrasing_across_consecutive_questions() -> None:
+async def test_keeps_call_for_interest_and_follow_up_for_general_question() -> None:
     agent = MuskAgent(
         content=APPROVED_CONTENT, provider=MockProvider("Te lo cuento con calma."), lead=LEAD
     )
     first = await agent.run_turn("¿cómo se financia?")
     second = await agent.run_turn("¿me dan certificado de la UE?")
 
-    assert first.reply != second.reply
-    assert re.search(r"llam", first.reply)
-    assert re.search(r"llam", second.reply)
+    assert agent._proposes_call(first.reply) is True
+    assert agent._proposes_call(second.reply) is False
+    assert first.reply.count("?") == 1
+    assert second.reply.count("?") == 1
 
 
 async def test_never_invents_an_address_for_an_off_topic_question() -> None:
@@ -362,31 +367,35 @@ async def test_never_invents_an_address_for_an_off_topic_question() -> None:
     assert result.reply.count("?") <= 1
 
 
-async def test_does_not_force_the_call_on_a_plain_statement_from_the_lead() -> None:
+async def test_adds_a_follow_up_to_a_plain_statement_from_the_lead() -> None:
     reply = "Perfecto, lo dejamos así."
     agent = MuskAgent(content=APPROVED_CONTENT, provider=MockProvider(reply), lead=LEAD)
     result = await agent.run_turn("me lo pienso y te digo")
 
-    assert result.reply == reply
+    assert result.reply.startswith(reply)
+    assert result.reply.count("?") == 1
+    assert agent._proposes_call(result.reply) is False
 
 
 async def test_prompt_carries_the_contextual_call_rule() -> None:
-    provider = MockProvider("Claro.")
+    provider = MockProvider("Claro, te cuento.")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
-    await agent.run_turn("¿qué tal?")
+    await agent.run_turn("¿cómo se financia?")
 
-    assert re.search(r"sin empujar la llamada", provider.calls[0].system, re.IGNORECASE)
+    system = provider.calls[0].system
+    assert re.search(r"no propongas hablar con el equipo ni una llamada por defecto", system, re.IGNORECASE)
+    assert re.search(r"inter[eé]s claro en avanzar", system, re.IGNORECASE)
 
 
 async def test_prompt_asks_for_a_natural_human_tone() -> None:
-    provider = MockProvider("Claro.")
+    provider = MockProvider("Claro, te cuento.")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
-    await agent.run_turn("¿qué tal?")
+    await agent.run_turn("¿cómo se financia?")
 
     system = provider.calls[0].system
     assert re.search(r"sigue el hilo", system, re.IGNORECASE)
-    assert re.search(r"empátic", system, re.IGNORECASE)
-    assert re.search(r"muletillas de bot", system, re.IGNORECASE)
+    assert re.search(r"emp[aá]tico y natural", system, re.IGNORECASE)
+    assert re.search(r"sonar rob[oó]tico o comercial", system, re.IGNORECASE)
     assert re.search(r"buena pregunta", system, re.IGNORECASE)  # as a forbidden example
 
 
@@ -395,19 +404,22 @@ async def test_prompt_asks_for_a_natural_human_tone() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_holds_the_call_until_there_is_real_interest() -> None:
+async def test_holds_the_call_until_there_is_real_interest_or_cadence() -> None:
     provider = MockProvider("Python se usa mucho en análisis de datos.")
     agent = MuskAgent(content=APPROVED_CONTENT, provider=provider, lead=LEAD)
 
-    first = await agent.run_turn("¿qué se aprende en python?")
-    second = await agent.run_turn("¿y en front end?")
-    third = await agent.run_turn("¿y cómo es la metodología?")
+    replies = [
+        await agent.run_turn("¿qué se aprende en python?"),
+        await agent.run_turn("¿y en front end?"),
+        await agent.run_turn("¿y cómo es la metodología?"),
+        await agent.run_turn("¿y el máster de videojuegos?"),
+        await agent.run_turn("¿y la ruta de back end?"),
+    ]
 
-    assert "llamada" not in first.reply
-    assert first.reply.count("?") == 1
-    assert "llamada" not in second.reply
-    assert second.reply.count("?") == 1
-    assert re.search(r"llam", third.reply)  # covers llamada/llamen/llame/llamar
+    for turn in replies:
+        assert turn.reply.count("?") == 1
+    assert all(agent._proposes_call(turn.reply) is False for turn in replies[:4])
+    assert any(agent._proposes_call(turn.reply) for turn in replies)
 
 
 async def test_proposes_the_call_as_soon_as_the_lead_asks_about_financing() -> None:
@@ -449,7 +461,8 @@ async def test_answers_the_catalogue_when_the_provider_returns_nothing() -> None
 
     assert "Python" in result.reply
     assert "Full Stack" in result.reply
-    assert re.search(r"llamada", result.reply)
+    assert agent._proposes_call(result.reply) is False
+    assert result.reply.count("?") == 1
     assert result.registered_doubts == ()
     assert agent.doubts == []
 
@@ -459,6 +472,7 @@ async def test_answers_the_catalogue_when_the_provider_throws() -> None:
     result = await agent.run_turn("¿qué cursos tenéis?")
 
     assert "Python" in result.reply
+    assert agent._proposes_call(result.reply) is False
     assert result.rule_violations == ()
     assert agent.doubts == []
 
@@ -473,6 +487,7 @@ async def test_answers_the_catalogue_when_the_reply_is_rejected_by_the_guard() -
 
     assert "Python" in result.reply
     assert "garantiz" not in result.reply
+    assert agent._proposes_call(result.reply) is False
     assert len(result.rule_violations) > 0
     assert agent.doubts == []
 
@@ -488,6 +503,7 @@ async def test_answers_the_catalogue_when_a_rejected_reply_follows_an_info_reque
 
     assert "Python" in result.reply
     assert "Full Stack" in result.reply
+    assert agent._proposes_call(result.reply) is False
     assert len(result.rule_violations) > 0
     assert agent.doubts == []
 
